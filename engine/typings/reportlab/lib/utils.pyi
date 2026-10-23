@@ -1,0 +1,3 @@
+def simpleSplit(
+    text: str | bytes, fontName: str, fontSize: float, maxWidth: float
+) -> list[str]: ...
