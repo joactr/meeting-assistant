@@ -1,0 +1,19 @@
+version = "1.0.0-beta.1"
+product_name = "Meeting Assistant"
+
+# Developer builds work without a publisher identity. Official release checks
+# require user-supplied identity and certificates; no endpoint is invented.
+[publisher]
+repository = "joactr/meeting-assistant"
+bundle_identifier = "io.github.joactr.meeting-assistant"
+support_url = "https://github.com/joactr/meeting-assistant/issues"
+
+[updates]
+enabled = false
+public_key = ""
+catalog_public_key = ""
+
+[oauth]
+google_client_id = ""
+microsoft_client_id = ""
+github_client_id = ""

@@ -1,0 +1,12 @@
+title = "Meeting Assistant source secret scan"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated dependencies/evidence and the exact nonsecret token-estimator algorithm label"
+paths = [
+  '''(^|[\\/])(?:node_modules|target|\.venv|\.tools|\.cache|dist|build|artifacts|__pycache__|\.pytest_cache|\.ruff_cache)(?:[\\/]|$)''',
+]
+regexTarget = "match"
+regexes = ['''token_estimator"\s*:\s*"conservative_utf8_bytes_v1"''']
