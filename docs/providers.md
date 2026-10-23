@@ -32,8 +32,8 @@ From the repository root, with the pinned developer tools on `PATH`, acquire the
 model explicitly and build a fresh worker (existing build output is not overwritten):
 
 ```powershell
-uv run --frozen python -m meeting_assistant.application.inference.catalog_cli fetch whisper-small-multilingual --install-root artifacts/local-workspace/inference --accept-license --accept-destination
-uv run --frozen python workers/build.py whisper --accept-runtime-license --output artifacts/local-builds
+uv run --project engine --frozen python -m meeting_assistant.application.inference.catalog_cli fetch whisper-small-multilingual --install-root artifacts/local-workspace/inference --accept-license --accept-destination
+uv run --project engine --frozen python workers/build.py whisper --accept-runtime-license --output artifacts/local-builds
 $workspace = (Resolve-Path artifacts/local-workspace).Path
 $registry = Join-Path $PWD artifacts/local-workers
 $package = Join-Path $PWD artifacts/local-builds/whisper-1.0.0-beta.1-windows-x86_64/package/meeting-whisper
@@ -44,7 +44,7 @@ explicit native-code/license/destination acceptance below. Use the package path
 printed by the build if its version or target differs from this Windows example.
 
 ```powershell
-uv run --frozen python -m meeting_assistant.application.inference.developer_worker_cli install --package-directory $package --registry $registry --workspace $workspace --model-id whisper-small-multilingual --model-revision 536b0662742c02347bc0e980a01041f333bce120 --accept-native-code --accept-license --accept-destination
+uv run --project engine --frozen python -m meeting_assistant.application.inference.developer_worker_cli install --package-directory $package --registry $registry --workspace $workspace --model-id whisper-small-multilingual --model-revision 536b0662742c02347bc0e980a01041f333bce120 --accept-native-code --accept-license --accept-destination
 $env:MEETING_ASSISTANT_WORKSPACE = $workspace
 $env:MEETING_ASSISTANT_DEVELOPER_WORKER_REGISTRY = $registry
 ```

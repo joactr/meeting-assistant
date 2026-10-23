@@ -63,8 +63,8 @@ permissions, playback, packaging or update behavior on those systems.
 
 ## Development
 
-Required toolchains are pinned in `.python-version`, `.node-version` and
-`rust-toolchain.toml`. Install Python 3.12.10, Node 24.22.1, Rust 1.94.0, uv 0.13.5
+Required toolchains are pinned in `engine/.python-version`,
+`apps/desktop/.node-version` and `rust-toolchain.toml`. Install Python 3.12.10, Node 24.22.1, Rust 1.94.0, uv 0.13.5
 and just 1.59.0. Windows native builds additionally require Visual Studio C++
 build tools and WebView2. Native codec SDK prerequisites are documented in
 [platform setup](docs/platforms.md).

@@ -200,7 +200,7 @@ def main() -> int:
             "file-source-smoke",
             str(folder / "native"),
         )
-        npm("run", "smoke", "--workspace", "apps/desktop")
+        npm("run", "smoke")
     print(
         "Runtime smoke passed. Real hardware/provider/installed-update acceptance remains separate."
     )

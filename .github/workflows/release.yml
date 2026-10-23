@@ -180,8 +180,8 @@ jobs:
               raise SystemExit('Provision catalog signing key and actual artifact-bound runtime review files')
           for catalog in pathlib.Path('artifacts/runtimes').rglob('*catalog.json'):
               audit = pathlib.Path(audits) / (catalog.name + '.review.json')
-              subprocess.run([str(pathlib.Path('.venv/Scripts/python.exe').resolve()), 'workers/finalize.py', str(catalog), '--license-audit', str(audit), '--signing-key', key], check=True)
-          python = str(pathlib.Path('.venv/Scripts/python.exe').resolve())
+              subprocess.run([str(pathlib.Path('engine/.venv/Scripts/python.exe').resolve()), 'workers/finalize.py', str(catalog), '--license-audit', str(audit), '--signing-key', key], check=True)
+          python = str(pathlib.Path('engine/.venv/Scripts/python.exe').resolve())
           subprocess.run([python, 'tooling/release.py', 'manifest'], check=True)
           subprocess.run([python, 'tooling/run.py', 'release-check'], check=True)
           output = pathlib.Path('artifacts/release')

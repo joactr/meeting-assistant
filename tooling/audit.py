@@ -88,7 +88,7 @@ def audit() -> None:
         "dir",
         str(ROOT),
         "--config",
-        str(ROOT / ".gitleaks.toml"),
+        str(ROOT / "tooling" / "gitleaks.toml"),
         "--redact",
         "--no-banner",
         "--report-format",
@@ -98,7 +98,7 @@ def audit() -> None:
     )
     # Export hashes from each independent lock without installing heavy workers.
     projects = [
-        ("engine", ROOT),
+        ("engine", ROOT / "engine"),
         *[(p.name, p) for p in sorted((ROOT / "workers").iterdir()) if (p / "uv.lock").is_file()],
     ]
     for name, project in projects:

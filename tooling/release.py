@@ -125,13 +125,13 @@ def dependencies() -> None:
     )
     (OUTPUT / "cargo-dependencies.json").write_text(cargo.stdout, encoding="utf-8")
     cargo_packages = json.loads(cargo.stdout)["packages"]
-    node_lock = json.loads((ROOT / "package-lock.json").read_text(encoding="utf-8"))
+    node_lock = json.loads((ROOT / "apps/desktop/package-lock.json").read_text(encoding="utf-8"))
     notice_roots = [
         (f"Cargo {package['name']} {package['version']}", Path(package["manifest_path"]).parent)
         for package in cargo_packages
     ]
     notice_roots.extend(
-        (f"npm {name} {package.get('version', '')}", ROOT / name)
+        (f"npm {name} {package.get('version', '')}", ROOT / "apps/desktop" / name)
         for name, package in node_lock["packages"].items()
         if "node_modules/" in name and not package.get("dev") and not package.get("link")
     )

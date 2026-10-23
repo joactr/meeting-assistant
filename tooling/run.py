@@ -16,6 +16,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / "artifacts"
+ENGINE = ROOT / "engine"
+DESKTOP = ROOT / "apps" / "desktop"
+PYCONFIG = str(ENGINE / "pyproject.toml")
 
 
 class GateError(RuntimeError):
@@ -25,7 +28,7 @@ class GateError(RuntimeError):
 def environment() -> dict[str, str]:
     env = os.environ.copy()
     paths = [
-        ROOT / ".venv" / ("Scripts" if os.name == "nt" else "bin"),
+        ENGINE / ".venv" / ("Scripts" if os.name == "nt" else "bin"),
         ROOT / ".tools" / "node" / "node-v24.22.1-win-x64",
         ROOT / ".tools" / "python" / "bin",
         ROOT / ".tools" / "just",
@@ -36,7 +39,8 @@ def environment() -> dict[str, str]:
     env["PATH"] = (
         os.pathsep.join(str(p) for p in paths if p.exists()) + os.pathsep + env.get("PATH", "")
     )
-    env["PYTHONPATH"] = str(ROOT / "engine")
+    env["PYTHONPATH"] = str(ENGINE)
+    env["UV_PROJECT"] = str(ENGINE)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYANNOTE_METRICS_ENABLED"] = "0"
     browser_cache = ROOT / ".tools" / "playwright"
@@ -71,7 +75,7 @@ def npm(*args: str) -> None:
     cli = node.parent / "node_modules" / "npm" / "bin" / "npm-cli.js"
     if not cli.is_file():  # POSIX layout: <prefix>/bin/node, <prefix>/lib/node_modules
         cli = node.parent.parent / "lib" / "node_modules" / "npm" / "bin" / "npm-cli.js"
-    run(str(node), str(cli), *args)
+    run(str(node), str(cli), *args, cwd=DESKTOP)
 
 
 def release_config() -> dict:
@@ -84,13 +88,13 @@ def bootstrap() -> None:
     node_version = subprocess.check_output(
         [executable("node"), "--version"], env=environment(), text=True
     ).strip()
-    required_node = "v" + (ROOT / ".node-version").read_text().strip()
+    required_node = "v" + (DESKTOP / ".node-version").read_text().strip()
     if node_version != required_node:
         raise GateError(f"Node mismatch: expected {required_node}, found {node_version}")
-    for lock in ("uv.lock", "package-lock.json", "Cargo.lock"):
-        if not (ROOT / lock).is_file():
+    for lock in (ENGINE / "uv.lock", DESKTOP / "package-lock.json", ROOT / "Cargo.lock"):
+        if not lock.is_file():
             raise GateError(
-                f"Missing committed lockfile: {lock}; resolve dependencies explicitly before bootstrap"
+                f"Missing committed lockfile: {lock.relative_to(ROOT)}; resolve dependencies explicitly before bootstrap"
             )
     uv("sync", "--frozen")
     npm("ci")
@@ -105,9 +109,10 @@ def generate() -> None:
 
 def check() -> None:
     py("-m", "meeting_assistant.contracts", "check")
-    uv("run", "--frozen", "ruff", "check", "engine", "tooling", "tests", "workers")
-    uv("run", "--frozen", "ruff", "format", "--check", "engine", "tooling", "tests", "workers")
-    uv("run", "--frozen", "pyright")
+    ruff = ("run", "--frozen", "ruff")
+    uv(*ruff, "check", "--config", PYCONFIG, "engine", "tooling", "tests", "workers")
+    uv(*ruff, "format", "--config", PYCONFIG, "--check", "engine", "tooling", "tests", "workers")
+    uv("run", "--frozen", "pyright", "--project", PYCONFIG)
     npm("run", "check")
     run(executable("cargo"), "fmt", "--all", "--", "--check")
     run(
@@ -123,7 +128,7 @@ def check() -> None:
 
 
 def test() -> None:
-    uv("run", "--frozen", "pytest", "tests", "-q")
+    uv("run", "--frozen", "pytest", "-c", PYCONFIG, "--rootdir", str(ROOT), "tests", "-q")
     npm("run", "test")
     run(executable("cargo"), "test", "--workspace", "--locked")
 
@@ -165,8 +170,6 @@ def package() -> None:
     py(str(ROOT / "tooling" / "release.py"), "dependencies")
     arguments = [
         "exec",
-        "--workspace",
-        "apps/desktop",
         "--",
         "tauri",
         "build",
@@ -215,7 +218,7 @@ def dev_engine() -> None:
 
 
 def dev() -> None:
-    npm("exec", "--workspace", "apps/desktop", "--", "tauri", "dev")
+    npm("exec", "--", "tauri", "dev")
 
 
 def fetch_model(model: str) -> None:

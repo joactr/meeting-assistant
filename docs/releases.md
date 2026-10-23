@@ -90,7 +90,7 @@ not evidence of a successful draft, public asset download or installed update.
 
 ## Runtime artifact approval
 
-`uv run python workers/build.py FAMILY --accept-runtime-license --output artifacts/runtimes`
+`uv run --project engine python workers/build.py FAMILY --accept-runtime-license --output artifacts/runtimes`
 builds an unsigned target-native CPU archive and inventories its actual license
 files and linked codec libraries. It does not acquire weights or approve
 redistribution. Destination directories are never overwritten.
@@ -101,7 +101,7 @@ reference to the actual license/codec assessment. Approval applies to those
 bytes, not to a family name or an earlier build. Finalize without rebuilding:
 
 ```powershell
-uv run python workers/finalize.py PATH_TO_CATALOG --license-audit PATH_TO_REVIEW --signing-key PATH_TO_PRIVATE_CATALOG_KEY
+uv run --project engine python workers/finalize.py PATH_TO_CATALOG --license-audit PATH_TO_REVIEW --signing-key PATH_TO_PRIVATE_CATALOG_KEY
 ```
 
 Finalization checks the archive size/hash and requires the separate Ed25519
