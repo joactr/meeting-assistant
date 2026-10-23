@@ -1,9 +1,52 @@
 # Meeting Assistant
 
-An independently implemented local-first developer meeting notebook. This
-repository is a development project, not a claim of a verified public release.
-The implementation targets explicit capture, editable evidence, reviewed AI
-outputs and user-controlled destinations rather than automatic meeting bots.
+A local-first desktop notebook for meetings. It captures microphone and system
+audio and transcribes it on your machine (Whisper on CPU, or an optional CUDA
+runtime). Each transcript line keeps its speaker and timestamp. Actions,
+decisions and follow-ups link back to the moment they were said.
+There are no meeting bots and no hosted account: nothing is captured until you press Start.
+
+> Development project, not a verified public release. Status is tracked per
+> requirement in [acceptance](docs/acceptance.md).
+
+<p align="center">
+  <img src="docs/screenshots/actions.png" alt="Meeting view: speaker-labelled transcript next to extracted actions with owners, priorities and due dates" width="900">
+</p>
+
+| Meeting library | Follow-ups across meetings |
+|---|---|
+| ![Meeting library](docs/screenshots/library.png) | ![Follow-ups](docs/screenshots/followups.png) |
+
+| Search with transcript evidence |
+|---|
+| ![Search & Ask](docs/screenshots/search.png) |
+
+Screenshots use a synthetic demo workspace; no real meeting data.
+
+## What it does
+
+- **Capture:** WASAPI microphone and system loopback with pause, resume, crash recovery and source-loss gaps recorded in the timeline. Recording to disk is opt-in.
+- **Transcription:** Whisper runs in isolated worker processes on CPU (INT8). An optional CUDA runtime pack was measured about 9× faster on an RTX 4060 Ti. There are also adapters for sherpa (Parakeet), Deepgram, AssemblyAI and Azure; cloud providers are consent-gated.
+- **Editable evidence:** you can edit transcript text and speakers, with revision history, undo, and notes anchored to transcript moments.
+- **Outcomes:** actions, decisions, risks and important moments, each citing its source utterance. Follow-ups can be filtered across meetings.
+- **Search & Ask:** keyword search and optional semantic search over the workspace. Answers cite transcript excerpts.
+- **Export and backup:** Markdown, PDF and SRT export; hash-verified backup and restore.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  UI["React UI<br/>apps/desktop"] -->|Tauri IPC| Host["Native host (Rust)<br/>capture · DSP · Opus · supervisor"]
+  Host -->|authenticated local HTTP| Engine["Engine (Python)<br/>domain · SQLite · jobs"]
+  Engine --> Workers["Isolated workers<br/>Whisper CPU/CUDA · sherpa · pyannote · embeddings"]
+  Engine --> Providers["Optional cloud providers<br/>consent-gated"]
+```
+
+- `engine/`: Python 3.12 engine, SQLite with migrations, command registry and HTTP transport.
+- `crates/`: audio backends (WASAPI; experimental CoreAudio and PipeWire), SpeexDSP and Silero VAD, Opus media, worker protocol.
+- `apps/desktop/`: React with TanStack Query, plus the Tauri 2 host.
+- `workers/`: independently locked, frozen inference workers.
+- `packages/contracts/`: OpenAPI and JSON Schema generated from the engine; TypeScript types are generated from them.
 
 ## Platform status
 
