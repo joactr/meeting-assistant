@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ApplicationError, EventCursor, nativeRequest } from '../src/lib/bridge';
-import type { EventEnvelope } from '../../../packages/contracts/generated/types';
+import type { EventEnvelope } from '../../../engine/contracts/types';
 
 function event(changes: Partial<EventEnvelope> = {}): EventEnvelope {
   return { protocol_version: 1, seq: 1, event_id: 'event-one', type: 'transcript.utterance_updated', meeting_id: 'meeting-one', entity_id: 'utterance-one', revision: 1, occurred_at_ms: 1000, data: {}, ...changes };

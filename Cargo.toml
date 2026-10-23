@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["crates/*", "apps/desktop/src-tauri"]
-exclude = ["vendor/tauri-plugin-updater-2.14.0"]
+exclude = ["crates/vendor"]
 
 [workspace.package]
 version = "1.0.0-beta.1"
@@ -24,4 +24,4 @@ libc = "=0.2.177"
 reqwest = { version = "=0.12.24", default-features = false, features = ["json", "rustls-tls", "stream"] }
 
 [patch.crates-io]
-tauri-plugin-updater = { path = "vendor/tauri-plugin-updater-2.14.0" }
+tauri-plugin-updater = { path = "crates/vendor/tauri-plugin-updater-2.14.0" }

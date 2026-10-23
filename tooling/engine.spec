@@ -4,7 +4,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, co
 
 root = Path(SPECPATH).parent
 resources = collect_data_files("meeting_assistant") + collect_data_files("reportlab", includes=["fonts/Vera*.ttf", "fonts/bitstream-vera-license.txt"])
-for source, destination in ((root / "engine/migrations", "meeting_assistant/migrations"), (root / "prompts", "prompts"), (root / "catalog", "catalog"), (root / "release.toml", "."), (root / "packages/contracts/generated", "contracts")):
+for source, destination in ((root / "engine/migrations", "meeting_assistant/migrations"), (root / "engine/prompts", "engine/prompts"), (root / "engine/catalog", "engine/catalog"), (root / "release.toml", "."), (root / "engine/contracts", "contracts")):
     if source.exists():
         resources.append((str(source), destination))
 # Only identity-less developer bundles carry first-party build provenance data.

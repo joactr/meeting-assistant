@@ -28,7 +28,7 @@ class AcquisitionArguments(argparse.Namespace):
 
 async def acquire(args: AcquisitionArguments) -> dict[str, object]:
     async with httpx.AsyncClient(timeout=60, follow_redirects=False, trust_env=False) as client:
-        catalog = CatalogService(resource_root() / "catalog", args.install_root, client)
+        catalog = CatalogService(resource_root() / "engine" / "catalog", args.install_root, client)
         entry = catalog.entry(args.identity)
         if entry["role"] == "runtime":
             raise ProviderError(

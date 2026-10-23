@@ -49,7 +49,7 @@ def grant(tmp_path, monkeypatch):
             }
         ],
     }
-    catalog = root / "catalog/models"
+    catalog = root / "engine/catalog/models"
     catalog.mkdir(parents=True)
     (catalog / "reviewed-model.json").write_text(json.dumps(descriptor))
     (model / "resolved-catalog.json").write_text(json.dumps(descriptor))
@@ -172,9 +172,9 @@ def test_scope_and_explicit_launch_configuration_are_required(grant):
 
 
 def test_unreviewed_uploaded_model_cannot_authorize_worker_installation(grant):
-    descriptor = json.loads((grant.root / "catalog/models/reviewed-model.json").read_text())
+    descriptor = json.loads((grant.root / "engine/catalog/models/reviewed-model.json").read_text())
     descriptor["trust"] = "user-supplied-unreviewed"
-    (grant.root / "catalog/models/reviewed-model.json").write_text(json.dumps(descriptor))
+    (grant.root / "engine/catalog/models/reviewed-model.json").write_text(json.dumps(descriptor))
     with pytest.raises(ProviderError, match="reviewed model"):
         install(grant)
 

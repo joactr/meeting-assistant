@@ -341,7 +341,7 @@ def main() -> int:
     p.add_argument("action", choices=["generate", "check"])
     p.add_argument("--output", type=Path)
     args = p.parse_args()
-    destination = args.output or source_root() / "packages" / "contracts" / "generated"
+    destination = args.output or source_root() / "engine" / "contracts"
     from meeting_assistant.workspace import Workspace
 
     with tempfile.TemporaryDirectory(prefix="meeting-contracts-") as temp:

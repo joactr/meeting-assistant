@@ -46,7 +46,8 @@ flowchart LR
 - `crates/`: audio backends (WASAPI; experimental CoreAudio and PipeWire), SpeexDSP and Silero VAD, Opus media, worker protocol.
 - `apps/desktop/`: React with TanStack Query, plus the Tauri 2 host.
 - `workers/`: independently locked, frozen inference workers.
-- `packages/contracts/`: OpenAPI and JSON Schema generated from the engine; TypeScript types are generated from them.
+- `engine/contracts/`: OpenAPI, JSON Schema, TypeScript and Rust types generated from the engine.
+- `engine/prompts/`, `engine/catalog/`: versioned prompt templates and model/runtime manifests.
 
 ## Platform status
 

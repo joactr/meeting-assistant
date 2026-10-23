@@ -52,7 +52,7 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
     )
     service.model_runtime = runtime
     catalog = CatalogService(
-        resource_root() / "catalog",
+        resource_root() / "engine" / "catalog",
         workspace.root / "inference",
         service.registry.client,
         public_key=public_key,

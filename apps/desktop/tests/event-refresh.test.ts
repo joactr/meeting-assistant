@@ -1,7 +1,7 @@
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
-import type { EventEnvelope } from '../../../packages/contracts/generated/types';
+import type { EventEnvelope } from '../../../engine/contracts/types';
 import { subscribeEngine } from '../src/lib/bridge';
 
 const nativeEvents = vi.hoisted(() => ({

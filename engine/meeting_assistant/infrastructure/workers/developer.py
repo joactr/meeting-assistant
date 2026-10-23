@@ -321,7 +321,7 @@ def model_grant(
         or revision in {".", ".."}
     ):
         raise denied("Developer worker requires an explicit reviewed model id/revision")
-    reviewed = document(resource_root() / "catalog/models" / (catalog_id + ".json"))
+    reviewed = document(resource_root() / "engine/catalog/models" / (catalog_id + ".json"))
     if (
         reviewed.get("role") == "runtime"
         or reviewed.get("trust")

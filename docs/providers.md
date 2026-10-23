@@ -63,7 +63,7 @@ recommendation or an installer receipt alone does not prove working inference.
 
 The installer and the default `whisper` runtime are CPU-only (INT8). GPU
 inference is a separate, optional runtime, `runtime-whisper-cuda`
-(`catalog/runtimes/whisper-cuda.json`, built by `workers/build.py whisper-cuda`).
+(`engine/catalog/runtimes/whisper-cuda.json`, built by `workers/build.py whisper-cuda`).
 It carries the NVIDIA cuBLAS, cuDNN and NVRTC libraries, so it is a very large
 download (about 2.2 GiB unpacked, about 1.4 GiB zipped on Windows) and is never
 bundled with the installer. It supports Windows and Linux x86-64 only.

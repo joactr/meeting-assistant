@@ -101,7 +101,7 @@ class InferenceService:
             secret_resolver,
             consent_checker,
         )
-        self.prompt_root = prompt_root or resource_root() / "prompts"
+        self.prompt_root = prompt_root or resource_root() / "engine" / "prompts"
         self.policy_resolver = policy_resolver
         self.model_runtime = model_runtime
         self.tokens = CancellationTokens()

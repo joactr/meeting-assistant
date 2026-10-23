@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { QueryClient } from '@tanstack/react-query';
-import type { ApplicationCommand, EventEnvelope } from '../../../../packages/contracts/generated/types';
+import type { ApplicationCommand, EventEnvelope } from '../../../../engine/contracts/types';
 import { object, text, number, type Payload, type RecordData } from './data';
 
 export class ApplicationError extends Error {

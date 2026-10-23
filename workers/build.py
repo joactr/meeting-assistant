@@ -64,7 +64,7 @@ def main():
 
     release = tomllib.loads((root / "release.toml").read_text(encoding="utf-8"))
     primary = json.loads(
-        (root / "catalog/runtimes" / (args.family + ".json")).read_text(encoding="utf-8")
+        (root / "engine/catalog/runtimes" / (args.family + ".json")).read_text(encoding="utf-8")
     )
     args.version = args.version or release["version"]
     repository = args.repository or release.get("publisher", {}).get("repository")

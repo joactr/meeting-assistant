@@ -4,7 +4,7 @@ pub mod backup;
 pub mod broker;
 pub mod calibration;
 pub mod capture;
-#[path = "../../../packages/contracts/generated/contracts.rs"]
+#[path = "../../../engine/contracts/contracts.rs"]
 pub mod contracts;
 pub mod decode;
 pub mod export;
