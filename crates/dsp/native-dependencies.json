@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "silero": {
+    "version": "6.2",
+    "revision": "bfdc0193023f121ea5b3cc7b176dbed570a68a59",
+    "license": "MIT",
+    "license_file": "SILERO-LICENSE.txt"
+  },
+  "speexdsp": {
+    "version": "1.2.1",
+    "revision": "1b28a0f61bc31162979e1f26f3981fc3637095c8",
+    "license": "BSD-3-Clause",
+    "license_file": "COPYING"
+  },
+  "onnxruntime": {
+    "version": "1.22.0",
+    "license": "MIT",
+    "abi": "ort 2.0.0-rc.10 / ONNX Runtime C API 22",
+    "notices": [
+      "LICENSE",
+      "ThirdPartyNotices.txt"
+    ]
+  },
+  "artifacts": {
+    "silero_vad.onnx": {
+      "url": "https://raw.githubusercontent.com/snakers4/silero-vad/bfdc0193023f121ea5b3cc7b176dbed570a68a59/src/silero_vad/data/silero_vad.onnx",
+      "bytes": 2327524,
+      "sha256": "1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3"
+    },
+    "SILERO-LICENSE.txt": {
+      "url": "https://raw.githubusercontent.com/snakers4/silero-vad/bfdc0193023f121ea5b3cc7b176dbed570a68a59/LICENSE",
+      "bytes": 1075,
+      "sha256": "2e63e9a38b6e8fc0c7bc37ce174caca1862870856c6daf5697cfb785e925520b"
+    },
+    "speexdsp-1.2.1.tar.gz": {
+      "url": "https://codeload.github.com/xiph/speexdsp/tar.gz/1b28a0f61bc31162979e1f26f3981fc3637095c8",
+      "bytes": 894641,
+      "sha256": "59a53188f6d6ca2b48752f533523986a0604d2526eb50789b8fb09aa6b12645f"
+    },
+    "onnxruntime-win-x64-1.22.0.zip": {
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-win-x64-1.22.0.zip",
+      "bytes": 72368545,
+      "sha256": "174c616efc0271194488642a72f1a514e01487da4dfe84c49296d66e40ebe0da"
+    },
+    "onnxruntime-osx-arm64-1.22.0.tgz": {
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-osx-arm64-1.22.0.tgz",
+      "bytes": 25943843,
+      "sha256": "cab6dcbd77e7ec775390e7b73a8939d45fec3379b017c7cb74f5b204c1a1cc07"
+    },
+    "onnxruntime-osx-x86_64-1.22.0.tgz": {
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-osx-x86_64-1.22.0.tgz",
+      "bytes": 27889590,
+      "sha256": "e4ec94a7696de74fb1b12846569aa94e499958af6ffa186022cfde16c9d617f0"
+    },
+    "onnxruntime-linux-x64-1.22.0.tgz": {
+      "url": "https://github.com/microsoft/onnxruntime/releases/download/v1.22.0/onnxruntime-linux-x64-1.22.0.tgz",
+      "bytes": 7798730,
+      "sha256": "8344d55f93d5bc5021ce342db50f62079daf39aaafb5d311a451846228be49b3"
+    }
+  }
+}

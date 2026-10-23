@@ -1,0 +1,14 @@
+[package]
+name = "audio-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+crossbeam-queue.workspace = true
+worker-protocol = { path = "../worker-protocol" }
+symphonia = { version = "=0.5.5", features = ["all"] }
+libc.workspace = true

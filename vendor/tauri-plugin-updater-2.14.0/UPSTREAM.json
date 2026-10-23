@@ -1,0 +1,13 @@
+{
+  "crate": "tauri-plugin-updater",
+  "version": "2.14.0",
+  "source": "https://static.crates.io/crates/tauri-plugin-updater/tauri-plugin-updater-2.14.0.crate",
+  "archive_sha256": "7259989d4fe11b2bf51f7d671642249b1837c4ae2da1430dc713ae38f98ceeec",
+  "repository": "https://github.com/tauri-apps/plugins-workspace",
+  "revision": "44293a5722efcaf27060504e63b17aeba721b40f",
+  "path_in_repository": "plugins/updater",
+  "local_patch": "ZIP dependency 4 to 9 in Cargo.toml and Cargo.toml.orig; no implementation changes",
+  "reason": ["RUSTSEC-2026-0367", "RUSTSEC-2026-0368", "RUSTSEC-2026-0369"],
+  "upstream_lockfile_omitted": "Library lockfile is not consumed; root Cargo.lock pins the actual dependency closure",
+  "licenses": ["Apache-2.0", "MIT"]
+}

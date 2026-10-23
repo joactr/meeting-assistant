@@ -1,0 +1,12 @@
+[package]
+name = "dsp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+libloading = "=0.8.9"
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "ndarray", "load-dynamic"] }
+ndarray = "=0.16.1"
