@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import tomllib
 from datetime import UTC, datetime
@@ -63,7 +64,11 @@ def dependencies() -> None:
     notices = [
         (ROOT / "LICENSE").read_text(encoding="utf-8"),
     ]
-    python_licenses = list(Path(sys.base_prefix).glob("LICENSE*"))
+    # Windows keeps it in the install root; macOS/Linux in lib/python3.x.
+    python_licenses = [
+        *Path(sys.base_prefix).glob("LICENSE*"),
+        *Path(sysconfig.get_path("stdlib")).glob("LICENSE*"),
+    ]
     if not python_licenses:
         raise RuntimeError("The frozen CPython runtime's license text is missing")
     for path in python_licenses:
