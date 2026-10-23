@@ -30,3 +30,4 @@ __pycache__/
 apps/desktop/src-tauri/gen/schemas/
 arch.md
 gaps.md
+test-results/
