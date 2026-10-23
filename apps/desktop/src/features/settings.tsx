@@ -5,7 +5,7 @@ import { flushDrafts } from '../lib/drafts';
 import { useNativeResource, useResource } from '../lib/queries';
 import { updatePreferences } from '../lib/preferences';
 import { id, item, items, object, revision, text, type Payload, type RecordData } from '../lib/data';
-import { AsyncView, Badge, CommandForm, ConfirmCommand, Details, Empty, ErrorNotice, FieldInput, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, type Field } from '../components/ui';
+import { accuracyNotice, AsyncView, Badge, CommandForm, ConfirmCommand, Details, Empty, ErrorNotice, FieldInput, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, type Field } from '../components/ui';
 import { AudioMeters } from './capture';
 import { CalendarSettings, IntegrationSettings } from './connections';
 import { ModelSettings, ProviderSettings } from './providers';
@@ -86,7 +86,19 @@ export function SettingsPage() {
     { label: 'Privacy & backup', content: <><SettingsGroup groupId="privacy" /><PrivacySettings /></> },
     { label: 'Window', content: <WindowSettings /> },
     { label: 'Updates & diagnostics', content: <UpdatesSettings /> },
+    { label: 'About', content: <About /> },
   ]} /></>;
+}
+
+const credits = [
+  ['Whisper small', 'OpenAI; CTranslate2 conversion by SYSTRAN', 'MIT', 'https://huggingface.co/Systran/faster-whisper-small'],
+  ['Parakeet TDT 0.6B v3', 'NVIDIA; converted to ONNX and int8-quantized by sherpa-onnx (modified)', 'CC BY 4.0 (creativecommons.org/licenses/by/4.0)', 'https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3'],
+  ['speaker-diarization-community-1', 'pyannote', 'CC BY 4.0 (creativecommons.org/licenses/by/4.0)', 'https://huggingface.co/pyannote/speaker-diarization-community-1'],
+  ['multilingual-e5-small', 'Microsoft (intfloat)', 'MIT', 'https://huggingface.co/intfloat/multilingual-e5-small'],
+];
+
+function About() {
+  return <Panel title="About, credits & limitations"><Notice>{accuracyNotice} Do not use output as the sole basis for legal, medical, employment or financial decisions. Provided "as is", without warranty (MIT license).</Notice><h3>Model credits</h3><ul>{credits.map(([name, author, license, source]) => <li key={name}><strong>{name}</strong>: {author}. License: {license}. Source: <code>{source}</code></li>)}</ul><p>Runtimes: faster-whisper (MIT), sherpa-onnx (Apache-2.0), pyannote.audio (MIT), ONNX Runtime (MIT). The optional GPU Whisper pack includes NVIDIA cuBLAS, cuDNN and NVRTC under NVIDIA's license terms (not MIT), shipped inside the pack. The optional Azure Speech pack uses Microsoft's Speech SDK license.</p></Panel>;
 }
 
 function SettingsGroup({ groupId }: { groupId: string }) {

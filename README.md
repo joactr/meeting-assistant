@@ -126,3 +126,31 @@ are present. No publishing or paid service is performed by developer recipes.
 
 Original application source uses MIT. Dependencies, codecs and model weights
 retain their own licenses; see the generated artifact inventories.
+
+## Model credits
+
+No model weights ship in the installer. Each model is downloaded on request,
+pinned to an exact revision, after you accept its license.
+
+| Model | Author | License | Changes |
+|---|---|---|---|
+| [Whisper small](https://huggingface.co/Systran/faster-whisper-small) | OpenAI; CTranslate2 conversion by SYSTRAN | [MIT](https://github.com/openai/whisper/blob/main/LICENSE) | Format conversion only |
+| [Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) | NVIDIA | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Converted to ONNX and int8-quantized by the [sherpa-onnx](https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8) project |
+| [speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1) | pyannote | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | None. Gated: each user accepts pyannote's terms on Hugging Face |
+| [multilingual-e5-small](https://huggingface.co/intfloat/multilingual-e5-small) | Microsoft (intfloat) | [MIT](https://github.com/microsoft/unilm/blob/master/LICENSE) | None |
+
+Runtimes: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (MIT),
+[sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache-2.0),
+[pyannote.audio](https://github.com/pyannote/pyannote-audio) (MIT),
+[ONNX Runtime](https://github.com/microsoft/onnxruntime) (MIT). The optional
+GPU Whisper pack also contains NVIDIA cuBLAS, cuDNN and NVRTC under NVIDIA's own
+license terms, included in the pack; those files are not MIT. The optional
+Azure Speech pack uses Microsoft's Speech SDK license.
+
+## Accuracy
+
+Transcripts, speaker labels, summaries, actions and answers are produced by
+machine-learning models and can be wrong, incomplete or attributed to the wrong
+person. Check them against the source audio before relying on them, and do not
+use them as the sole basis for legal, medical, employment or financial
+decisions. The software is provided "as is", without warranty (see `LICENSE`).

@@ -172,6 +172,18 @@ def main():
         encoding="utf-8",
     )
     (package / "third-party-notices.json").write_text(notices.stdout, encoding="utf-8")
+    # Plain-text copy so redistributed terms (e.g. NVIDIA's EULA) are readable without tooling.
+    (package / "THIRD_PARTY_NOTICES.txt").write_text(
+        "\n\n".join(
+            f"=== {entry['name']} {entry['version']}: {entry['path']} ===\n\n{entry['text']}"
+            for entry in (
+                {**package_notice, **file}
+                for package_notice in json.loads(notices.stdout)["packages"]
+                for file in package_notice["license_files"]
+            )
+        ),
+        encoding="utf-8",
+    )
     executable = package / (
         f"meeting-{runtime_family}.exe" if target == "windows" else f"meeting-{runtime_family}"
     )
