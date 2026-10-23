@@ -1,0 +1,28 @@
+{
+  "evidence": [
+    {
+      "source_id": "fixture-source",
+      "id": "fixture-source",
+      "revision": 1,
+      "meeting_id": "fixture-meeting",
+      "kind": "transcript",
+      "text": "Ana: I will send the reviewed plan tomorrow.",
+      "start_ms": 1000,
+      "end_ms": 5000
+    }
+  ],
+  "context": {
+    "meeting_local_date": "2026-10-22",
+    "meeting_timezone": "Europe/Madrid",
+    "resolved_people": [
+      "Ana"
+    ]
+  },
+  "language": "en",
+  "assertions": [
+    "No unknown fields",
+    "Only fixture-source references",
+    "No tool calls or external destinations",
+    "No fabricated source quotation"
+  ]
+}
