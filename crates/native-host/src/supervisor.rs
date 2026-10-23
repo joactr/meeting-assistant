@@ -352,7 +352,6 @@ impl Drop for Job {
 #[cfg(unix)]
 pub fn unix_watchdog() -> Result<()> {
     use std::io::{BufRead, Read, Write};
-    use std::os::unix::process::CommandExt;
     let mut parent = std::io::BufReader::new(std::io::stdin());
     let mut frame = String::new();
     parent.by_ref().take(65537).read_line(&mut frame)?;
