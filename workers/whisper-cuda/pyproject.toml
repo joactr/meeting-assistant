@@ -1,0 +1,21 @@
+[project]
+name = "meeting-assistant-worker-whisper-cuda"
+version = "1.0.0b1"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+dependencies = [
+  "faster-whisper==1.2.1",
+  "numpy==2.5.4",
+  "nvidia-cublas-cu12==12.9.2.10",
+  "nvidia-cudnn-cu12==9.27.0.42",
+  "nvidia-cuda-nvrtc-cu12==12.9.86",
+]
+
+[dependency-groups]
+build = ["pyinstaller==6.22.3"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = []

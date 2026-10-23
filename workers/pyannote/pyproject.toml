@@ -1,0 +1,30 @@
+[project]
+name = "meeting-assistant-worker-pyannote"
+version = "1.0.0b1"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+dependencies = [
+  "pyannote.audio==4.0.7",
+  "PyYAML==6.0.3",
+  "numpy==2.5.4",
+  "torch==2.14.1",
+  "torchaudio==2.11.0",
+]
+
+[dependency-groups]
+build = ["pyinstaller==6.22.3"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = []
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu", marker = "sys_platform != 'darwin'" }
+torchaudio = { index = "pytorch-cpu", marker = "sys_platform != 'darwin'" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
