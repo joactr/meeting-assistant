@@ -62,7 +62,6 @@ def dependencies() -> None:
     packages = []
     notices = [
         (ROOT / "LICENSE").read_text(encoding="utf-8"),
-        (ROOT / "NOTICE").read_text(encoding="utf-8"),
     ]
     python_licenses = list(Path(sys.base_prefix).glob("LICENSE*"))
     if not python_licenses:
@@ -112,7 +111,12 @@ def dependencies() -> None:
         cli = Path(node).parent.parent / "lib" / "node_modules" / "npm" / "bin" / "npm-cli.js"
     command = [node, str(cli), "sbom", "--sbom-format", "cyclonedx", "--omit", "dev"]
     result = subprocess.run(
-        command, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=True
+        command,
+        cwd=ROOT / "apps" / "desktop",
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=True,
     )
     (OUTPUT / "javascript-sbom.cdx.json").write_text(result.stdout, encoding="utf-8")
     cargo = subprocess.run(

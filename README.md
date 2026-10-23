@@ -6,8 +6,7 @@ runtime). Each transcript line keeps its speaker and timestamp. Actions,
 decisions and follow-ups link back to the moment they were said.
 There are no meeting bots and no hosted account: nothing is captured until you press Start.
 
-> Development project, not a verified public release. Status is tracked per
-> requirement in [acceptance](docs/acceptance.md).
+> Development project, not a verified public release.
 
 <p align="center">
   <img src="docs/screenshots/actions.png" alt="Meeting view: speaker-labelled transcript next to extracted actions with owners, priorities and due dates" width="900">
@@ -126,4 +125,4 @@ required identities, credentials, actual installers and acceptance evidence
 are present. No publishing or paid service is performed by developer recipes.
 
 Original application source uses MIT. Dependencies, codecs and model weights
-retain their own licenses; see `NOTICE` and generated artifact inventories.
+retain their own licenses; see the generated artifact inventories.
