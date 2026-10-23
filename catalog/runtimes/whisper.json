@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "id": "runtime-whisper",
+  "role": "runtime",
+  "revision": "1.0.0",
+  "source": "https://pypi.org/project/faster-whisper/1.2.1/",
+  "upstream_version": "1.2.1",
+  "upstream_artifacts": [
+    {
+      "filename": "faster_whisper-1.2.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/05/99/49ee85903dee060d9f08297b4a342e5e0bcfca2f027a07b4ee0a38ab13f9/faster_whisper-1.2.1-py3-none-any.whl",
+      "bytes": 1118909,
+      "sha256": "79a66ad50688c0b794dd501dc340a736992a6342f7f95e5811be60b5224a26a7",
+      "packagetype": "bdist_wheel"
+    }
+  ],
+  "files": [],
+  "license": {
+    "spdx": "MIT",
+    "url": "https://spdx.org/licenses/MIT.html",
+    "text": "MIT License\n\nCopyright (c) <year> <copyright holders>\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and\nassociated documentation files (the \"Software\"), to deal in the Software without restriction, including\nwithout limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the\nfollowing conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial\nportions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT\nLIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO\nEVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER\nIN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE\nUSE OR OTHER DEALINGS IN THE SOFTWARE.\n",
+    "attribution": "Guillaume Klein",
+    "redistribution_review": "required for complete packaged native/codec dependency closure"
+  },
+  "transformations": [
+    "Isolated PyInstaller CPU executable built from exact worker uv.lock; no weights"
+  ],
+  "gating": {
+    "required": false,
+    "terms_url": null
+  },
+  "platforms": [
+    "windows-x86_64",
+    "macos-aarch64",
+    "macos-x86_64",
+    "linux-x86_64"
+  ],
+  "runtime": {
+    "family": "whisper",
+    "version_range": ">=1.0.0,<2.0.0"
+  },
+  "minimum_resources": {
+    "free_disk_bytes": null,
+    "ram_bytes": null,
+    "note": "Exact packaged bytes/resources determined by target-native build; no unmeasured claim"
+  },
+  "capability_profile": {
+    "protocol_major": 1,
+    "cpu_baseline": true,
+    "gpu_variant": false
+  },
+  "signature": null,
+  "blocked_reason": "Target-native self-contained runtime archive, public release URL, complete native/codec notices and detached project signature must be supplied by release build; upstream wheel hashes are real source provenance, not fabricated runtime hashes",
+  "build_command": "python workers/build.py whisper --accept-runtime-license --output dist/workers"
+}

@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "id": "multilingual-e5-small-onnx",
+  "role": "embeddings",
+  "source": "https://huggingface.co/intfloat/multilingual-e5-small",
+  "revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+  "files": [
+    {
+      "path": "model.onnx",
+      "url": "https://huggingface.co/intfloat/multilingual-e5-small/resolve/614241f622f53c4eeff9890bdc4f31cfecc418b3/onnx/model.onnx",
+      "bytes": 470268510,
+      "sha256": "ca456c06b3a9505ddfd9131408916dd79290368331e7d76bb621f1cba6bc8665",
+      "git_blob_sha1": "f9c7ec44162ecb2ae1340185b24a43d83d606a00"
+    },
+    {
+      "path": "config.json",
+      "url": "https://huggingface.co/intfloat/multilingual-e5-small/resolve/614241f622f53c4eeff9890bdc4f31cfecc418b3/onnx/config.json",
+      "bytes": 653,
+      "sha256": "bbb7c1333fc4b3e27fbc9cd5d2070aabcc1d4dfb99917c3633e772f97545a6b6",
+      "git_blob_sha1": "698e598c24523f3857295b11abec0703d19ea180"
+    },
+    {
+      "path": "tokenizer.json",
+      "url": "https://huggingface.co/intfloat/multilingual-e5-small/resolve/614241f622f53c4eeff9890bdc4f31cfecc418b3/onnx/tokenizer.json",
+      "bytes": 17082730,
+      "sha256": "0b44a9d7b51c3c62626640cda0e2c2f70fdacdc25bbbd68038369d14ebdf4c39",
+      "git_blob_sha1": "c9b2fea3119ca8886380e5f47bffc5ea7a6e0ffa"
+    },
+    {
+      "path": "tokenizer_config.json",
+      "url": "https://huggingface.co/intfloat/multilingual-e5-small/resolve/614241f622f53c4eeff9890bdc4f31cfecc418b3/onnx/tokenizer_config.json",
+      "bytes": 443,
+      "sha256": "a1d6bc8734a6f635dc158508bef000f8e2e5a759c7d92f984b2c86e5ff53425b",
+      "git_blob_sha1": "059214673d9d6d2ee319411e2ffec8c024b816d5"
+    },
+    {
+      "path": "special_tokens_map.json",
+      "url": "https://huggingface.co/intfloat/multilingual-e5-small/resolve/614241f622f53c4eeff9890bdc4f31cfecc418b3/onnx/special_tokens_map.json",
+      "bytes": 167,
+      "sha256": "d05497f1da52c5e09554c0cd874037a083e1dc1b9cfd48034d1c717f1afc07a7",
+      "git_blob_sha1": "e0b1d18ecd0ae4ff1d47bd297d910c0cf83e504b"
+    }
+  ],
+  "license": {
+    "spdx": "MIT",
+    "url": "https://raw.githubusercontent.com/microsoft/unilm/master/LICENSE",
+    "text": "The MIT License (MIT)\n\nCopyright (c) Microsoft Corporation\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
+    "attribution": "Microsoft Corporation; intfloat/multilingual-e5-small; upstream multilingual E5 ONNX export",
+    "upstream_license_url": "https://huggingface.co/intfloat/multilingual-e5-small"
+  },
+  "transformations": [
+    "Upstream ONNX export"
+  ],
+  "gating": {
+    "required": false,
+    "terms_url": "https://huggingface.co/intfloat/multilingual-e5-small",
+    "token_required": false
+  },
+  "platforms": [
+    "windows-x86_64",
+    "macos-aarch64",
+    "macos-x86_64",
+    "linux-x86_64"
+  ],
+  "platform_status": {
+    "windows-x86_64": "requires actual model smoke",
+    "macos-aarch64": "experimental-untested",
+    "macos-x86_64": "experimental-untested",
+    "linux-x86_64": "experimental-untested"
+  },
+  "runtime": {
+    "family": "embeddings",
+    "version_range": ">=1.0.0,<2.0.0"
+  },
+  "minimum_resources": {
+    "free_disk_bytes": 974705006,
+    "ram_bytes": null,
+    "ram_note": "Unmeasured; run target hardware gate before claiming capacity"
+  },
+  "capability_profile": {
+    "dimensions": 384,
+    "max_tokens": 512,
+    "prefixes": {
+      "query": "query: ",
+      "document": "passage: "
+    },
+    "normalization": "l2"
+  },
+  "acquisition": "explicit-consent-only",
+  "hash_source": "Hugging Face LFS SHA256 metadata; non-LFS public files hashed from exact pinned revision",
+  "blocked_reason": null
+}

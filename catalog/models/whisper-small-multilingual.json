@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "id": "whisper-small-multilingual",
+  "role": "asr",
+  "source": "https://huggingface.co/Systran/faster-whisper-small",
+  "revision": "536b0662742c02347bc0e980a01041f333bce120",
+  "files": [
+    {
+      "path": "config.json",
+      "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/config.json",
+      "bytes": 2370,
+      "sha256": "b55496ac7940a7ae47d2c01eab40edfd8701feec1229d9cce3b40014383fb828",
+      "git_blob_sha1": "e5047537059bd8f182d9ca64c470201585015187"
+    },
+    {
+      "path": "model.bin",
+      "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/model.bin",
+      "bytes": 483546902,
+      "sha256": "3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671",
+      "git_blob_sha1": "504a7fe023f19460564a623887a9f77ea53ac708"
+    },
+    {
+      "path": "tokenizer.json",
+      "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/tokenizer.json",
+      "bytes": 2203239,
+      "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab",
+      "git_blob_sha1": "7818adb6de9fa3064d3ff81226fdd675be1f6344"
+    },
+    {
+      "path": "vocabulary.txt",
+      "url": "https://huggingface.co/Systran/faster-whisper-small/resolve/536b0662742c02347bc0e980a01041f333bce120/vocabulary.txt",
+      "bytes": 459861,
+      "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913",
+      "git_blob_sha1": "c9074644d9d1205686f16d411564729461324b75"
+    }
+  ],
+  "license": {
+    "spdx": "MIT",
+    "url": "https://raw.githubusercontent.com/openai/whisper/main/LICENSE",
+    "text": "MIT License\n\nCopyright (c) 2022 OpenAI\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
+    "attribution": "Systran/faster-whisper-small",
+    "upstream_license_url": "https://huggingface.co/Systran/faster-whisper-small"
+  },
+  "transformations": [
+    "Upstream CTranslate2 conversion by SYSTRAN"
+  ],
+  "gating": {
+    "required": false,
+    "terms_url": "https://huggingface.co/Systran/faster-whisper-small",
+    "token_required": false
+  },
+  "platforms": [
+    "windows-x86_64",
+    "macos-aarch64",
+    "macos-x86_64",
+    "linux-x86_64"
+  ],
+  "platform_status": {
+    "windows-x86_64": "requires actual model smoke",
+    "macos-aarch64": "experimental-untested",
+    "macos-x86_64": "experimental-untested",
+    "linux-x86_64": "experimental-untested"
+  },
+  "runtime": {
+    "family": "whisper",
+    "version_range": ">=1.0.0,<2.0.0"
+  },
+  "minimum_resources": {
+    "free_disk_bytes": 972424744,
+    "ram_bytes": null,
+    "ram_note": "Unmeasured; run target hardware gate before claiming capacity"
+  },
+  "capability_profile": {
+    "vocabulary": "prompt_hint",
+    "streaming_native": false
+  },
+  "acquisition": "explicit-consent-only",
+  "hash_source": "Hugging Face LFS SHA256 metadata; non-LFS public files hashed from exact pinned revision",
+  "blocked_reason": null
+}

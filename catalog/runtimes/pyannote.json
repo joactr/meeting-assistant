@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "id": "runtime-pyannote",
+  "role": "runtime",
+  "revision": "1.0.0",
+  "source": "https://pypi.org/project/pyannote.audio/4.0.7/",
+  "upstream_version": "4.0.7",
+  "upstream_artifacts": [
+    {
+      "filename": "pyannote_audio-4.0.7-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/66/a3/1d03ed6c7669f7b94ce4a7ebe3b21f5c3b6331999a5680837e371e0a0537/pyannote_audio-4.0.7-py3-none-any.whl",
+      "bytes": 894598,
+      "sha256": "852ea15c4d85bc34773e618267603ffca6a521669a74d33742692cc67fc700d6",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "pyannote_audio-4.0.7.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/6d/d7/03b1d00d431c7be1d98635fefb99c2da64d9b84b4b8a06d5302666a96c88/pyannote_audio-4.0.7.tar.gz",
+      "bytes": 13963479,
+      "sha256": "3a903dfb5ca711d134cc2522561c9158b186836f5d62e8a57c46c6648e8a8229",
+      "packagetype": "sdist"
+    }
+  ],
+  "files": [],
+  "license": {
+    "spdx": "MIT",
+    "url": "https://spdx.org/licenses/MIT.html",
+    "text": "MIT License\n\nCopyright (c) <year> <copyright holders>\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and\nassociated documentation files (the \"Software\"), to deal in the Software without restriction, including\nwithout limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the\nfollowing conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial\nportions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT\nLIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO\nEVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER\nIN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE\nUSE OR OTHER DEALINGS IN THE SOFTWARE.\n",
+    "attribution": "pyannote.audio",
+    "redistribution_review": "required for complete packaged native/codec dependency closure"
+  },
+  "transformations": [
+    "Isolated PyInstaller CPU executable built from exact worker uv.lock; no weights"
+  ],
+  "gating": {
+    "required": false,
+    "terms_url": null
+  },
+  "platforms": [
+    "windows-x86_64",
+    "macos-aarch64",
+    "linux-x86_64"
+  ],
+  "platform_status": {
+    "windows-x86_64": "requires packaged runtime and actual model smoke",
+    "macos-aarch64": "experimental-untested",
+    "linux-x86_64": "experimental-untested"
+  },
+  "unsupported_platforms": {
+    "macos-x86_64": "Pinned pyannote.audio requires Torch >=2.8; compatible public Intel macOS wheels are unavailable"
+  },
+  "runtime": {
+    "family": "pyannote",
+    "version_range": ">=1.0.0,<2.0.0"
+  },
+  "minimum_resources": {
+    "free_disk_bytes": null,
+    "ram_bytes": null,
+    "note": "Exact packaged bytes/resources determined by target-native build; no unmeasured claim"
+  },
+  "capability_profile": {
+    "protocol_major": 1,
+    "cpu_baseline": true,
+    "gpu_variant": false
+  },
+  "signature": null,
+  "blocked_reason": "Target-native self-contained runtime archive, public release URL, complete native/codec notices and detached project signature must be supplied by release build; upstream wheel hashes are real source provenance, not fabricated runtime hashes",
+  "build_command": "python workers/build.py pyannote --accept-runtime-license --output dist/workers"
+}

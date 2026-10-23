@@ -1,0 +1,510 @@
+{
+  "schema_version": 1,
+  "id": "runtime-sherpa",
+  "role": "runtime",
+  "revision": "1.0.0",
+  "source": "https://pypi.org/project/sherpa-onnx/1.13.8/",
+  "upstream_version": "1.13.8",
+  "upstream_artifacts": [
+    {
+      "filename": "sherpa_onnx-1.13.8-cp310-cp310-linux_armv7l.whl",
+      "url": "https://files.pythonhosted.org/packages/1d/77/b4f108eb0b549b7e1683a224b9171316c5aea181be0103dea037e6175569/sherpa_onnx-1.13.8-cp310-cp310-linux_armv7l.whl",
+      "bytes": 12228568,
+      "sha256": "05b1b61e9c1a29d29c33ce296d28602b6c7796cba4f44f787281711ff5c8e3bf",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp310-cp310-macosx_10_15_universal2.whl",
+      "url": "https://files.pythonhosted.org/packages/74/f3/cb058690cb94494f5f7890f69b1c832b0789f8414b74b58510b7c6f4544b/sherpa_onnx-1.13.8-cp310-cp310-macosx_10_15_universal2.whl",
+      "bytes": 4431473,
+      "sha256": "d79dc6b92656ca1584fde92f6d00c70ef7cae58e8a1bf1751d92c7001f3f6539",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp310-cp310-macosx_10_15_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/71/3c/8fcc17d15becd123001dc21032f5d3c7a56186de7307d74355cefe2defd3/sherpa_onnx-1.13.8-cp310-cp310-macosx_10_15_x86_64.whl",
+      "bytes": 2331118,
+      "sha256": "985560e02f7b2dcf9d28afb1a055bf7d2f6c1da91d9537f15b098d30a903ed55",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp310-cp310-macosx_11_0_arm64.whl",
+      "url": "https://files.pythonhosted.org/packages/c1/b5/0038c5290e0d50dc8bf874d1b092473e2a0df4f14e3380e4890db0d7ebdd/sherpa_onnx-1.13.8-cp310-cp310-macosx_11_0_arm64.whl",
+      "bytes": 2140147,
+      "sha256": "de34065c973de30bf5cd333dbc1214e953f9fef61abc41e076b9afd9f8e22e63",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "url": "https://files.pythonhosted.org/packages/3b/a6/a737e37411ff653a12570447964fb9ab98285f3520e32d725a60364eb7b1/sherpa_onnx-1.13.8-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "bytes": 4175633,
+      "sha256": "5632772fbb7920c0ff447a4f610b8c1088e157c43bfd64f61fb727a7e4d8dd03",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/00/1a/0f29700fcd04a741630d12830fb7030196138b6d5ca515e75e2fac309649/sherpa_onnx-1.13.8-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "bytes": 4398430,
+      "sha256": "e4dc9c672a089c94c7bcb2439c2413928de58b98418907dc639c07dd557eacd7",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp310-cp310-win32.whl",
+      "url": "https://files.pythonhosted.org/packages/05/c6/67725a4cf9f2d6f3a11243b04f2cf7fa585186b912e975882436a76ba5b1/sherpa_onnx-1.13.8-cp310-cp310-win32.whl",
+      "bytes": 1964449,
+      "sha256": "cb4f263b9b7ce5b49585a8e865b68876d9ff1804c65341931986f16abdad3a09",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp310-cp310-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/1f/3a/9859af00fbc1f2642dab899eb18a9af559cee47ef7926e1fe8fff61b7700/sherpa_onnx-1.13.8-cp310-cp310-win_amd64.whl",
+      "bytes": 2283132,
+      "sha256": "8daac368dc1988f314a201df1dd45b62e5fb39be4f87c3ee4359c4a4f2a3f18d",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp311-cp311-linux_armv7l.whl",
+      "url": "https://files.pythonhosted.org/packages/10/43/ac0418d7336b38df63a098bbb4d2c78d8d6ea981454de535ee94b1da2816/sherpa_onnx-1.13.8-cp311-cp311-linux_armv7l.whl",
+      "bytes": 12229581,
+      "sha256": "5a324650a38f2d1dfac12305d5ee5f83265c805513e2e2b6dae7c52e3bf9eee6",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp311-cp311-macosx_10_15_universal2.whl",
+      "url": "https://files.pythonhosted.org/packages/3a/53/1248cf11cbba23e2b9b9e0cfed8945b73956398d331e89b61c8e2297c4ec/sherpa_onnx-1.13.8-cp311-cp311-macosx_10_15_universal2.whl",
+      "bytes": 4434699,
+      "sha256": "b4c2e9c5fd12fe3ac6a21d76b45f16442d3b1d80691d81fbb0f8acfef250f5a3",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp311-cp311-macosx_10_15_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/d6/be/c2b2a42ffcb22224fa95c62280cdc1f955f30f21805a2fda7fd182539628/sherpa_onnx-1.13.8-cp311-cp311-macosx_10_15_x86_64.whl",
+      "bytes": 2332701,
+      "sha256": "a00d9ceeb4d9531d2f5bd90d194d53408461c5aa6ff46e65f8776ed37007f3d0",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp311-cp311-macosx_11_0_arm64.whl",
+      "url": "https://files.pythonhosted.org/packages/a9/74/dafb3c1c1ff82fc00abd098ade44811e48f3af88b4e3c2f1628567d0e80b/sherpa_onnx-1.13.8-cp311-cp311-macosx_11_0_arm64.whl",
+      "bytes": 2141306,
+      "sha256": "8bb2b86ce44b5c5bb9949977177ddc36954c51097f81284d5ac48588e821ec07",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "url": "https://files.pythonhosted.org/packages/c6/02/f2300e5cb07a611afcac5699a97c8d6f229f53a7c751882818ed40a7f72f/sherpa_onnx-1.13.8-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "bytes": 4177610,
+      "sha256": "b56808d19a79368dcaa507d02a4c1ce537ca713fab9fedd91256b4ec599c6bf7",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/ae/c6/1fe91047af08b30806f18fac55639037d3cf0247aeec97b7b7884407d6bf/sherpa_onnx-1.13.8-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "bytes": 4398381,
+      "sha256": "94fd1476b56ed36b851da8db9bd5144e92f669007ad54e0d8094913e4fbf1418",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp311-cp311-win32.whl",
+      "url": "https://files.pythonhosted.org/packages/2a/d2/b7601292ccc18f35cdb39a82f1bbb11e4ffe210bd235179c9da3715761f1/sherpa_onnx-1.13.8-cp311-cp311-win32.whl",
+      "bytes": 1964883,
+      "sha256": "de271d3338358dfb7cea1f780e7d99738437c0d9969f11b5bcf5d6660c6734b7",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp311-cp311-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/a8/95/9325a66149d5a54c53161eba9ba77f8ea7068dc8f921c3d8b75174261211/sherpa_onnx-1.13.8-cp311-cp311-win_amd64.whl",
+      "bytes": 2283357,
+      "sha256": "171e6fac715bae20e11829e8dbfc70ed990ede1b35e6332f8121b27691a002de",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp311-cp311-win_arm64.whl",
+      "url": "https://files.pythonhosted.org/packages/86/e6/e86545b64d55e134f9eb15641d69943bc34b68d9db187043c6e95d002123/sherpa_onnx-1.13.8-cp311-cp311-win_arm64.whl",
+      "bytes": 2242706,
+      "sha256": "41c3433fc044936808a9799b89a5e4c4f7b79d68eda8600d900a3f3724074099",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp312-cp312-linux_armv7l.whl",
+      "url": "https://files.pythonhosted.org/packages/e0/74/f88231aa67e7713b2509da3aa53756b9c85f42fc7a3abe3a4b825e2974bc/sherpa_onnx-1.13.8-cp312-cp312-linux_armv7l.whl",
+      "bytes": 12230846,
+      "sha256": "6e50efbe69ff07f8b62d2d01f9d7f6e5854033be4b8d940fe9b575e873b22584",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp312-cp312-macosx_10_15_universal2.whl",
+      "url": "https://files.pythonhosted.org/packages/a0/35/ed6cc5d2e29f29c9778975bec44ac5e8069e1a3528f7ff1306cbdcdab585/sherpa_onnx-1.13.8-cp312-cp312-macosx_10_15_universal2.whl",
+      "bytes": 4457476,
+      "sha256": "17ff957b1b33849671262ddbac51815a5a82286f963091bddf85540c9e728c12",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp312-cp312-macosx_10_15_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/36/e6/a19257d7c60bf04c07f8d0772b943b6596b6b10cfb0694b7794d36630d40/sherpa_onnx-1.13.8-cp312-cp312-macosx_10_15_x86_64.whl",
+      "bytes": 2350796,
+      "sha256": "ef218d6545a9dcc2aff7043f39026c7d78d6cf46a3876d450d508feebffc00a9",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp312-cp312-macosx_11_0_arm64.whl",
+      "url": "https://files.pythonhosted.org/packages/78/6e/8d9b92e95896ec500084e706529f5637eff797246e74c498922f6aa13a53/sherpa_onnx-1.13.8-cp312-cp312-macosx_11_0_arm64.whl",
+      "bytes": 2146858,
+      "sha256": "04b9268c348e9f4bd61315754ad06b02a3c185d3d7770acd8e2dcee9c2e039f9",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "url": "https://files.pythonhosted.org/packages/1f/5f/22e1571146b2c0b581657562d5919b69da13ed93dc70049f42d45fe9e84c/sherpa_onnx-1.13.8-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "bytes": 4176945,
+      "sha256": "2520b1e7b779a29a493a8cec893612218dfad7304786bf3f64df2ff7ac6c3302",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/13/78/2f712b7408ddbb64614c20388912414705b728516224e737b63f2adec94a/sherpa_onnx-1.13.8-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "bytes": 4400575,
+      "sha256": "6949773017647febc0c3696dffb2c67dd3febd4737b87e3dd135a42773704a06",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp312-cp312-win32.whl",
+      "url": "https://files.pythonhosted.org/packages/39/62/a6cc995ea40fd88a14b5d312d7b86b49ab65213e501f15fabe00cf79e1e5/sherpa_onnx-1.13.8-cp312-cp312-win32.whl",
+      "bytes": 1965883,
+      "sha256": "90e0c7b16fe6be32361dc3f6d2a66e8f74e8085079e91da1bee1acea772b769d",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp312-cp312-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/24/af/33e9dcaa527bbc0c2526959713626607a46da2d7b19871b7773d8607d356/sherpa_onnx-1.13.8-cp312-cp312-win_amd64.whl",
+      "bytes": 2287856,
+      "sha256": "566e49ad3fb2aa8ceb723a52f9809aa6c2ee0a5eb3b0946c3fd2374af807a5c6",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp312-cp312-win_arm64.whl",
+      "url": "https://files.pythonhosted.org/packages/ea/0e/237f9baaa3da5c029a06803a7587d4717ec191284d6f3972c679683ad6d8/sherpa_onnx-1.13.8-cp312-cp312-win_arm64.whl",
+      "bytes": 2249666,
+      "sha256": "1613f14db38b6936098c660f610baee95541378edbdec39a973a591d8df58f5b",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp313-cp313-linux_armv7l.whl",
+      "url": "https://files.pythonhosted.org/packages/c8/c5/172fddb0ab34bed7f645df376d4c2e19deb5b3bc336ca06e1f7a52777e48/sherpa_onnx-1.13.8-cp313-cp313-linux_armv7l.whl",
+      "bytes": 12230180,
+      "sha256": "bbd93a09fa01fb32c222614a7f939495d8966fc15e1cb3943d7a79d3fe7291bd",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp313-cp313-macosx_10_15_universal2.whl",
+      "url": "https://files.pythonhosted.org/packages/cf/7c/21316b8e438598da6f54cc5eea6994fbb9d508caf4afd8292b76802b244c/sherpa_onnx-1.13.8-cp313-cp313-macosx_10_15_universal2.whl",
+      "bytes": 4458011,
+      "sha256": "d2f50ad1b1e1918c0358270846288bdc1636b130bea4d9d85088a14bb7de69b1",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp313-cp313-macosx_10_15_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/7d/4d/b442afd30eff64b83112b54fa866c5d2e3a5aeec13ee8bd665c7b146fba1/sherpa_onnx-1.13.8-cp313-cp313-macosx_10_15_x86_64.whl",
+      "bytes": 2351015,
+      "sha256": "5f8df54514af5025b9d428403dd9a27f6fe252b5e162311bf5c47228a50d0cc5",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp313-cp313-macosx_11_0_arm64.whl",
+      "url": "https://files.pythonhosted.org/packages/ce/7b/9829c8e222e6103fd3571523252974c1095c49ae7d1511babf46c4f0d6ea/sherpa_onnx-1.13.8-cp313-cp313-macosx_11_0_arm64.whl",
+      "bytes": 2147122,
+      "sha256": "2c5a1799c326715b1ee69dae3be48883ddc6fb922fb813067606f7e9a29ea234",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "url": "https://files.pythonhosted.org/packages/13/e3/115476caa9f80cd5f55e4e7b777a6c2d01a133d10f8fae574ba869fc48c3/sherpa_onnx-1.13.8-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "bytes": 4177700,
+      "sha256": "916ec38242e779ee3a99f7b161bd1bf3b02a7fad34cb073d091021c0469e0b58",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/8f/eb/b77acde02d9eee359436ade9239d9ade4351b09fbe85387a293f341c19ed/sherpa_onnx-1.13.8-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "bytes": 4401242,
+      "sha256": "0e5d870fb0648befb94e260c11de4cf4b293b2a90a63e3a6a2869be698927bc4",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp313-cp313-win32.whl",
+      "url": "https://files.pythonhosted.org/packages/04/3d/a5f41332fe672e139f542541cb1afecf96addcbb72ee4bf84b0f9ba3dd22/sherpa_onnx-1.13.8-cp313-cp313-win32.whl",
+      "bytes": 1966530,
+      "sha256": "4bbc4dbbd539fd83c28aa7a076e0e5e1c5c4c4cc9e31fc5bd956b4e8b032fcfc",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp313-cp313-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/52/1f/a96759b33dab99647e57f94040d678c332e0d7eb595127d1e0b4e0b9af27/sherpa_onnx-1.13.8-cp313-cp313-win_amd64.whl",
+      "bytes": 2288187,
+      "sha256": "195455d8d6cc49f616e9d459b7d08f10a32daf2ddcbe90d4d479a8ba9aab28bf",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp313-cp313-win_arm64.whl",
+      "url": "https://files.pythonhosted.org/packages/71/96/86a9571b95336e9968519acedcb33f17fb4c3512e961344f6daed47636cc/sherpa_onnx-1.13.8-cp313-cp313-win_arm64.whl",
+      "bytes": 2245867,
+      "sha256": "15e2d2ac2524e42efb40057f6e1d7cc53529417e791f5cf1bdd721a0ec2b1f7e",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp314-cp314-android_24_arm64_v8a.whl",
+      "url": "https://files.pythonhosted.org/packages/58/e9/e7669a9f7a927e33f20b9bf98ffbe8d11c7f60c6e8f492bd0bc59dcb94d7/sherpa_onnx-1.13.8-cp314-cp314-android_24_arm64_v8a.whl",
+      "bytes": 2364130,
+      "sha256": "533440358bbfc5796bc8cf85fe2bc08d0c91de5200fc03da2d3eb656caec705b",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp314-cp314-android_24_armeabi_v7a.whl",
+      "url": "https://files.pythonhosted.org/packages/83/68/d76f8dd62b7475a0583c57cfaaebbb1de693b42405a17796613fa7592227/sherpa_onnx-1.13.8-cp314-cp314-android_24_armeabi_v7a.whl",
+      "bytes": 2433241,
+      "sha256": "4757a983a0b2757ae55e6179b0f5369381316b1efcdfd5a35b6ccb341fae3daa",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp314-cp314-android_24_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/a4/00/bd069882f9a707a7e0cdad32f9447b95e756d4fe1421419ba0e6d9a2fcd2/sherpa_onnx-1.13.8-cp314-cp314-android_24_x86_64.whl",
+      "bytes": 2588008,
+      "sha256": "e787ab8e2c859bae1589b9dc729ca2d66096505db028f2969b1c3a380a986a38",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp314-cp314-android_24_x86.whl",
+      "url": "https://files.pythonhosted.org/packages/a5/fe/86cbd751f3b36f59ac0333b1ebbf91312c2fc5031c6cf54095a54735b690/sherpa_onnx-1.13.8-cp314-cp314-android_24_x86.whl",
+      "bytes": 2527240,
+      "sha256": "c0bd1249e4ff8a4f93c8b7eb7e906b8d894738556379b28e78817cbdf996eb72",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp314-cp314-linux_armv7l.whl",
+      "url": "https://files.pythonhosted.org/packages/76/b9/832bab8dc5116bb29b0ff7cc1aed5122ab2115c6bb947140073f6930fe67/sherpa_onnx-1.13.8-cp314-cp314-linux_armv7l.whl",
+      "bytes": 12228389,
+      "sha256": "40a7a26e4af197f6b46e73e73cc6792c3401b12377e7d8d674766a5cb67ce4ac",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp314-cp314-macosx_10_15_universal2.whl",
+      "url": "https://files.pythonhosted.org/packages/91/2c/4aee534542f2de43c3dadfbe7d436fdecfb28e4c6d5a12f75febdc3f5f8e/sherpa_onnx-1.13.8-cp314-cp314-macosx_10_15_universal2.whl",
+      "bytes": 4461555,
+      "sha256": "c8121c87eb80c86a8dbe2cf54ed11ca1150ae0001223bac902471e7b4608e1a9",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp314-cp314-macosx_10_15_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/f5/fb/e8a289419f38ed9eb1882d22c12a2680254e5eb945e8e2517c5b2281dd23/sherpa_onnx-1.13.8-cp314-cp314-macosx_10_15_x86_64.whl",
+      "bytes": 2351239,
+      "sha256": "22f699e1fb2e8dafe02b1521ce74e0928b38cb68ad19f481380acf51e6a6965b",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp314-cp314-macosx_11_0_arm64.whl",
+      "url": "https://files.pythonhosted.org/packages/33/f5/ff7f45799a1a77f165410fce5080be2cb59cfc98375bf4a56d7d1fe80540/sherpa_onnx-1.13.8-cp314-cp314-macosx_11_0_arm64.whl",
+      "bytes": 2149334,
+      "sha256": "7fa6ec595a8b4bba2b91e6f8e58647777050ac4eb9845f5a5026c20636c0e2be",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "url": "https://files.pythonhosted.org/packages/4f/9a/51821829b5735b3d7ce607992a62fe93d5f7215cda324c11191c77d49b9b/sherpa_onnx-1.13.8-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "bytes": 4182835,
+      "sha256": "45f16c9fabc3d7ce31ba9722ff8196627ddcaa5ffd02413ad0664ad1952ba419",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/2d/e2/b1af63c1f6a9e0025cbc9aa3b1814ba97ede63db0ad9f297bb9f268fdfc2/sherpa_onnx-1.13.8-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "bytes": 4403669,
+      "sha256": "97309e4b5d9850490085da61e35b0fca002a39ec9da93cd9e21d2d0dcc1cc62a",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp314-cp314-win32.whl",
+      "url": "https://files.pythonhosted.org/packages/b3/34/48d01cc8581f3d4354eb14f1c91a04b52c4c2024ae7c3ce465355aa6d227/sherpa_onnx-1.13.8-cp314-cp314-win32.whl",
+      "bytes": 2006786,
+      "sha256": "bf5f95bfd992f5dd3f897f57fc13f9d0174e16e48c19d43a24923cc5fb61ded1",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp314-cp314-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/24/a5/100a7c200e696b2756838b0bdb83e9cf96f62e524d44d43daba0a8e9d6fe/sherpa_onnx-1.13.8-cp314-cp314-win_amd64.whl",
+      "bytes": 2353481,
+      "sha256": "1ced230bdd02f4d50106ce5c41e5f9142b45248e67ca532c84439d0475932bb8",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp314-cp314-win_arm64.whl",
+      "url": "https://files.pythonhosted.org/packages/1f/38/ce056f2cdcfa9abcf40ea572cc8ece2fac4fe19a5fe2f1ec589cf71e412c/sherpa_onnx-1.13.8-cp314-cp314-win_arm64.whl",
+      "bytes": 2314981,
+      "sha256": "ecce26fe96e4b733356568fac1e99df7038e9871b94b70d9f731e2ea8656db67",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp37-cp37m-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/f3/91/cc67cec064141b2251af08fcbfb6a58acbf18860c2162993a74c0dbdd62f/sherpa_onnx-1.13.8-cp37-cp37m-win_amd64.whl",
+      "bytes": 2289517,
+      "sha256": "588736d8a1d8ed67c358190b8c85440809f4e0db0131e9385dcc9695e80d37aa",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp38-cp38-linux_armv7l.whl",
+      "url": "https://files.pythonhosted.org/packages/5d/3f/4244d4221246d1e7482175221a91dd4559d6e7574bc3a01aac4f642ea41f/sherpa_onnx-1.13.8-cp38-cp38-linux_armv7l.whl",
+      "bytes": 12227605,
+      "sha256": "d647cb5e89067ea93e0cb6dc8f1bb5e80cfc73051296fa0c0c7f7c504bf025dd",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp38-cp38-macosx_10_15_universal2.whl",
+      "url": "https://files.pythonhosted.org/packages/6d/c4/cf4e38dfb845f7512477dafaceb9a0fbc923a6b18ac89ee938bee5d58914/sherpa_onnx-1.13.8-cp38-cp38-macosx_10_15_universal2.whl",
+      "bytes": 4430711,
+      "sha256": "272e5c5d3a2453877ec80e00e58fee4f83555de9f046ce69bffe7d68272616a4",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp38-cp38-macosx_10_15_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/76/27/b16e7a3e953c5a33044212154eb9fe0fa70dbccd62959b6e228d79cbcce2/sherpa_onnx-1.13.8-cp38-cp38-macosx_10_15_x86_64.whl",
+      "bytes": 2330532,
+      "sha256": "b806d607f41d44b1dcece5ff1c0a2f5e78cefee7055f79eb7087f94e5e01c350",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp38-cp38-macosx_11_0_arm64.whl",
+      "url": "https://files.pythonhosted.org/packages/3d/f0/9272f6fe4551e204de4f34c3c4082262b137bb1382c0f7aeef1b303b46d0/sherpa_onnx-1.13.8-cp38-cp38-macosx_11_0_arm64.whl",
+      "bytes": 2139786,
+      "sha256": "eeb763b89be9b9742186b1ec2bdebb09939b511b4e1099e0a79158799aeb35e1",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp38-cp38-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "url": "https://files.pythonhosted.org/packages/f6/94/5c3535a4caab8f17daee3227f03d0625682405b0ec3d23dd34ff45d7f19d/sherpa_onnx-1.13.8-cp38-cp38-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "bytes": 4175627,
+      "sha256": "a4bc79b1baee66f12233e61f1026df336cf784176117d06ff4ef921997daea91",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp38-cp38-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/eb/9b/c14f7d84cdae285529a8841ec524adbf3efc0af286f44d9c57a313e0192e/sherpa_onnx-1.13.8-cp38-cp38-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "bytes": 4397659,
+      "sha256": "6c3022639034b0113b1b0891552d799ed0f3711a643cb83f4360995f1d557f24",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp38-cp38-win32.whl",
+      "url": "https://files.pythonhosted.org/packages/96/41/f00985c5ba67be9b36f5ba4dad13b657af053f3fc3189a3b535789566da5/sherpa_onnx-1.13.8-cp38-cp38-win32.whl",
+      "bytes": 1964017,
+      "sha256": "51794e390ddf484c26f5d5109b3c204357b93608859753f347718ade372d7b0e",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp38-cp38-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/bb/1e/dbc86b618ca7a05fd63b873c523c477dce6bd758b11c86045fae0a97f7b5/sherpa_onnx-1.13.8-cp38-cp38-win_amd64.whl",
+      "bytes": 2282873,
+      "sha256": "2f5dca479795dd6d4deff7b046b6e16b9856d1a00b64d5dae836b158f33d8589",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp39-cp39-linux_armv7l.whl",
+      "url": "https://files.pythonhosted.org/packages/f1/fe/da8084d6ad72a67d54fd011404ea61ee4926ac25f9e64e3adbb0b1300b0f/sherpa_onnx-1.13.8-cp39-cp39-linux_armv7l.whl",
+      "bytes": 12228359,
+      "sha256": "80fe0a7c1d524f32b00f144bf6bda0b287611bc42781ce99baba6acae02dc254",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp39-cp39-macosx_10_15_universal2.whl",
+      "url": "https://files.pythonhosted.org/packages/42/d4/8ac1f5b48a7f1204414e3477fa3ff6b19fe719d2a25a6b77865a49e9c59d/sherpa_onnx-1.13.8-cp39-cp39-macosx_10_15_universal2.whl",
+      "bytes": 4432022,
+      "sha256": "90bc364ea99e86d708dfdcf8557468d9ae743d3731bc532bc97db48d36f33b79",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp39-cp39-macosx_10_15_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/2a/f2/56788768a4817d77b629b2afa9a8e9b114926a269e8d47b628c955713bcf/sherpa_onnx-1.13.8-cp39-cp39-macosx_10_15_x86_64.whl",
+      "bytes": 2331227,
+      "sha256": "210a740e2658ccbff2a10b84fceb5b0cdd0d45fb88c16701daefdd36bd3d7d0c",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp39-cp39-macosx_11_0_arm64.whl",
+      "url": "https://files.pythonhosted.org/packages/e7/25/2062254d6dd424f8cdc1b936fbfcc19ee653896d5e329edf1aab79ed39eb/sherpa_onnx-1.13.8-cp39-cp39-macosx_11_0_arm64.whl",
+      "bytes": 2140519,
+      "sha256": "da288a084ffccea9468c4ba916ed367ebdf7e28e7a4f3c59b684e37fc429e466",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp39-cp39-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "url": "https://files.pythonhosted.org/packages/f8/09/d6686765b4399923c19f9389e87daa66658015a26e033e2257a7b9a984b7/sherpa_onnx-1.13.8-cp39-cp39-manylinux2014_aarch64.manylinux_2_17_aarch64.whl",
+      "bytes": 4175595,
+      "sha256": "7925b722e6b6604a783c0d6a784b69b47dac15f08c2146bc0f890ba75b6509b2",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp39-cp39-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/92/95/e97791644cdd3e3a4b6dc63c3fd0585972b7b5af98c083ca12e5a0a8f535/sherpa_onnx-1.13.8-cp39-cp39-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "bytes": 4398375,
+      "sha256": "174477f3dc03fa15f97aa15c99185431422c04bfa6c2b5f43e7540972d8ff901",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp39-cp39-win32.whl",
+      "url": "https://files.pythonhosted.org/packages/b0/fd/bf74fe174f3b55ffffe7fa864e8101df22f1da8079e22773811add57bee2/sherpa_onnx-1.13.8-cp39-cp39-win32.whl",
+      "bytes": 1964119,
+      "sha256": "d90ea43ee73815227b6b6cdde6e3ec18cb128a36ef2afb6f9910343464c080a1",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8-cp39-cp39-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/3e/b3/7ead9136e08edbddcaeabf9ca12fdfa3b438cf0664f25c525c80a332779d/sherpa_onnx-1.13.8-cp39-cp39-win_amd64.whl",
+      "bytes": 2388130,
+      "sha256": "f7a1c974361383f35cd0a440db8361bca25a556106d15d12496bf3446642560f",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "sherpa_onnx-1.13.8.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/f9/5d/9c19acbe7eebd09cee4b69408532f44dc09e71b6025518ed7dd9c0509d6d/sherpa_onnx-1.13.8.tar.gz",
+      "bytes": 1057541,
+      "sha256": "68e638f745df120a7fae268b7bae0eaab2362b5ad76fe3389bece1d3cd63272c",
+      "packagetype": "sdist"
+    }
+  ],
+  "files": [],
+  "license": {
+    "spdx": "Apache-2.0",
+    "url": "https://spdx.org/licenses/Apache-2.0.html",
+    "text": "Apache License\nVersion 2.0, January 2004\nhttp://www.apache.org/licenses/\n\nTERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n1. Definitions.\n\n\"License\" shall mean the terms and conditions for use, reproduction, and distribution as defined by Sections 1 through 9 of this document.\n\n\"Licensor\" shall mean the copyright owner or entity authorized by the copyright owner that is granting the License.\n\n\"Legal Entity\" shall mean the union of the acting entity and all other entities that control, are controlled by, or are under common control with that entity. For the purposes of this definition, \"control\" means (i) the power, direct or indirect, to cause the direction or management of such entity, whether by contract or otherwise, or (ii) ownership of fifty percent (50%) or more of the outstanding shares, or (iii) beneficial ownership of such entity.\n\n\"You\" (or \"Your\") shall mean an individual or Legal Entity exercising permissions granted by this License.\n\n\"Source\" form shall mean the preferred form for making modifications, including but not limited to software source code, documentation source, and configuration files.\n\n\"Object\" form shall mean any form resulting from mechanical transformation or translation of a Source form, including but not limited to compiled object code, generated documentation, and conversions to other media types.\n\n\"Work\" shall mean the work of authorship, whether in Source or Object form, made available under the License, as indicated by a copyright notice that is included in or attached to the work (an example is provided in the Appendix below).\n\n\"Derivative Works\" shall mean any work, whether in Source or Object form, that is based on (or derived from) the Work and for which the editorial revisions, annotations, elaborations, or other modifications represent, as a whole, an original work of authorship. For the purposes of this License, Derivative Works shall not include works that remain separable from, or merely link (or bind by name) to the interfaces of, the Work and Derivative Works thereof.\n\n\"Contribution\" shall mean any work of authorship, including the original version of the Work and any modifications or additions to that Work or Derivative Works thereof, that is intentionally submitted to Licensor for inclusion in the Work by the copyright owner or by an individual or Legal Entity authorized to submit on behalf of the copyright owner. For the purposes of this definition, \"submitted\" means any form of electronic, verbal, or written communication sent to the Licensor or its representatives, including but not limited to communication on electronic mailing lists, source code control systems, and issue tracking systems that are managed by, or on behalf of, the Licensor for the purpose of discussing and improving the Work, but excluding communication that is conspicuously marked or otherwise designated in writing by the copyright owner as \"Not a Contribution.\"\n\n\"Contributor\" shall mean Licensor and any individual or Legal Entity on behalf of whom a Contribution has been received by Licensor and subsequently incorporated within the Work.\n\n2. Grant of Copyright License. Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable copyright license to reproduce, prepare Derivative Works of, publicly display, publicly perform, sublicense, and distribute the Work and such Derivative Works in Source or Object form.\n\n3. Grant of Patent License. Subject to the terms and conditions of this License, each Contributor hereby grants to You a perpetual, worldwide, non-exclusive, no-charge, royalty-free, irrevocable (except as stated in this section) patent license to make, have made, use, offer to sell, sell, import, and otherwise transfer the Work, where such license applies only to those patent claims licensable by such Contributor that are necessarily infringed by their Contribution(s) alone or by combination of their Contribution(s) with the Work to which such Contribution(s) was submitted. If You institute patent litigation against any entity (including a cross-claim or counterclaim in a lawsuit) alleging that the Work or a Contribution incorporated within the Work constitutes direct or contributory patent infringement, then any patent licenses granted to You under this License for that Work shall terminate as of the date such litigation is filed.\n\n4. Redistribution. You may reproduce and distribute copies of the Work or Derivative Works thereof in any medium, with or without modifications, and in Source or Object form, provided that You meet the following conditions:\n\n     (a) You must give any other recipients of the Work or Derivative Works a copy of this License; and\n\n     (b) You must cause any modified files to carry prominent notices stating that You changed the files; and\n\n     (c) You must retain, in the Source form of any Derivative Works that You distribute, all copyright, patent, trademark, and attribution notices from the Source form of the Work, excluding those notices that do not pertain to any part of the Derivative Works; and\n\n     (d) If the Work includes a \"NOTICE\" text file as part of its distribution, then any Derivative Works that You distribute must include a readable copy of the attribution notices contained within such NOTICE file, excluding those notices that do not pertain to any part of the Derivative Works, in at least one of the following places: within a NOTICE text file distributed as part of the Derivative Works; within the Source form or documentation, if provided along with the Derivative Works; or, within a display generated by the Derivative Works, if and wherever such third-party notices normally appear. The contents of the NOTICE file are for informational purposes only and do not modify the License. You may add Your own attribution notices within Derivative Works that You distribute, alongside or as an addendum to the NOTICE text from the Work, provided that such additional attribution notices cannot be construed as modifying the License.\n\n     You may add Your own copyright statement to Your modifications and may provide additional or different license terms and conditions for use, reproduction, or distribution of Your modifications, or for any such Derivative Works as a whole, provided Your use, reproduction, and distribution of the Work otherwise complies with the conditions stated in this License.\n\n5. Submission of Contributions. Unless You explicitly state otherwise, any Contribution intentionally submitted for inclusion in the Work by You to the Licensor shall be under the terms and conditions of this License, without any additional terms or conditions. Notwithstanding the above, nothing herein shall supersede or modify the terms of any separate license agreement you may have executed with Licensor regarding such Contributions.\n\n6. Trademarks. This License does not grant permission to use the trade names, trademarks, service marks, or product names of the Licensor, except as required for reasonable and customary use in describing the origin of the Work and reproducing the content of the NOTICE file.\n\n7. Disclaimer of Warranty. Unless required by applicable law or agreed to in writing, Licensor provides the Work (and each Contributor provides its Contributions) on an \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied, including, without limitation, any warranties or conditions of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A PARTICULAR PURPOSE. You are solely responsible for determining the appropriateness of using or redistributing the Work and assume any risks associated with Your exercise of permissions under this License.\n\n8. Limitation of Liability. In no event and under no legal theory, whether in tort (including negligence), contract, or otherwise, unless required by applicable law (such as deliberate and grossly negligent acts) or agreed to in writing, shall any Contributor be liable to You for damages, including any direct, indirect, special, incidental, or consequential damages of any character arising as a result of this License or out of the use or inability to use the Work (including but not limited to damages for loss of goodwill, work stoppage, computer failure or malfunction, or any and all other commercial damages or losses), even if such Contributor has been advised of the possibility of such damages.\n\n9. Accepting Warranty or Additional Liability. While redistributing the Work or Derivative Works thereof, You may choose to offer, and charge a fee for, acceptance of support, warranty, indemnity, or other liability obligations and/or rights consistent with this License. However, in accepting such obligations, You may act only on Your own behalf and on Your sole responsibility, not on behalf of any other Contributor, and only if You agree to indemnify, defend, and hold each Contributor harmless for any liability incurred by, or claims asserted against, such Contributor by reason of your accepting any such warranty or additional liability.\n\nEND OF TERMS AND CONDITIONS\n\nAPPENDIX: How to apply the Apache License to your work.\n\nTo apply the Apache License to your work, attach the following boilerplate notice, with the fields enclosed by brackets \"[]\" replaced with your own identifying information. (Don't include the brackets!)  The text should be enclosed in the appropriate comment syntax for the file format. We also recommend that a file or class name and description of purpose be included on the same \"printed page\" as the copyright notice for easier identification within third-party archives.\n\nCopyright [yyyy] [name of copyright owner]\n\nLicensed under the Apache License, Version 2.0 (the \"License\");\nyou may not use this file except in compliance with the License.\nYou may obtain a copy of the License at\n\nhttp://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software\ndistributed under the License is distributed on an \"AS IS\" BASIS,\nWITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\nSee the License for the specific language governing permissions and\nlimitations under the License.\n",
+    "attribution": "The sherpa-onnx development team",
+    "redistribution_review": "required for complete packaged native/codec dependency closure"
+  },
+  "transformations": [
+    "Isolated PyInstaller CPU executable built from exact worker uv.lock; no weights"
+  ],
+  "gating": {
+    "required": false,
+    "terms_url": null
+  },
+  "platforms": [
+    "windows-x86_64",
+    "macos-aarch64",
+    "macos-x86_64",
+    "linux-x86_64"
+  ],
+  "runtime": {
+    "family": "sherpa",
+    "version_range": ">=1.0.0,<2.0.0"
+  },
+  "minimum_resources": {
+    "free_disk_bytes": null,
+    "ram_bytes": null,
+    "note": "Exact packaged bytes/resources determined by target-native build; no unmeasured claim"
+  },
+  "capability_profile": {
+    "protocol_major": 1,
+    "cpu_baseline": true,
+    "gpu_variant": false
+  },
+  "signature": null,
+  "blocked_reason": "Target-native self-contained runtime archive, public release URL, complete native/codec notices and detached project signature must be supplied by release build; upstream wheel hashes are real source provenance, not fabricated runtime hashes",
+  "build_command": "python workers/build.py sherpa --accept-runtime-license --output dist/workers"
+}

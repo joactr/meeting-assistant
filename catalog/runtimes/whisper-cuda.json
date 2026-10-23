@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "id": "runtime-whisper-cuda",
+  "role": "runtime",
+  "revision": "1.0.0",
+  "source": "https://pypi.org/project/faster-whisper/1.2.1/",
+  "upstream_version": "1.2.1",
+  "upstream_artifacts": [
+    {
+      "filename": "faster_whisper-1.2.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/05/99/49ee85903dee060d9f08297b4a342e5e0bcfca2f027a07b4ee0a38ab13f9/faster_whisper-1.2.1-py3-none-any.whl",
+      "bytes": 1118909,
+      "sha256": "79a66ad50688c0b794dd501dc340a736992a6342f7f95e5811be60b5224a26a7",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "nvidia_cublas_cu12-12.9.2.10-py3-none-manylinux_2_27_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/cb/c0/0a517bfe63ccd3b92eb254d264e28fca3c7cab75d07daea315250fb1bf73/nvidia_cublas_cu12-12.9.2.10-py3-none-manylinux_2_27_x86_64.whl",
+      "bytes": 581240110,
+      "sha256": "e4f53a8ca8c5d6e8c492d0d0a3d565ecb59a751b19cfdaa4f6da0ab2104c1702",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "nvidia_cublas_cu12-12.9.2.10-py3-none-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/20/e2/fc9a0e985249d873150276d5afb02e39a66817fedbf1a385724393e505ed/nvidia_cublas_cu12-12.9.2.10-py3-none-win_amd64.whl",
+      "bytes": 553162896,
+      "sha256": "623f43027d40d44ceadf0043f002bd25cf353e8f13ce90b9a87057019f560661",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "nvidia_cuda_nvrtc_cu12-12.9.86-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/b8/85/e4af82cc9202023862090bfca4ea827d533329e925c758f0cde964cb54b7/nvidia_cuda_nvrtc_cu12-12.9.86-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl",
+      "bytes": 89568129,
+      "sha256": "210cf05005a447e29214e9ce50851e83fc5f4358df8b453155d5e1918094dcb4",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "nvidia_cuda_nvrtc_cu12-12.9.86-py3-none-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/52/de/823919be3b9d0ccbf1f784035423c5f18f4267fb0123558d58b813c6ec86/nvidia_cuda_nvrtc_cu12-12.9.86-py3-none-win_amd64.whl",
+      "bytes": 76408187,
+      "sha256": "72972ebdcf504d69462d3bcd67e7b81edd25d0fb85a2c46d3ea3517666636349",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "nvidia_cudnn_cu12-9.27.0.42-py3-none-manylinux_2_27_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/65/e4/c5a205d48ff00ed8b27882bb45d338d8138e976c76385f328a326bbfaeda/nvidia_cudnn_cu12-9.27.0.42-py3-none-manylinux_2_27_x86_64.whl",
+      "bytes": 766178381,
+      "sha256": "0a4aa3a7d2264256506c6857fc41fc0c499982f78d70195b1cfcc9055c1957cd",
+      "packagetype": "bdist_wheel"
+    },
+    {
+      "filename": "nvidia_cudnn_cu12-9.27.0.42-py3-none-win_amd64.whl",
+      "url": "https://files.pythonhosted.org/packages/aa/38/f856579877f7c1c5066e61182e7de7bc27bf35a78c8d1b0fa592e6985bc4/nvidia_cudnn_cu12-9.27.0.42-py3-none-win_amd64.whl",
+      "bytes": 743068852,
+      "sha256": "06e9b0026f3bad97d2b58666330fabec04fe1672f776661ecb0ce0029c27f142",
+      "packagetype": "bdist_wheel"
+    }
+  ],
+  "files": [],
+  "license": {
+    "spdx": "MIT",
+    "url": "https://spdx.org/licenses/MIT.html",
+    "text": "MIT License\n\nCopyright (c) <year> <copyright holders>\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and\nassociated documentation files (the \"Software\"), to deal in the Software without restriction, including\nwithout limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the\nfollowing conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial\nportions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT\nLIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO\nEVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER\nIN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE\nUSE OR OTHER DEALINGS IN THE SOFTWARE.\n",
+    "attribution": "Guillaume Klein",
+    "redistribution_review": "required: NVIDIA cuBLAS/cuDNN/NVRTC redistribution terms and complete native dependency closure"
+  },
+  "transformations": [
+    "Isolated PyInstaller CUDA 12 executable built from exact worker uv.lock; bundles redistributable NVIDIA cuBLAS, cuDNN and NVRTC; no weights"
+  ],
+  "gating": {
+    "required": false,
+    "terms_url": null
+  },
+  "platforms": [
+    "windows-x86_64",
+    "linux-x86_64"
+  ],
+  "runtime": {
+    "family": "whisper",
+    "version_range": ">=1.0.0,<2.0.0"
+  },
+  "minimum_resources": {
+    "free_disk_bytes": null,
+    "ram_bytes": null,
+    "gpu_vram_bytes": 2147483648,
+    "note": "Measured on RTX 4060 Ti: NVIDIA libraries about 2 GiB unpacked; exact packaged bytes determined by target-native build"
+  },
+  "capability_profile": {
+    "protocol_major": 1,
+    "cpu_baseline": false,
+    "gpu_variant": true
+  },
+  "signature": null,
+  "blocked_reason": "Target-native CUDA runtime archive, public release URL, NVIDIA redistribution review, complete native/codec notices and detached project signature must be supplied by the release owner; no placeholder URL or hash is shipped.",
+  "build_command": "python workers/build.py whisper-cuda --accept-runtime-license --output dist/workers",
+  "unsupported_platforms": {
+    "macos-aarch64": "CUDA is not available on macOS",
+    "macos-x86_64": "CUDA is not available on macOS"
+  },
+  "host_requirements": {
+    "gpu": {
+      "vendor": "nvidia",
+      "min_driver_major": 525,
+      "min_vram_bytes": 2147483648,
+      "note": "CUDA 12 / cuDNN 9; driver 525 or newer; about 2 GiB free GPU memory for Whisper small"
+    }
+  },
+  "description": "Optional NVIDIA CUDA Whisper worker. Large separate download (cuDNN and cuBLAS); never part of the installer. Selected explicitly per model profile via device=cuda; no silent CPU fallback."
+}

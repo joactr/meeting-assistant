@@ -1,0 +1,188 @@
+{
+  "$defs": {
+    "Artifact": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "confirmed",
+            "open",
+            "resolved",
+            "superseded"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Owner"
+        },
+        "date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Date"
+        },
+        "source_refs": {
+          "items": {
+            "$ref": "#/$defs/SourceRef"
+          },
+          "maxItems": 30,
+          "minItems": 1,
+          "title": "Source Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "title",
+        "status",
+        "owner",
+        "date",
+        "source_refs"
+      ],
+      "title": "Artifact",
+      "type": "object"
+    },
+    "SourceRef": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Revision"
+        },
+        "start_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Start Ms"
+        },
+        "end_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "End Ms"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Quote"
+        }
+      },
+      "required": [
+        "source_id",
+        "revision",
+        "start_ms",
+        "end_ms",
+        "quote"
+      ],
+      "title": "SourceRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "decisions": {
+      "items": {
+        "$ref": "#/$defs/Artifact"
+      },
+      "maxItems": 100,
+      "title": "Decisions",
+      "type": "array"
+    },
+    "risks": {
+      "items": {
+        "$ref": "#/$defs/Artifact"
+      },
+      "maxItems": 100,
+      "title": "Risks",
+      "type": "array"
+    },
+    "milestones": {
+      "items": {
+        "$ref": "#/$defs/Artifact"
+      },
+      "maxItems": 100,
+      "title": "Milestones",
+      "type": "array"
+    },
+    "deliverables": {
+      "items": {
+        "$ref": "#/$defs/Artifact"
+      },
+      "maxItems": 100,
+      "title": "Deliverables",
+      "type": "array"
+    },
+    "follow_ups": {
+      "items": {
+        "$ref": "#/$defs/Artifact"
+      },
+      "maxItems": 100,
+      "title": "Follow Ups",
+      "type": "array"
+    }
+  },
+  "required": [
+    "decisions",
+    "risks",
+    "milestones",
+    "deliverables",
+    "follow_ups"
+  ],
+  "title": "ArtifactsResult",
+  "type": "object"
+}

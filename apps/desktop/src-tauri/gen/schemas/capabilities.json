@@ -1,1 +1,0 @@
-{"desktop":{"identifier":"desktop","description":"Only bundled desktop windows; no filesystem, shell, HTTP or opener plugin grants.","local":true,"windows":["main"],"permissions":["core:default","core:event:allow-listen","core:event:allow-unlisten"]}}

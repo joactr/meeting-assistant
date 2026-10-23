@@ -5,7 +5,7 @@ target/
 dist/
 build/
 .cache/
-artifacts/
+/artifacts/
 .playwright/
 __pycache__/
 *.py[cod]
@@ -24,8 +24,9 @@ __pycache__/
 *.pfx
 *.p12
 *.sig
-recordings/
-models/
-runtimes/
+/recordings/
+/models/
+/runtimes/
+apps/desktop/src-tauri/gen/schemas/
 arch.md
 gaps.md
