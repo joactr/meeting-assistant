@@ -154,6 +154,8 @@ def build() -> None:
         "--clean",
         str(ROOT / "tooling" / "engine.spec"),
     )
+    # Tauri's build script requires every bundled resource dir, including dist/notices.
+    py(str(ROOT / "tooling" / "release.py"), "dependencies")
     run(
         executable("cargo"),
         "build",
@@ -167,7 +169,6 @@ def build() -> None:
 
 def package() -> None:
     build()
-    py(str(ROOT / "tooling" / "release.py"), "dependencies")
     arguments = [
         "exec",
         "--",

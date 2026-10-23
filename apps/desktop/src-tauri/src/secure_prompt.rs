@@ -1,5 +1,5 @@
 //! Credential entry uses an OS-native secure prompt, never React state.
-use anyhow::{ensure, Result};
+use anyhow::Result;
 use zeroize::Zeroizing;
 #[cfg(windows)]
 pub fn prompt(label: &str) -> Result<Option<Zeroizing<String>>> {
@@ -40,7 +40,7 @@ pub fn prompt(label: &str) -> Result<Option<Zeroizing<String>>> {
     if result == 1223 {
         return Ok(None);
     }
-    ensure!(result == 0, "Windows credential prompt failed ({result})");
+    anyhow::ensure!(result == 0, "Windows credential prompt failed ({result})");
     let len = password
         .iter()
         .position(|x| *x == 0)
@@ -49,7 +49,7 @@ pub fn prompt(label: &str) -> Result<Option<Zeroizing<String>>> {
 }
 #[cfg(target_os = "macos")]
 pub fn prompt(label: &str) -> Result<Option<Zeroizing<String>>> {
-    ensure!(label.len() <= 256, "credential label too long");
+    anyhow::ensure!(label.len() <= 256, "credential label too long");
     let output=std::process::Command::new("/usr/bin/osascript").args(["-e","on run argv\nset r to display dialog (item 1 of argv) default answer \"\" with hidden answer with title \"Meeting Assistant credential\"\nreturn text returned of r\nend run",label]).output()?;
     if !output.status.success() {
         return Ok(None);
