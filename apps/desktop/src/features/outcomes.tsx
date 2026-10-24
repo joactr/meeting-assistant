@@ -66,7 +66,7 @@ export function CitedResult({ result }: { result: RecordData }) {
 
 export function AnalysisPanel({ meetingId, task = 'summary' }: { meetingId: string; task?: string }) {
   const query = useResource('analysis.list', { meeting_id: meetingId, task });
-  return <Panel title={task === 'summary' ? 'Meeting summary' : 'Topics & structured outcomes'} actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task, idempotency_key: crypto.randomUUID() }}>Generate {task}</CommandButton>}><Notice>{accuracyNotice}</Notice><AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title={`No ${task} generated`}>Generation needs your configured task provider. Existing valid results remain visible if a later request fails.</Empty> : items(data).map((result) => <CitedResult key={id(result)} result={result} />)}</AsyncView>{task === 'topics' && <Artifacts meetingId={meetingId} />}</Panel>;
+  return <Panel title={task === 'summary' ? 'Summary' : 'Topics & outcomes'} actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task, idempotency_key: crypto.randomUUID() }}>Generate {task}</CommandButton>}><AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title={`No ${task} yet`}>Uses the AI provider you set up in Settings.</Empty> : <><Notice>{accuracyNotice}</Notice>{items(data).map((result) => <CitedResult key={id(result)} result={result} />)}</>}</AsyncView>{task === 'topics' && <Artifacts meetingId={meetingId} />}</Panel>;
 }
 
 function Artifacts({ meetingId }: { meetingId: string }) {

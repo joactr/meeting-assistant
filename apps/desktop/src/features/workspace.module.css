@@ -231,6 +231,24 @@
   overflow-wrap: anywhere;
 }
 
+.rowActions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.14s var(--ease);
+}
+
+.utterance:hover .rowActions,
+.utterance:focus-within .rowActions,
+.utterance.selected .rowActions {
+  opacity: 1;
+}
+
+.lowConfidence {
+  color: var(--warning, currentColor);
+}
+
 .timestamp {
   font-family: var(--font-mono);
   font-size: 0.7rem;

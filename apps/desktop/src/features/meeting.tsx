@@ -29,14 +29,11 @@ function MeetingWorkspace({ meeting }: { meeting: RecordData }) {
   const recording = ['recording', 'starting', 'paused'].includes(text(meeting.state));
   const [notesVisible, setNotesVisible] = useState(true);
   return <><PageHeader title={label(meeting)}><MeetingActions meeting={meeting} notesVisible={notesVisible} onToggleNotes={() => setNotesVisible(!notesVisible)} /></PageHeader><CaptureStatus meeting={meeting}><div className={styles.captureActions}><CaptureControls meeting={meeting} /></div></CaptureStatus>{meeting.health === 'degraded' && <Notice danger>Capture is degraded. Review individual source status; retry the missing source, pause, or explicitly continue with remaining audio. The app does not claim full capture.</Notice>}<div className={styles.meetingLayout}><main className={styles.transcriptColumn}><Transcript meetingId={meetingId} recording={recording} />{!recording && <ReplayPanel meetingId={meetingId} recording={recording} />}{!recording && <CandidatePanel meetingId={meetingId} />}</main><aside className={styles.resultsColumn} aria-label="Meeting notes and generated outcomes"><TabSet value={panel} onValueChange={setPanel} tabs={[
-    { label: 'Summary', content: <AnalysisPanel meetingId={meetingId} /> },
+    { label: 'Summary', content: <><AnalysisPanel meetingId={meetingId} /><AnalysisPanel meetingId={meetingId} task="topics" /></> },
     { label: 'Actions', content: <ActionsPanel meetingId={meetingId} /> },
-    { label: 'Cues & Questions', content: <QuestionsPanel meetingId={meetingId} /> },
-    { label: 'Topics', content: <AnalysisPanel meetingId={meetingId} task="topics" /> },
-    { label: 'Important', content: <ImportantPanel meetingId={meetingId} /> },
+    { label: 'Questions', content: <><QuestionsPanel meetingId={meetingId} /><ImportantPanel meetingId={meetingId} /></> },
     { label: 'Speakers', content: <SpeakersPanel meetingId={meetingId} /> },
-    { label: 'Minutes', content: <MinutesPanel meeting={meeting} /> },
-    { label: 'Jobs', content: <FinalizationPanel meetingId={meetingId} /> },
+    { label: 'Minutes', content: <><MinutesPanel meeting={meeting} /><FinalizationPanel meetingId={meetingId} /></> },
   ]} />{notesVisible && <HumanNotes meetingId={meetingId} />}</aside></div></>;
 }
 

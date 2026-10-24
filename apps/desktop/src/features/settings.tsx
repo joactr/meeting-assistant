@@ -13,79 +13,76 @@ import { PrivacySettings } from './privacy';
 import styles from './workspace.module.css';
 
 const groups: { id: string; title: string; notice?: string; fields: Field[] }[] = [
-  { id: 'capture', title: 'Capture processing', fields: [
-    { name: 'mode', label: 'Default capture mode', type: 'select', value: 'both', options: ['both', 'mic', 'system'].map((value) => ({ value, label: value })) },
-    { name: 'microphone_device_key', label: 'Selected microphone stable device ID' },
-    { name: 'system_device_key', label: 'Selected system endpoint stable ID' },
-    { name: 'vad_threshold', label: 'VAD threshold', type: 'number', value: .5, min: 0, max: 1 },
-    { name: 'pre_roll_ms', label: 'Pre-roll (ms)', type: 'number', value: 300, min: 0, max: 2000 },
-    { name: 'post_silence_ms', label: 'Post-silence (ms)', type: 'number', value: 400, min: 0, max: 3000 },
-    { name: 'minimum_true_speech_ms', label: 'Minimum true speech (ms, excluding padding)', type: 'number', value: 250, min: 0, max: 2000 },
-    { name: 'maximum_utterance_ms', label: 'Maximum utterance (ms)', type: 'number', value: 12000, min: 1000, max: 30000 },
-    { name: 'noise_suppression', label: 'Optional microphone noise suppression', type: 'checkbox', value: false },
-    { name: 'echo_cancellation', label: 'Calibrated acoustic echo cancellation', type: 'checkbox', value: false },
-    { name: 'source_failure_policy', label: 'Source failure policy', type: 'select', value: 'warn', options: [{ value: 'warn', label: 'Persistent warning; user chooses retry/pause/continue' }, { value: 'pause', label: 'Pause capture on source loss' }] },
+  { id: 'capture', title: 'Capture', fields: [
+    { name: 'mode', label: 'Capture', type: 'select', value: 'both', options: [{ value: 'both', label: 'Microphone and computer audio' }, { value: 'mic', label: 'Microphone only' }, { value: 'system', label: 'Computer audio only' }] },
+    { name: 'microphone_device_key', label: 'Microphone device ID' },
+    { name: 'system_device_key', label: 'Computer audio device ID' },
+    { name: 'vad_threshold', label: 'Speech detection sensitivity (0–1)', type: 'number', value: .5, min: 0, max: 1 },
+    { name: 'pre_roll_ms', label: 'Audio kept before speech starts (ms)', type: 'number', value: 300, min: 0, max: 2000 },
+    { name: 'post_silence_ms', label: 'Silence before a line ends (ms)', type: 'number', value: 400, min: 0, max: 3000 },
+    { name: 'minimum_true_speech_ms', label: 'Shortest speech to transcribe (ms)', type: 'number', value: 250, min: 0, max: 2000 },
+    { name: 'maximum_utterance_ms', label: 'Longest single line (ms)', type: 'number', value: 12000, min: 1000, max: 30000 },
+    { name: 'noise_suppression', label: 'Reduce microphone background noise', type: 'checkbox', value: false },
+    { name: 'echo_cancellation', label: 'Cancel speaker echo (run calibration first)', type: 'checkbox', value: false },
+    { name: 'source_failure_policy', label: 'If a device disconnects', type: 'select', value: 'warn', options: [{ value: 'warn', label: 'Keep going and show a warning' }, { value: 'pause', label: 'Pause the meeting' }] },
   ] },
-  { id: 'recording', title: 'Recording & retention', notice: 'Recording is off by default. You are responsible for participant permission.', fields: [
-    { name: 'enabled', label: 'Retain separate source audio tracks', type: 'checkbox', value: false },
-    { name: 'retain_days', label: 'Audio retention', type: 'select', value: '7', options: [{ value: '1', label: '1 day' }, { value: '7', label: '7 days (default)' }, { value: '30', label: '30 days' }, { value: 'forever', label: 'Keep until manual deletion' }] },
-    { name: 'byte_cap', label: 'Workspace media cap (bytes)', type: 'number', value: 10737418240, min: 104857600 },
-    { name: 'max_import_bytes', label: 'Maximum file import bytes', type: 'number', value: 2147483648, min: 1024 },
-    { name: 'max_import_seconds', label: 'Maximum import duration (seconds)', type: 'number', value: 28800, min: 1 },
+  { id: 'recording', title: 'Recording', notice: 'Recording is off by default. Make sure everyone in the meeting agrees to it.', fields: [
+    { name: 'enabled', label: 'Keep meeting audio', type: 'checkbox', value: false },
+    { name: 'retain_days', label: 'Delete kept audio after', type: 'select', value: '7', options: [{ value: '1', label: '1 day' }, { value: '7', label: '7 days' }, { value: '30', label: '30 days' }, { value: 'forever', label: 'Never (delete manually)' }] },
+    { name: 'byte_cap', label: 'Total audio storage limit (bytes)', type: 'number', value: 10737418240, min: 104857600 },
+    { name: 'max_import_bytes', label: 'Largest audio file to import (bytes)', type: 'number', value: 2147483648, min: 1024 },
+    { name: 'max_import_seconds', label: 'Longest audio file to import (seconds)', type: 'number', value: 28800, min: 1 },
   ] },
-  { id: 'analysis', title: 'Analysis & language', fields: [
-    { name: 'output_language', label: 'Output language (BCP-47)', value: 'auto' },
-    { name: 'topic_sentiment', label: 'Optional descriptive topic sentiment', type: 'checkbox', value: false },
-    { name: 'live_cues_enabled', label: 'Live transcript-grounded cues', type: 'checkbox', value: true },
-    { name: 'question_detection_enabled', label: 'Question detection', type: 'checkbox', value: true },
-    { name: 'rolling_summary_seconds', label: 'Rolling summary interval (seconds)', type: 'number', value: 60, min: 60 },
-    { name: 'checkpoint_seconds', label: 'Topics/outcomes checkpoint (seconds)', type: 'number', value: 300, min: 60 },
+  { id: 'analysis', title: 'Summaries & language', fields: [
+    { name: 'output_language', label: 'Summary language (e.g. en, es, or auto)', value: 'auto' },
+    { name: 'topic_sentiment', label: 'Show the tone of each topic', type: 'checkbox', value: false },
+    { name: 'live_cues_enabled', label: 'Live suggestions during meetings', type: 'checkbox', value: true },
+    { name: 'question_detection_enabled', label: 'Detect questions', type: 'checkbox', value: true },
+    { name: 'rolling_summary_seconds', label: 'Update live summary every (seconds)', type: 'number', value: 60, min: 60 },
+    { name: 'checkpoint_seconds', label: 'Update topics and outcomes every (seconds)', type: 'number', value: 300, min: 60 },
   ] },
-  { id: 'speakers', title: 'Speaker processing', fields: [
-    { name: 'diarization_enabled', label: 'Enable selected ready diarization', type: 'checkbox', value: false },
-    { name: 'voice_profiles_enabled', label: 'Opt into scoped recurring voice matching', type: 'checkbox', value: false },
-    { name: 'match_threshold', label: 'Model-calibrated match threshold', type: 'number', value: .72, min: 0, max: 1 },
-    { name: 'match_margin', label: 'Minimum match margin', type: 'number', value: .08, min: 0, max: 1 },
+  { id: 'speakers', title: 'Speakers', fields: [
+    { name: 'diarization_enabled', label: 'Tell speakers apart', type: 'checkbox', value: false },
+    { name: 'voice_profiles_enabled', label: 'Recognise returning speakers by voice', type: 'checkbox', value: false },
+    { name: 'match_threshold', label: 'Voice match strictness (0–1)', type: 'number', value: .72, min: 0, max: 1 },
+    { name: 'match_margin', label: 'Required lead over the next-best match (0–1)', type: 'number', value: .08, min: 0, max: 1 },
   ] },
-  { id: 'retrieval', title: 'Retrieval & indexing', fields: [
-    { name: 'mode', label: 'Default retrieval', type: 'select', value: 'keyword', options: ['keyword', 'semantic', 'hybrid'].map((value) => ({ value, label: value })) },
-    { name: 'embedding_profile_id', label: 'Explicit embedding model profile ID' },
-    { name: 'semantic_enabled', label: 'Enable configured semantic index', type: 'checkbox', value: false },
-    { name: 'chunk_tokens', label: 'Chunk token target', type: 'number', value: 256, min: 32, max: 512 },
-    { name: 'overlap_tokens', label: 'Chunk overlap tokens', type: 'number', value: 32, min: 0, max: 128 },
+  { id: 'retrieval', title: 'Search', fields: [
+    { name: 'mode', label: 'Default search', type: 'select', value: 'keyword', options: [{ value: 'keyword', label: 'Exact words' }, { value: 'semantic', label: 'Meaning' }, { value: 'hybrid', label: 'Both' }] },
+    { name: 'semantic_enabled', label: 'Enable search by meaning', type: 'checkbox', value: false },
+    { name: 'embedding_profile_id', label: 'Search-by-meaning model profile ID' },
+    { name: 'chunk_tokens', label: 'Passage size (tokens)', type: 'number', value: 256, min: 32, max: 512 },
+    { name: 'overlap_tokens', label: 'Passage overlap (tokens)', type: 'number', value: 32, min: 0, max: 128 },
   ] },
-  { id: 'jobs', title: 'Advanced bounded jobs', fields: [
-    { name: 'max_concurrent_inference', label: 'Concurrent inference jobs', type: 'number', value: 1, min: 1, max: 4 },
-    { name: 'queue_limit', label: 'Bounded pending jobs', type: 'number', value: 100, min: 1, max: 1000 },
-    { name: 'worker_startup_seconds', label: 'Worker startup deadline (seconds)', type: 'number', value: 120, min: 1, max: 600 },
-    { name: 'pyannote_startup_seconds', label: 'Community-1 startup deadline', type: 'number', value: 180, min: 1, max: 600 },
-    { name: 'shutdown_grace_seconds', label: 'Cooperative shutdown grace', type: 'number', value: 5, min: 1, max: 60 },
+  { id: 'jobs', title: 'Background processing', fields: [
+    { name: 'max_concurrent_inference', label: 'AI tasks at once', type: 'number', value: 1, min: 1, max: 4 },
+    { name: 'queue_limit', label: 'Maximum queued tasks', type: 'number', value: 100, min: 1, max: 1000 },
+    { name: 'worker_startup_seconds', label: 'Model start timeout (seconds)', type: 'number', value: 120, min: 1, max: 600 },
+    { name: 'pyannote_startup_seconds', label: 'Speaker model start timeout (seconds)', type: 'number', value: 180, min: 1, max: 600 },
+    { name: 'shutdown_grace_seconds', label: 'Time allowed to finish on quit (seconds)', type: 'number', value: 5, min: 1, max: 60 },
   ] },
-  { id: 'privacy', title: 'Privacy policy', fields: [
-    { name: 'network_disabled', label: 'Offline privacy mode: deny outbound provider/integration requests', type: 'checkbox', value: false },
-    { name: 'diagnostic_retention_days', label: 'Local diagnostic retention days', type: 'number', value: 14, min: 1, max: 14 },
-    { name: 'max_log_bytes', label: 'Rotated log size (bytes)', type: 'number', value: 5242880, min: 1024, max: 5242880 },
+  { id: 'privacy', title: 'Privacy', fields: [
+    { name: 'network_disabled', label: 'Offline mode: block all AI providers and integrations', type: 'checkbox', value: false },
   ] },
   { id: 'exports', title: 'Export defaults', fields: [
-    { name: 'include_transcript', label: 'Include full transcript only when explicitly selected', type: 'checkbox', value: false },
-    { name: 'include_provenance', label: 'Include source provenance', type: 'checkbox', value: true },
-    { name: 'default_format', label: 'Preferred format', type: 'select', value: 'markdown', options: ['markdown', 'pdf', 'srt', 'json'].map((value) => ({ value, label: value })) },
+    { name: 'include_transcript', label: 'Include the full transcript', type: 'checkbox', value: false },
+    { name: 'include_provenance', label: 'Include source references', type: 'checkbox', value: true },
+    { name: 'default_format', label: 'Format', type: 'select', value: 'markdown', options: [{ value: 'markdown', label: 'Markdown' }, { value: 'pdf', label: 'PDF' }, { value: 'srt', label: 'Subtitles (SRT)' }, { value: 'json', label: 'JSON' }] },
   ] },
 ];
 
+/** Tuning knobs most people never touch; shown on the Advanced tab instead of their group. */
+const advanced: Record<string, true> = { 'capture.microphone_device_key': true, 'capture.system_device_key': true, 'capture.vad_threshold': true, 'capture.pre_roll_ms': true, 'capture.post_silence_ms': true, 'capture.minimum_true_speech_ms': true, 'capture.maximum_utterance_ms': true, 'recording.byte_cap': true, 'recording.max_import_bytes': true, 'recording.max_import_seconds': true, 'analysis.rolling_summary_seconds': true, 'analysis.checkpoint_seconds': true, 'speakers.match_threshold': true, 'speakers.match_margin': true, 'retrieval.embedding_profile_id': true, 'retrieval.chunk_tokens': true, 'retrieval.overlap_tokens': true, 'jobs.max_concurrent_inference': true, 'jobs.queue_limit': true, 'jobs.worker_startup_seconds': true, 'jobs.pyannote_startup_seconds': true, 'jobs.shutdown_grace_seconds': true };
+
 export function SettingsPage() {
   return <><PageHeader title="Settings" /><TabSet tabs={[
-    { label: 'Capture & test', content: <><AudioSettings /><SettingsGroup groupId="capture" /></> },
-    { label: 'Recording', content: <SettingsGroup groupId="recording" /> },
-    { label: 'Providers & routing', content: <ProviderSettings /> },
-    { label: 'Models / runtimes', content: <ModelSettings /> },
-    { label: 'Analysis & language', content: <><SettingsGroup groupId="analysis" /><SettingsGroup groupId="retrieval" /><SettingsGroup groupId="jobs" /><SettingsGroup groupId="exports" /></> },
-    { label: 'Speakers / profiles', content: <><SettingsGroup groupId="speakers" /><Profiles /></> },
-    { label: 'Calendar', content: <CalendarSettings /> },
-    { label: 'Integrations', content: <IntegrationSettings /> },
-    { label: 'Privacy & backup', content: <><SettingsGroup groupId="privacy" /><PrivacySettings /></> },
-    { label: 'Window', content: <WindowSettings /> },
-    { label: 'Updates & diagnostics', content: <UpdatesSettings /> },
+    { label: 'Audio', content: <><AudioSettings /><SettingsGroup groupId="capture" /></> },
+    { label: 'Meetings', content: <><SettingsGroup groupId="analysis" /><SettingsGroup groupId="speakers" /><Profiles /><SettingsGroup groupId="retrieval" /><SettingsGroup groupId="exports" /></> },
+    { label: 'AI providers & models', content: <><ProviderSettings /><ModelSettings /></> },
+    { label: 'Calendar & integrations', content: <><CalendarSettings /><IntegrationSettings /></> },
+    { label: 'Privacy & backup', content: <><SettingsGroup groupId="privacy" /><SettingsGroup groupId="recording" /><PrivacySettings /></> },
+    { label: 'App & updates', content: <><WindowSettings /><UpdatesSettings /></> },
+    { label: 'Advanced', content: <>{groups.map((group) => <SettingsGroup key={group.id} groupId={group.id} advancedOnly />)}</> },
     { label: 'About', content: <About /> },
   ]} /></>;
 }
@@ -104,16 +101,17 @@ function About() {
   return <Panel title="About, credits & limitations"><Notice>{accuracyNotice} Do not use output as the sole basis for legal, medical, employment or financial decisions. Provided "as is", without warranty (MIT license).</Notice><h3>Model credits</h3><ul>{credits.map(([name, author, license, source]) => <li key={name}><strong>{name}</strong>: {author}. License: {license}. Source: <code>{source}</code></li>)}</ul><p>Runtimes: faster-whisper (MIT), sherpa-onnx (Apache-2.0), fermion-research (Apache-2.0) with PyTorch (BSD-3-Clause), pyannote.audio (MIT), ONNX Runtime (MIT). The optional GPU Whisper pack includes NVIDIA cuBLAS, cuDNN and NVRTC under NVIDIA's license terms (not MIT), shipped inside the pack. The optional Azure Speech pack uses Microsoft's Speech SDK license.</p></Panel>;
 }
 
-function SettingsGroup({ groupId }: { groupId: string }) {
+function SettingsGroup({ groupId, advancedOnly = false }: { groupId: string; advancedOnly?: boolean }) {
   const query = useResource('settings.get');
   const group = groups.find((candidate) => candidate.id === groupId);
-  if (!group) return null;
-  return <Panel title={group.title}><AsyncView query={query}>{(data) => { const saved = item(data); const settings = object(saved.nonsecret_settings ?? saved.settings); const values = object(settings[groupId]); return <>{group.notice && <Notice>{group.notice}</Notice>}<CommandForm key={`${groupId}:${revision(saved)}`} operation="settings.save" fixed={{ expected_revision: revision(saved) }} fields={group.fields.map((field) => ({ ...field, value: values[field.name] ?? field.value }))} mapPayload={(payload) => { const { expected_revision, ...changes } = payload; const merged = { ...values, ...changes }; if (groupId === 'recording') merged.retain_days = merged.retain_days === 'forever' ? null : Number(merged.retain_days); return { expected_revision: expected_revision ?? 1, settings: { [groupId]: merged } }; }} submit={`Save ${group.title.toLowerCase()}`} /></>; }}</AsyncView></Panel>;
+  const fields = group?.fields.filter((field) => (advanced[`${groupId}.${field.name}`] === true) === advancedOnly) ?? [];
+  if (!group || fields.length === 0) return null;
+  return <Panel title={group.title}><AsyncView query={query}>{(data) => { const saved = item(data); const settings = object(saved.nonsecret_settings ?? saved.settings); const values = object(settings[groupId]); return <>{group.notice && !advancedOnly && <Notice>{group.notice}</Notice>}<CommandForm key={`${groupId}:${revision(saved)}`} operation="settings.save" fixed={{ expected_revision: revision(saved) }} fields={fields.map((field) => ({ ...field, value: values[field.name] ?? field.value }))} mapPayload={(payload) => { const { expected_revision, ...changes } = payload; const merged = { ...values, ...changes }; if (groupId === 'recording' && 'retain_days' in merged) merged.retain_days = merged.retain_days === 'forever' ? null : Number(merged.retain_days); return { expected_revision: expected_revision ?? 1, settings: { [groupId]: merged } }; }} submit="Save" /></>; }}</AsyncView></Panel>;
 }
 
 function AudioSettings() {
   const devices = useNativeResource('audio_devices');
-  return <Panel title="Devices & local audio test"><AsyncView query={devices}>{(data) => <><div className={styles.deviceGrid}>{items(data).map((row) => <section key={text(row.key)}><strong>{text(row.name)}</strong><Badge>{text(row.kind)}</Badge><code>{text(row.key)}</code>{row.available === false && <Notice danger>Device unavailable. Reconnect the selected endpoint or correct permissions; choose another device explicitly.</Notice>}</section>)}</div><AudioTest devices={items(data)} /><AudioCalibration devices={items(data)} /><Details title="Permission and device enumeration result" value={data} /></>}</AsyncView></Panel>;
+  return <Panel title="Devices & local audio test"><AsyncView query={devices}>{(data) => <><div className={styles.deviceGrid}>{items(data).map((row) => <section key={text(row.key)}><strong>{text(row.name)}</strong><Badge>{row.kind === 'system' ? 'computer audio' : 'microphone'}</Badge>{row.available === false && <Notice danger>Device unavailable. Reconnect it or choose another device.</Notice>}</section>)}</div><AudioTest devices={items(data)} /><AudioCalibration devices={items(data)} /><Details title="Device details" value={data} /></>}</AsyncView></Panel>;
 }
 
 function AudioTest({ devices }: { devices: RecordData[] }) {

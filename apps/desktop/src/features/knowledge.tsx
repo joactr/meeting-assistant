@@ -94,13 +94,13 @@ export function SearchPage() {
       <label className={styles.searchInput}>Query<input name="query" value={queryText} onChange={(event) => setQueryText(event.target.value)} placeholder="A phrase, decision, or question…" required autoFocus /></label>
       <div className={styles.searchActions}>
         <button type="submit" className={styles.primaryAction} disabled={!queryText.trim()}>Search</button>
-        <button type="button" disabled={!queryText.trim() || askRequest.isPending} onClick={() => submit(true)}>{askRequest.isPending ? 'Grounding answer…' : 'Ask'}</button>
-        <label className={styles.check}><input type="checkbox" checked={historicalConsent} onChange={(event) => setHistoricalConsent(event.target.checked)} />Allow retrieved excerpts to be sent to the Ask destination</label>
+        <button type="button" disabled={!queryText.trim() || askRequest.isPending} onClick={() => submit(true)}>{askRequest.isPending ? 'Finding an answer…' : 'Ask'}</button>
+        <label className={styles.check}><input type="checkbox" checked={historicalConsent} onChange={(event) => setHistoricalConsent(event.target.checked)} />Let Ask send matching excerpts to your AI provider</label>
       </div>
     </form>
     {/* Outside the form: portal dialogs bubble React submit events to their ancestor form. */}
-      <FilterDisclosure title="Scope & index" count={activeFilters}>
-        <FieldInput field={{ name: 'mode', label: 'Retrieval mode', type: 'select', options: [{ value: 'keyword', label: 'Keyword' }, { value: 'semantic', label: 'Semantic' }, { value: 'hybrid', label: 'Hybrid' }] }} value={mode} onChange={(value) => setMode(text(value))} />
+      <FilterDisclosure title="Filters" count={activeFilters}>
+        <FieldInput field={{ name: 'mode', label: 'Match by', type: 'select', options: [{ value: 'keyword', label: 'Exact words' }, { value: 'semantic', label: 'Meaning' }, { value: 'hybrid', label: 'Both' }] }} value={mode} onChange={(value) => setMode(text(value))} />
         <FieldInput field={{ name: 'project', label: 'Project', type: 'select', options: [{ value: '', label: 'All projects' }, ...items(projects.data).map((project) => ({ value: id(project), label: label(project) }))] }} value={projectId} onChange={(value) => setProjectId(text(value))} />
         <MeetingPicker title="Meetings" multiple values={meetingIds} onChange={setMeetingIds} projectId={projectId} placeholder="All meetings" />
         <FieldInput field={{ name: 'from', label: 'From date', type: 'date' }} value={fromDate} onChange={(value) => setFromDate(text(value))} />
@@ -109,12 +109,13 @@ export function SearchPage() {
       </FilterDisclosure>
     </Panel>
     {!currentQuery && <Empty title="Search across your meetings">Results cite the exact transcript moment they came from.</Empty>}
-    {currentQuery && !ask && <Panel title="Evidence results"><AsyncView query={results}>{(data) => <>
-      <Toolbar><Badge tone={data.retrieval_mode === 'keyword' && mode !== 'keyword' ? 'warning' : 'neutral'}>{text(data.retrieval_mode ?? data.mode, 'keyword')} retrieval</Badge>{Boolean(data.destination) && <Badge>Destination: {text(data.destination)}</Badge>}{Boolean(data.fallback_reason ?? data.warning) && <Notice>{text(data.fallback_reason ?? data.warning)}</Notice>}</Toolbar>
-      {items(data).length === 0 ? <Empty title="No matching evidence">Try a different phrase or scope.</Empty> : <VirtualList label="Search results" rows={items(data)} estimate={130} render={(row) => <article className={styles.searchResult}><h3>{text(row.meeting_title, 'Meeting passage')}</h3><p><Highlight value={excerpt(text(row.excerpt ?? row.text), terms)} terms={terms} /></p><Toolbar><Citation source={row} /><small>{clock(row.start_ms)}–{clock(row.end_ms)}</small></Toolbar><Details value={row} title="Retrieval evidence" /></article>} />}
+    {currentQuery && !ask && <Panel title="Results"><AsyncView query={results}>{(data) => <>
+      {data.retrieval_mode === 'keyword' && mode !== 'keyword' && <Notice>Matching by meaning isn't available yet, so these are exact-word matches.</Notice>}
+      {(Boolean(data.destination) || Boolean(data.fallback_reason ?? data.warning)) && <Toolbar>{Boolean(data.destination) && <Badge>Sent to: {text(data.destination)}</Badge>}{Boolean(data.fallback_reason ?? data.warning) && <Notice>{text(data.fallback_reason ?? data.warning)}</Notice>}</Toolbar>}
+      {items(data).length === 0 ? <Empty title="No matches">Try a different phrase or fewer filters.</Empty> : <VirtualList label="Search results" rows={items(data)} estimate={130} render={(row) => <article className={styles.searchResult}><h3>{text(row.meeting_title, 'Meeting passage')}</h3><p><Highlight value={excerpt(text(row.excerpt ?? row.text), terms)} terms={terms} /></p><Toolbar><Citation source={row} /><small>{clock(row.start_ms)}–{clock(row.end_ms)}</small></Toolbar></article>} />}
       <Toolbar><button disabled={!previous.length} onClick={() => { setCursor(previous[previous.length - 1] ?? null); setPrevious((values) => values.slice(0, -1)); }}>Previous results</button><button disabled={!data.next_cursor} onClick={() => { setPrevious((values) => [...values, cursor]); setCursor(text(data.next_cursor)); }}>Next results</button></Toolbar>
     </>}</AsyncView></Panel>}
-    {ask && <Panel title="Grounded answer">{askRequest.isPending && <Notice>Retrieving deduplicated evidence and validating cited source ranges…</Notice>}{askRequest.error && <ErrorNotice error={askRequest.error} retry={() => submit(true)} />}{askRequest.data && <AskAnswer answer={askRequest.data} />}</Panel>}
+    {ask && <Panel title="Answer">{askRequest.isPending && <Notice>Finding relevant passages and checking every citation…</Notice>}{askRequest.error && <ErrorNotice error={askRequest.error} retry={() => submit(true)} />}{askRequest.data && <AskAnswer answer={askRequest.data} />}</Panel>}
   </>;
 }
 
