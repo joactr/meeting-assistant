@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import UTC, date, datetime, time, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -711,3 +712,18 @@ class DigestService:
                     },
                     run,
                 )
+
+    def forget(self, meeting_id: str) -> None:
+        """Meeting deletion: drop digest runs, inbox entries and history that carry its content."""
+        for run in all_items(self.workspace, "digest_runs"):
+            # ponytail: id substring over the serialized run (ids are unique random tokens);
+            # store covered meeting ids on the run if runs get large.
+            if meeting_id not in json.dumps(run):
+                continue
+            for collection in ("digest_inbox", "digest_runs"):
+                item = self.workspace.get(collection, run["id"])
+                if item:
+                    self.workspace.delete(collection, run["id"], expected_revision=item["revision"])
+            self.workspace.connection.execute(
+                "DELETE FROM document_history WHERE entity_id=?", (run["id"],)
+            )

@@ -229,6 +229,24 @@ class Workspace(Store):
     def settings(self) -> dict[str, Any]:
         return self.require_item("workspace_settings", "workspace").get("nonsecret_settings", {})
 
+    def offline(self) -> bool:
+        """Settings → Privacy policy → Offline privacy mode."""
+        privacy = cast(dict[str, Any], self.settings().get("privacy") or {})
+        return bool(privacy.get("network_disabled"))
+
+    def purge_objects(self, object_ids: list[str], *owner_ids: str) -> None:
+        """Delete stored objects, their files, and history of them and their owners."""
+        objects = [o for o in (self.get("objects", i) for i in object_ids if i) if o]
+        for obj in objects:
+            self.delete("objects", obj["id"], expected_revision=obj["revision"])
+        ids = [o["id"] for o in objects] + list(owner_ids)
+        if ids:
+            self.connection.execute(
+                f"DELETE FROM document_history WHERE entity_id IN({','.join('?' * len(ids))})", ids
+            )
+        if objects:
+            self.queue_job("purge_media", {"paths": [o["relative_path"] for o in objects]})
+
     async def native(self, operation: str, payload: dict[str, Any]) -> dict[str, Any]:
         require(
             self.native_gateway is not None,
@@ -264,7 +282,7 @@ class Workspace(Store):
             scope = request.get("scope", scope)
         if isinstance(scope, (dict, list)):
             scope = canonical(scope)
-        if self.settings().get("privacy_mode") and not kwargs.get("confirmed_local", False):
+        if self.offline() and not kwargs.get("confirmed_local", False):
             raise AppError(
                 "privacy_mode", "External processing is blocked by privacy mode.", status=403
             )

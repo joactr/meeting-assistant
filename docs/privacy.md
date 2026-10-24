@@ -36,7 +36,8 @@ unknown-send state must not trigger a blind duplicate retry.
 ## Deletion and backups
 
 Deleting a meeting invalidates search, memory and derived evidence and removes
-owned retained media. Local deletion cannot remove previously sent issues,
+owned retained media, speaker embeddings and project digests built from it.
+Deleting a person removes their voice profiles. Local deletion cannot remove previously sent issues,
 email or Slack messages. SSD unlink/vacuum is not secure physical erasure.
 Portable backups exclude secrets, temporary audio, caches and runtimes/models;
 selected retained media is a separate choice. Preserve encrypted backup keys

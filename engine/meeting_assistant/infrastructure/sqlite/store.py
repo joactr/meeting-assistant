@@ -166,7 +166,7 @@ class Store:
                     "nonsecret_settings": {
                         "recording": False,
                         "retention_days": 7,
-                        "privacy_mode": False,
+                        "privacy": {"network_disabled": False},
                         "output_language": "auto",
                         "tray": False,
                         "always_on_top": True,

@@ -789,3 +789,99 @@ async def test_failed_digest_synthesis_requires_explicit_retry(workspace):
     with pytest.raises(AppError) as second:
         await workspace.adispatch("digest.run", {"project_id": item["id"]})
     assert second.value.code == "digest_retry_required"
+
+
+def test_offline_privacy_setting_from_ui_blocks_consented_egress(workspace):
+    grant(workspace, "https://api.example.test", ["transcript"], "workspace")
+    assert workspace.check_consent("https://api.example.test", ["transcript"], "workspace")
+    saved = workspace.get("workspace_settings", "workspace")
+    workspace.dispatch(
+        "settings.save",
+        {
+            "expected_revision": saved["revision"],
+            "settings": {"privacy": {"network_disabled": True}},
+        },
+    )
+    with pytest.raises(AppError) as error:
+        workspace.check_consent("https://api.example.test", ["transcript"], "workspace")
+    assert error.value.code == "privacy_mode"
+
+
+def test_deleting_person_or_meeting_purges_voice_vectors(workspace):
+    from meeting_assistant.application.speakers import SpeakerEvidence
+
+    vectors = SpeakerEvidence(workspace)
+    person = workspace.dispatch("people.create", {"display_name": "Example person"})["item"]
+    profile_object = vectors.store_vector([0.5] * 8, "profile-1")
+    workspace.put(
+        "voice_profiles",
+        "profile-1",
+        {
+            "person_id": person["id"],
+            "model_fingerprint": "m",
+            "vector_object_ref": profile_object,
+            "consent_at": 1,
+            "matching_scope": {"scope": "workspace"},
+        },
+    )
+    item = meeting(workspace)
+    cluster_object = vectors.store_vector([0.25] * 8, "cluster-1")
+    workspace.put(
+        "speaker_clusters",
+        "cluster-1",
+        {
+            "meeting_id": item["id"],
+            "provider_session_id": "s",
+            "provider_speaker_id": "0",
+            "model_fingerprint": "m",
+            "embedding_object_ref": cluster_object,
+        },
+    )
+    workspace.dispatch(
+        "people.delete", {"id": person["id"], "expected_revision": person["revision"]}
+    )
+    workspace.dispatch(
+        "meetings.delete",
+        {
+            "id": item["id"],
+            "expected_revision": workspace.get("meetings", item["id"])["revision"],
+            "confirm": True,
+        },
+    )
+    assert not workspace.list("objects")
+    history = workspace.connection.execute(
+        "SELECT COUNT(*) FROM document_history WHERE entity_id IN(?,?,?)",
+        (profile_object, cluster_object, "profile-1"),
+    ).fetchone()[0]
+    assert history == 0
+    purged = [
+        path
+        for job in workspace.list("jobs")
+        if job["kind"] == "purge_media"
+        for path in job["payload"]["paths"]
+    ]
+    assert len(purged) == 2
+
+
+@pytest.mark.asyncio
+async def test_deleting_meeting_removes_digests_built_from_it(workspace):
+    item = project(workspace)
+    kept = meeting(workspace, item["id"])
+    gone = meeting(workspace, item["id"])
+    workspace.dispatch("actions.create", {"meeting_id": gone["id"], "description": "Ship it"})
+    workspace.dispatch("digest.schedule.save", {"project_id": item["id"], "timezone": "UTC"})
+    run = (await workspace.adispatch("digest.preview", {"project_id": item["id"]}))["item"]
+    workspace.dispatch(
+        "meetings.delete",
+        {
+            "id": gone["id"],
+            "expected_revision": workspace.get("meetings", gone["id"])["revision"],
+            "confirm": True,
+        },
+    )
+    assert workspace.get("digest_runs", run["id"]) is None
+    assert workspace.get("meetings", kept["id"])
+    history = workspace.connection.execute(
+        "SELECT COUNT(*) FROM document_history WHERE entity_id=?", (run["id"],)
+    ).fetchone()[0]
+    assert history == 0

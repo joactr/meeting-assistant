@@ -259,10 +259,15 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                 "DELETE FROM ask_answers WHERE id IN(SELECT owner_ask_answer_id FROM citations WHERE meeting_id=?)",
                 (entity_id,),
             )
-            w.connection.execute(
-                "DELETE FROM digest_runs WHERE id IN(SELECT owner_digest_run_id FROM citations WHERE meeting_id=?)",
-                (entity_id,),
-            )
+            if getattr(w, "connected", None):
+                w.connected.digest.forget(entity_id)
+            embeddings = [
+                row[0]
+                for row in w.connection.execute(
+                    "SELECT embedding_object_ref FROM speaker_clusters WHERE meeting_id=?",
+                    (entity_id,),
+                )
+            ]
             w.connection.execute(
                 "UPDATE jobs SET status='cancelled',cancellation_requested=1 WHERE meeting_id=?",
                 (entity_id,),
@@ -277,6 +282,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             )
             if media:
                 w.queue_job("purge_media", {"paths": [m["relative_path"] for m in media]})
+            w.purge_objects(embeddings)
             result["remote_not_erased"] = [row["remote_url"] for row in remote]
             result["secure_erasure_claim"] = False
             return result
@@ -931,9 +937,20 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
         if collection == "vocabulary_terms":
             data = {**data, "normalized_term": str(data.get("term", "")).casefold().strip()}
         if op == "delete":
-            return w.delete(
-                collection, entity_id, expected_revision=cast(int, p.get("expected_revision"))
-            )
+            with w.transaction():
+                profiles = (
+                    w.connection.execute(
+                        "SELECT id,vector_object_ref FROM voice_profiles WHERE person_id=?",
+                        (entity_id,),
+                    ).fetchall()
+                    if collection == "people"
+                    else []
+                )
+                result = w.delete(
+                    collection, entity_id, expected_revision=cast(int, p.get("expected_revision"))
+                )
+                w.purge_objects([v[1] for v in profiles], *(v[0] for v in profiles))
+                return result
         if collection == "templates" and op == "update":
             require(
                 not w.require_item(collection, entity_id).get("built_in_key"),

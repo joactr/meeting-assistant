@@ -146,8 +146,7 @@ def authorized_connection(
 
 
 def privacy_guard(workspace: Workspace) -> None:
-    settings = workspace.settings()
-    if settings.get("privacy_mode"):
+    if workspace.offline():
         fail("privacy_mode", "External requests are disabled by privacy mode")
 
 

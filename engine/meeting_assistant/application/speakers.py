@@ -462,11 +462,7 @@ def register_speakers(w: Workspace, r: CommandRegistry) -> None:
             result = w.delete(
                 "voice_profiles", p["id"], expected_revision=cast(int, p.get("expected_revision"))
             )
-            w.delete("objects", obj["id"], expected_revision=obj["revision"])
-            w.queue_job("purge_media", {"paths": [obj["relative_path"]]})
-            w.connection.execute(
-                "DELETE FROM document_history WHERE entity_id IN(?,?)", (profile["id"], obj["id"])
-            )
+            w.purge_objects([obj["id"]], profile["id"])
             return result
 
     r["voice_profiles.delete"] = delete

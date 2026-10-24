@@ -35,7 +35,7 @@ def register_operations(w: Workspace, r: CommandRegistry) -> None:
                     {"id": s["id"], "state": s["state"], "source_kind": s["source_kind"]}
                     for s in w.list("capture_sources")
                 ],
-                "privacy_mode": bool(w.settings().get("privacy_mode")),
+                "privacy_mode": w.offline(),
                 "included_data": ["IDs", "timings", "states", "codes"],
                 "excluded_data": [
                     "transcript",
