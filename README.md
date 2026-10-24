@@ -1,35 +1,40 @@
 # Meeting Assistant
 
-A local-first desktop notebook for meetings. It captures microphone and system
-audio and transcribes it on your machine (Whisper on CPU, or an optional CUDA
-runtime). Each transcript line keeps its speaker and timestamp. Actions,
-decisions and follow-ups link back to the moment they were said.
-There are no meeting bots and no hosted account: nothing is captured until you press Start.
+**Private meeting notes, transcribed on your own PC.** It records your microphone
+and the call audio, transcribes them locally, labels who spoke, and turns the
+conversation into actions, decisions and searchable notes that link back to the
+moment they were said. No bot joins your call, there is no account, and nothing
+is captured until you press Start. An open-source, local alternative to Otter.ai,
+Fireflies or Granola.
 
-> Development project, not a verified public release.
+**[Download for Windows](https://github.com/joactr/meeting-assistant/releases/latest)** · [Privacy](docs/privacy.md) · [Troubleshooting](docs/troubleshooting.md)
 
 <p align="center">
-  <img src="docs/screenshots/actions.png" alt="Meeting view: speaker-labelled transcript next to extracted actions with owners, priorities and due dates" width="900">
+  <img src="docs/screenshots/demo.gif" alt="Demo: meeting library, a transcript with speaker labels and extracted actions, follow-ups across meetings, and keyword search that cites the transcript" width="900">
 </p>
+
+> **Beta, Windows 11 x64.** The installer is not code-signed, so SmartScreen warns on
+> first launch: choose **More info → Run anyway**. Later versions are offered inside the
+> app and are signature-checked before they install.
+
+## Highlights
+
+- **Runs on your machine.** Speech recognition runs locally on the CPU, or on an NVIDIA GPU with the optional CUDA pack (Whisper large-v3-turbo: an 8 s clip in 0.25 s on an RTX 4090, 7.8 s on CPU).
+- **Pick your model.** Whisper small, large-v3 and large-v3-turbo; Parakeet; Phonon-2.5 (25 languages, 156 MB). Models download on demand, pinned to an exact revision, after you accept their license.
+- **Knows who spoke.** Microphone and system audio are captured separately (WASAPI loopback); optional pyannote diarization separates remote speakers. Speakers and text are editable, with revision history and undo.
+- **Actions with receipts.** Actions, decisions, risks and important moments each cite the transcript line they came from, and follow-ups are tracked across meetings. AI summaries and extraction use the LLM you choose: local Ollama, or your own OpenAI, Anthropic, Gemini or Azure key. Cloud use is opt-in per destination.
+- **Find anything.** Keyword search, plus optional semantic search and Ask, over every meeting, with answers that cite excerpts.
+- **Keep it yours.** Export Markdown, PDF or SRT; hash-verified backup and restore. Recording audio to disk is off by default.
 
 | Meeting library | Follow-ups across meetings |
 |---|---|
 | ![Meeting library](docs/screenshots/library.png) | ![Follow-ups](docs/screenshots/followups.png) |
 
-| Search with transcript evidence |
-|---|
-| ![Search & Ask](docs/screenshots/search.png) |
+| Transcript and actions | Search with transcript evidence |
+|---|---|
+| ![Meeting view](docs/screenshots/actions.png) | ![Search & Ask](docs/screenshots/search.png) |
 
 Screenshots use a synthetic demo workspace; no real meeting data.
-
-## What it does
-
-- **Capture:** WASAPI microphone and system loopback with pause, resume, crash recovery and source-loss gaps recorded in the timeline. Recording to disk is opt-in.
-- **Transcription:** Whisper runs in isolated worker processes on CPU (INT8). An optional CUDA runtime pack was measured about 9× faster on an RTX 4060 Ti. Phonon-2.5 (a 156 MB, 25-language Parakeet derivative) runs on CPU with word timings. There are also adapters for sherpa (Parakeet), Deepgram, AssemblyAI and Azure; cloud providers are consent-gated.
-- **Editable evidence:** you can edit transcript text and speakers, with revision history, undo, and notes anchored to transcript moments.
-- **Outcomes:** actions, decisions, risks and important moments, each citing its source utterance. Follow-ups can be filtered across meetings.
-- **Search & Ask:** keyword search and optional semantic search over the workspace. Answers cite transcript excerpts.
-- **Export and backup:** Markdown, PDF and SRT export; hash-verified backup and restore.
 
 ## Architecture
 
@@ -117,12 +122,11 @@ It does not make an empty installation ready or satisfy signed-release gates.
 
 ## Distribution
 
-`release.toml` is the version and publisher-identity authority. Its empty
-publisher, OAuth and signing inputs must be supplied by the actual publisher;
-no fake owner/repository, production key or registration is bundled. Developer
-builds and official signed releases are different. Release checks fail until
-required identities, credentials, actual installers and acceptance evidence
-are present. No publishing or paid service is performed by developer recipes.
+Windows releases are published on [GitHub Releases](https://github.com/joactr/meeting-assistant/releases)
+with `just release-local <version>` (see [releases](docs/releases.md)). Runtime
+pack descriptors are Ed25519-signed, model files are SHA-256 pinned, and app
+updates are signed with the Tauri updater key. The installer itself has no
+Authenticode signature.
 
 Original application source uses MIT. Dependencies, codecs and model weights
 retain their own licenses; see the generated artifact inventories.
