@@ -23,7 +23,7 @@ from ..providers.contracts import ProviderError
 from ..resources import resource_root
 
 REGISTRY_ENV = "MEETING_ASSISTANT_DEVELOPER_WORKER_REGISTRY"
-FAMILIES = {"whisper", "sherpa", "pyannote", "embeddings", "azure-speech"}
+FAMILIES = {"whisper", "sherpa", "phonon", "pyannote", "embeddings", "azure-speech"}
 TRUST = "first-party-developer-built-local"
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
 _VERSION = re.compile(r"(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?\Z")

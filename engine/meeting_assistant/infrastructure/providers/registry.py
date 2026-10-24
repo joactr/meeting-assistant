@@ -72,6 +72,11 @@ DESCRIPTORS: list[_Descriptor] = [
         "documentation_url": "https://k2-fsa.github.io/sherpa/onnx/",
     },
     {
+        "id": "fermion-phonon",
+        "roles": ["asr"],
+        "documentation_url": "https://huggingface.co/FermionResearch/Phonon-2.5",
+    },
+    {
         "id": "deepgram",
         "roles": ["asr"],
         "documentation_url": "https://developers.deepgram.com/reference/speech-to-text/listen-streaming",
@@ -106,7 +111,14 @@ def descriptors() -> list[dict[str, Any]]:
             "adapter_version": "1.0.0",
             "auth_schemes": ["none"]
             if item["id"]
-            in {"ollama", "faster-whisper", "sherpa-parakeet", "community-1", "e5-onnx"}
+            in {
+                "ollama",
+                "faster-whisper",
+                "sherpa-parakeet",
+                "fermion-phonon",
+                "community-1",
+                "e5-onnx",
+            }
             else ["api_key", "bearer"],
             "settings_schema": Connection.model_json_schema(),
             "model_discovery": {
@@ -122,7 +134,13 @@ def resolve_capabilities(connection: Connection, profile: ModelProfile) -> Capab
     adapter, options = connection.adapter, profile.options
     if adapter not in {item["id"] for item in DESCRIPTORS}:
         raise ProviderError("unsupported", "Unknown adapter protocol")
-    local = adapter in {"faster-whisper", "sherpa-parakeet", "community-1", "e5-onnx"}
+    local = adapter in {
+        "faster-whisper",
+        "sherpa-parakeet",
+        "fermion-phonon",
+        "community-1",
+        "e5-onnx",
+    }
     preparation = "e5-prefix-attention-mean-l2-v1" if adapter == "e5-onnx" else "raw-provider-l2-v1"
     values: dict[str, Any] = {
         "fingerprint": fingerprint(
@@ -165,6 +183,11 @@ def resolve_capabilities(connection: Connection, profile: ModelProfile) -> Capab
         values.update(
             languages={"detect": True, "code_switch": True},
             timestamps={"token": True, "segment": True},
+        )
+    elif adapter == "fermion-phonon":
+        values.update(
+            languages={"detect": True, "code_switch": True},
+            timestamps={"word": True, "segment": True},
         )
     elif adapter == "deepgram":
         values.update(

@@ -13,7 +13,8 @@ Schema dialects, streaming events, refusals, output limits and model-specific
 options are not interchangeable across these protocols.
 
 ASR paths distinguish faster-whisper chunk scheduling, sherpa Parakeet TDT,
-Deepgram live/files, AssemblyAI Streaming v3/files and Azure Speech SDK/files.
+Fermion Phonon-2.5 (CPU, word timings), Deepgram live/files, AssemblyAI
+Streaming v3/files and Azure Speech SDK/files.
 Community-1 diarization is separate unless ASR supplies speaker labels.
 Embeddings distinguish reviewed local multilingual E5 and actual compatible,
 Azure, Ollama and Gemini embedding protocols. Equal dimensions do not imply

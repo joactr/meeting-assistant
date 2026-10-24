@@ -1,0 +1,29 @@
+[project]
+name = "meeting-assistant-worker-phonon"
+version = "1.0.0b1"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+dependencies = [
+  "fermion-research==0.2.14",
+  "numpy==2.5.4",
+  "torch==2.14.1",
+]
+
+[dependency-groups]
+build = ["pyinstaller==6.22.3"]
+
+[tool.uv]
+package = false
+# Intel macOS needs torch<2.3/numpy<2 (no current wheels); unsupported, like pyannote.
+environments = ["sys_platform != 'darwin' or platform_machine == 'arm64'"]
+
+[tool.uv.workspace]
+members = []
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu", marker = "sys_platform != 'darwin'" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

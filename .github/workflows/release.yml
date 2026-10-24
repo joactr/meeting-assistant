@@ -93,7 +93,7 @@ jobs:
           system = {'Windows': 'windows', 'Darwin': 'macos', 'Linux': 'linux'}[platform.system()]
           architecture = {'AMD64': 'x86_64', 'x86_64': 'x86_64', 'arm64': 'aarch64', 'aarch64': 'aarch64'}[platform.machine()]
           target = system + '-' + architecture
-          for family in ('whisper', 'sherpa', 'pyannote', 'embeddings', 'azure-speech'):
+          for family in ('whisper', 'sherpa', 'phonon', 'pyannote', 'embeddings', 'azure-speech'):
               entry = json.loads(pathlib.Path('engine/catalog/runtimes', family + '.json').read_text(encoding='utf-8'))
               if target in entry.get('unsupported_platforms', {}):
                   print(f'{family} unavailable on {target}: ' + entry['unsupported_platforms'][target])

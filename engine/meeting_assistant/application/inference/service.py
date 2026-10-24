@@ -768,6 +768,7 @@ class InferenceService:
         if route.connection.adapter in {
             "faster-whisper",
             "sherpa-parakeet",
+            "fermion-phonon",
             "community-1",
             "e5-onnx",
             "azure-speech",
@@ -868,7 +869,7 @@ class InferenceService:
                 "invalid_input",
                 "ASR requires mono little-endian float32 PCM and a valid sample rate",
             )
-        if adapter in {"faster-whisper", "sherpa-parakeet"}:
+        if adapter in {"faster-whisper", "sherpa-parakeet", "fermion-phonon"}:
             worker = await self._worker(parsed)
             async with worker.pcm(pcm_float32, sample_rate) as grant:
                 output = await worker.request(
@@ -1000,7 +1001,12 @@ class InferenceService:
 
         parsed = self._policy(policy)
         secret = await self._authorize(parsed)
-        if parsed.connection.adapter in {"faster-whisper", "sherpa-parakeet", "azure-speech"}:
+        if parsed.connection.adapter in {
+            "faster-whisper",
+            "sherpa-parakeet",
+            "fermion-phonon",
+            "azure-speech",
+        }:
             worker = await self._worker(parsed)
             if parsed.connection.adapter == "azure-speech":
                 return await AzureSDKSession(
@@ -1118,7 +1124,7 @@ class InferenceService:
                 }
             finally:
                 await worker.close()
-        if parsed.connection.adapter in {"faster-whisper", "sherpa-parakeet"}:
+        if parsed.connection.adapter in {"faster-whisper", "sherpa-parakeet", "fermion-phonon"}:
             worker = await self._worker(parsed)
             return {
                 "available": True,

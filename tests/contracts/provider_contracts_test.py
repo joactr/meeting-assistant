@@ -167,6 +167,15 @@ def test_parakeet_never_advertises_word_confidence_or_bias():
     assert not caps.streaming.native
 
 
+def test_phonon_is_local_with_word_timings_and_no_bias():
+    connection, profile = values("fermion-phonon")
+    caps = resolve_capabilities(connection, profile)
+    assert caps.execution == "local"
+    assert caps.timestamps.word and not caps.confidence
+    assert caps.vocabulary.mode == "none"
+    assert not caps.streaming.native
+
+
 def test_cloud_api_cannot_be_declared_local_to_bypass_consent():
     connection, profile = values("openai")
     connection.execution = "local"

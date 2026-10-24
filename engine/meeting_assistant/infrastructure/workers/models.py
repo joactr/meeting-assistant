@@ -30,6 +30,7 @@ class _ModelRoute(Protocol):
 FAMILIES = {
     "faster-whisper": "whisper",
     "sherpa-parakeet": "sherpa",
+    "fermion-phonon": "phonon",
     "community-1": "pyannote",
     "e5-onnx": "embeddings",
     "azure-speech": "azure-speech",

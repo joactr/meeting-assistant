@@ -25,7 +25,7 @@ Screenshots use a synthetic demo workspace; no real meeting data.
 ## What it does
 
 - **Capture:** WASAPI microphone and system loopback with pause, resume, crash recovery and source-loss gaps recorded in the timeline. Recording to disk is opt-in.
-- **Transcription:** Whisper runs in isolated worker processes on CPU (INT8). An optional CUDA runtime pack was measured about 9× faster on an RTX 4060 Ti. There are also adapters for sherpa (Parakeet), Deepgram, AssemblyAI and Azure; cloud providers are consent-gated.
+- **Transcription:** Whisper runs in isolated worker processes on CPU (INT8). An optional CUDA runtime pack was measured about 9× faster on an RTX 4060 Ti. Phonon-2.5 (a 156 MB, 25-language Parakeet derivative) runs on CPU with word timings. There are also adapters for sherpa (Parakeet), Deepgram, AssemblyAI and Azure; cloud providers are consent-gated.
 - **Editable evidence:** you can edit transcript text and speakers, with revision history, undo, and notes anchored to transcript moments.
 - **Outcomes:** actions, decisions, risks and important moments, each citing its source utterance. Follow-ups can be filtered across meetings.
 - **Search & Ask:** keyword search and optional semantic search over the workspace. Answers cite transcript excerpts.
@@ -37,7 +37,7 @@ Screenshots use a synthetic demo workspace; no real meeting data.
 flowchart LR
   UI["React UI<br/>apps/desktop"] -->|Tauri IPC| Host["Native host (Rust)<br/>capture · DSP · Opus · supervisor"]
   Host -->|authenticated local HTTP| Engine["Engine (Python)<br/>domain · SQLite · jobs"]
-  Engine --> Workers["Isolated workers<br/>Whisper CPU/CUDA · sherpa · pyannote · embeddings"]
+  Engine --> Workers["Isolated workers<br/>Whisper CPU/CUDA · Phonon · sherpa · pyannote · embeddings"]
   Engine --> Providers["Optional cloud providers<br/>consent-gated"]
 ```
 
@@ -136,11 +136,14 @@ pinned to an exact revision, after you accept its license.
 |---|---|---|---|
 | [Whisper small](https://huggingface.co/Systran/faster-whisper-small) | OpenAI; CTranslate2 conversion by SYSTRAN | [MIT](https://github.com/openai/whisper/blob/main/LICENSE) | Format conversion only |
 | [Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) | NVIDIA | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Converted to ONNX and int8-quantized by the [sherpa-onnx](https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8) project |
+| [Phonon-2.5](https://huggingface.co/FermionResearch/Phonon-2.5) | Fermion Research, derived from NVIDIA Parakeet TDT 0.6B v3 | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Re-trained for 25 languages and compressed by Fermion Research ([NOTICE](https://huggingface.co/FermionResearch/Phonon-2.5/blob/main/NOTICE)) |
 | [speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1) | pyannote | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | None. Gated: each user accepts pyannote's terms on Hugging Face |
 | [multilingual-e5-small](https://huggingface.co/intfloat/multilingual-e5-small) | Microsoft (intfloat) | [MIT](https://github.com/microsoft/unilm/blob/master/LICENSE) | None |
 
 Runtimes: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (MIT),
 [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache-2.0),
+[fermion-research](https://pypi.org/project/fermion-research/) (Apache-2.0) with
+[PyTorch](https://pytorch.org) (BSD-3-Clause),
 [pyannote.audio](https://github.com/pyannote/pyannote-audio) (MIT),
 [ONNX Runtime](https://github.com/microsoft/onnxruntime) (MIT). The optional
 GPU Whisper pack also contains NVIDIA cuBLAS, cuDNN and NVRTC under NVIDIA's own

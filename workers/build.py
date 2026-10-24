@@ -31,6 +31,7 @@ FAMILIES = {
         "nvidia.cuda_nvrtc",
     ],
     "sherpa": ["sherpa_onnx"],
+    "phonon": ["fermion", "torch"],
     "pyannote": [
         "pyannote.audio",
         "pyannote.core",

@@ -13,7 +13,7 @@ import tomllib
 release = tomllib.loads((root / "release.toml").read_text(encoding="utf-8"))
 if not release.get("publisher", {}).get("repository"):
     resources.append((str(root / "engine/meeting_assistant/infrastructure/workers/runtime.py"), "developer-worker-sources"))
-    for family in ("whisper", "sherpa", "pyannote", "embeddings", "azure-speech"):
+    for family in ("whisper", "sherpa", "phonon", "pyannote", "embeddings", "azure-speech"):
         for name in ("worker.py", "uv.lock"):
             resources.append((str(root / "workers" / family / name), f"developer-worker-sources/{family}"))
 # pkgutil-based collection skips namespace directories used by service registration.
@@ -30,7 +30,7 @@ analysis = Analysis(
     hiddenimports=engine_modules + collect_submodules("uvicorn") + ["sqlite_vec", "pyrage"],
     hookspath=[],
     runtime_hooks=[],
-    excludes=["torch", "pyannote", "sentence_transformers", "faster_whisper", "ctranslate2", "sherpa_onnx", "azure.cognitiveservices.speech"],
+    excludes=["torch", "pyannote", "sentence_transformers", "faster_whisper", "ctranslate2", "sherpa_onnx", "fermion", "transformers", "azure.cognitiveservices.speech"],
     noarchive=False,
 )
 archive = PYZ(analysis.pure)

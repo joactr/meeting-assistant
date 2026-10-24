@@ -200,8 +200,15 @@ def verify_runtime_catalogs(config: dict) -> None:
             raise RuntimeError("Runtime artifacts must not silently bundle model weights")
         if manifest.get("platform") == "windows-x86_64":
             windows_families.add(manifest.get("family"))
-    if windows_families != {"whisper", "sherpa", "pyannote", "embeddings", "azure-speech"}:
-        raise RuntimeError("All five reviewed, signed Windows CPU runtime packages are required")
+    if windows_families != {
+        "whisper",
+        "sherpa",
+        "phonon",
+        "pyannote",
+        "embeddings",
+        "azure-speech",
+    }:
+        raise RuntimeError("All six reviewed, signed Windows CPU runtime packages are required")
 
 
 def assemble(*, publish: bool) -> None:
