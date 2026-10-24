@@ -19,18 +19,17 @@ export function FollowupsPage() {
   const change = (key: string, value: Payload[string]): void => { setFilters((current) => ({ ...current, [key]: value })); setCursor(null); setPrevious([]); };
   const extra = ['priority', 'meeting_id', 'from_date', 'to_date'].filter((key) => filters[key] !== '').length;
   return <><PageHeader title="Follow-ups" /><Panel>
-    <div className={styles.filterBar}>
+    <FilterDisclosure title="More filters" count={extra} bar={<>
       <Segmented legend="Status" value={text(filters.status)} onChange={(value) => change('status', value)} options={[{ value: 'open', label: 'Open' }, { value: 'in_progress', label: 'In progress' }, { value: 'done', label: 'Done' }, { value: '', label: 'All' }]} />
       <FieldInput field={{ name: 'project', label: 'Project', type: 'select', options: [{ value: '', label: 'All projects' }, ...items(projects.data).map((project) => ({ value: id(project), label: label(project) }))] }} value={filters.project_id ?? ''} onChange={(value) => change('project_id', value)} />
       <FieldInput field={{ name: 'assignee', label: 'Assignee' }} value={filters.assignee ?? ''} onChange={(value) => change('assignee', value)} />
-    </div>
-    <FilterDisclosure title="More filters" count={extra}>
+    </>}>
       <FieldInput field={{ name: 'priority', label: 'Priority', type: 'select', options: ['', 'low', 'normal', 'high', 'urgent'].map((value) => ({ value, label: value || 'Any priority' })) }} value={filters.priority ?? ''} onChange={(value) => change('priority', value)} />
       <MeetingPicker title="Meeting" values={filters.meeting_id ? [text(filters.meeting_id)] : []} onChange={(values) => change('meeting_id', values[0] ?? '')} />
       <FieldInput field={{ name: 'from', label: 'From date', type: 'date' }} value={filters.from_date ?? ''} onChange={(value) => change('from_date', value)} />
       <FieldInput field={{ name: 'to', label: 'Through date', type: 'date' }} value={filters.to_date ?? ''} onChange={(value) => change('to_date', value)} />
     </FilterDisclosure>
-    <AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title="No follow-ups match these filters">Try another status or scope.</Empty> : <>
+    <AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title="No follow-ups match these filters" /> : <>
       <VirtualList rows={items(data)} label="Follow-up results" estimate={76} height="min(62vh, 720px)" render={(row) => row.kind === 'moment' || row.entity_type === 'important_moment' ? <ImportantFollowup row={row} /> : <ActionRow row={row} />} />
       <Toolbar><button disabled={!previous.length} onClick={() => { setCursor(previous[previous.length - 1] ?? null); setPrevious((current) => current.slice(0, -1)); }}>Previous page</button><button disabled={!data.next_cursor} onClick={() => { setPrevious((current) => [...current, cursor]); setCursor(text(data.next_cursor)); }}>Next page</button></Toolbar>
     </>}</AsyncView>
@@ -108,11 +107,11 @@ export function SearchPage() {
         <SemanticIndex meetingIds={meetingIds} />
       </FilterDisclosure>
     </Panel>
-    {!currentQuery && <Empty title="Search across your meetings">Results cite the exact transcript moment they came from.</Empty>}
+    {!currentQuery && <Empty title="Search across your meetings" />}
     {currentQuery && !ask && <Panel title="Results"><AsyncView query={results}>{(data) => <>
       {data.retrieval_mode === 'keyword' && mode !== 'keyword' && <Notice>Matching by meaning isn't available yet, so these are exact-word matches.</Notice>}
       {(Boolean(data.destination) || Boolean(data.fallback_reason ?? data.warning)) && <Toolbar>{Boolean(data.destination) && <Badge>Sent to: {text(data.destination)}</Badge>}{Boolean(data.fallback_reason ?? data.warning) && <Notice>{text(data.fallback_reason ?? data.warning)}</Notice>}</Toolbar>}
-      {items(data).length === 0 ? <Empty title="No matches">Try a different phrase or fewer filters.</Empty> : <VirtualList label="Search results" rows={items(data)} estimate={130} render={(row) => <article className={styles.searchResult}><h3>{text(row.meeting_title, 'Meeting passage')}</h3><p><Highlight value={excerpt(text(row.excerpt ?? row.text), terms)} terms={terms} /></p><Toolbar><Citation source={row} /><small>{clock(row.start_ms)}–{clock(row.end_ms)}</small></Toolbar></article>} />}
+      {items(data).length === 0 ? <Empty title="No matches" /> : <VirtualList label="Search results" rows={items(data)} estimate={130} render={(row) => <article className={styles.searchResult}><h3>{text(row.meeting_title, 'Meeting passage')}</h3><p><Highlight value={excerpt(text(row.excerpt ?? row.text), terms)} terms={terms} /></p><Toolbar><Citation source={row} /><small>{clock(row.start_ms)}–{clock(row.end_ms)}</small></Toolbar></article>} />}
       <Toolbar><button disabled={!previous.length} onClick={() => { setCursor(previous[previous.length - 1] ?? null); setPrevious((values) => values.slice(0, -1)); }}>Previous results</button><button disabled={!data.next_cursor} onClick={() => { setPrevious((values) => [...values, cursor]); setCursor(text(data.next_cursor)); }}>Next results</button></Toolbar>
     </>}</AsyncView></Panel>}
     {ask && <Panel title="Answer">{askRequest.isPending && <Notice>Finding relevant passages and checking every citation…</Notice>}{askRequest.error && <ErrorNotice error={askRequest.error} retry={() => submit(true)} />}{askRequest.data && <AskAnswer answer={askRequest.data} />}</Panel>}
@@ -120,8 +119,8 @@ export function SearchPage() {
 }
 
 function SemanticIndex({ meetingIds }: { meetingIds: string[] }) {
-  return <Modal trigger={<button type="button">Build / rebuild semantic index…</button>} title="Explicit semantic index rebuild" description="Uses your saved embeddings task policy and actual model/runtime. This is an asynchronous job; the active index is replaced only after all embedding batches succeed.">
-    <Notice>{meetingIds.length ? `Embedding scope: ${meetingIds.length} selected meeting${meetingIds.length === 1 ? '' : 's'}` : 'Embedding scope: ALL active meetings in this workspace. Project/date search filters do not narrow this index-maintenance operation.'} A remote embeddings destination requires separate historical-excerpt consent. No model download starts here.</Notice>
+  return <Modal trigger={<button type="button">Build / rebuild semantic index…</button>} title="Explicit semantic index rebuild" description="The active index is replaced only after all embedding batches succeed.">
+    <Notice>{meetingIds.length ? `Embedding scope: ${meetingIds.length} selected meeting${meetingIds.length === 1 ? '' : 's'}` : 'Embedding scope: all active meetings in this workspace.'} A remote embeddings destination requires separate historical-excerpt consent.</Notice>
     <CommandForm operation="search.reindex" fixed={{ ...(meetingIds.length ? { meeting_ids: meetingIds } : {}), idempotency_key: crypto.randomUUID() }} fields={[]} submit="Queue real semantic rebuild" confirm="I reviewed the exact embedding scope and configured provider destination/cost." />
   </Modal>;
 }
@@ -129,5 +128,5 @@ function SemanticIndex({ meetingIds }: { meetingIds: string[] }) {
 function AskAnswer({ answer }: { answer: RecordData }) {
   const result: RecordData = { ...item(answer), citations: answer.citations ?? [] };
   const insufficient = result.insufficient_evidence === true || result.insufficient_evidence === 1;
-  return <><Toolbar><Badge>Destination: {text(result.destination, 'Configured Ask task policy')}</Badge><Badge>Retrieval: {text(answer.retrieval_mode, 'Reported in provenance')}</Badge>{insufficient && <Badge tone="warning">Insufficient evidence</Badge>}</Toolbar><CitedResult result={result} />{array(result.citations).length === 0 && !insufficient && <Notice>No valid citations returned. Do not treat uncited text as a grounded meeting claim.</Notice>}<Details value={answer} title="Answer provenance and conflicts" /></>;
+  return <><Toolbar><Badge>Destination: {text(result.destination, 'Configured Ask task policy')}</Badge><Badge>Retrieval: {text(answer.retrieval_mode, 'Reported in provenance')}</Badge>{insufficient && <Badge tone="warning">Insufficient evidence</Badge>}</Toolbar><CitedResult result={result} />{array(result.citations).length === 0 && !insufficient && <Notice>No valid citations returned. Do not treat uncited text as a grounded meeting claim.</Notice>}<Details value={answer} title="Details" /></>;
 }

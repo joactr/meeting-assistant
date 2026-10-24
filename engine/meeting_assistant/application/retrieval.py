@@ -160,9 +160,6 @@ def keyword_search(w: Workspace, p: dict[str, Any]) -> dict[str, Any]:
     if p.get("project_id"):
         filters.append("m.project_id=?")
         params.append(p["project_id"])
-    if p.get("work_package_id"):
-        filters.append("m.work_package_id=?")
-        params.append(p["work_package_id"])
     meeting_ids = p.get("meeting_ids") or ([p["meeting_id"]] if p.get("meeting_id") else [])
     require(
         len(meeting_ids) <= 200,
@@ -286,9 +283,6 @@ def register_retrieval(w: Workspace, r: CommandRegistry) -> None:
             if p.get("project_id"):
                 filters.append("m.project_id=?")
                 params.append(p["project_id"])
-            if p.get("work_package_id"):
-                filters.append("m.work_package_id=?")
-                params.append(p["work_package_id"])
             meeting_ids = p.get("meeting_ids") or ([p["meeting_id"]] if p.get("meeting_id") else [])
             if meeting_ids:
                 filters.append("c.meeting_id IN(" + ",".join("?" for _ in meeting_ids) + ")")
@@ -411,11 +405,7 @@ def register_retrieval(w: Workspace, r: CommandRegistry) -> None:
                 policy,
                 context={
                     "query": p["query"],
-                    "scope": {
-                        key: p[key]
-                        for key in ("project_id", "work_package_id", "meeting_ids")
-                        if key in p
-                    },
+                    "scope": {key: p[key] for key in ("project_id", "meeting_ids") if key in p},
                 },
             )
             response = output.get("result", output)
@@ -464,11 +454,7 @@ def register_retrieval(w: Workspace, r: CommandRegistry) -> None:
                 new_id(),
                 {
                     "query": p["query"],
-                    "scope": {
-                        key: p[key]
-                        for key in ("project_id", "work_package_id", "meeting_ids")
-                        if key in p
-                    },
+                    "scope": {key: p[key] for key in ("project_id", "meeting_ids") if key in p},
                     "retrieval_fingerprint": fingerprint([i["id"] for i in selected]),
                     "answer": answer,
                     "insufficient_evidence": int(insufficient),

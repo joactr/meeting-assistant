@@ -31,7 +31,6 @@ SUPPORTED = frozenset(
         "speakers",
         "meeting_speakers",
         "projects",
-        "work_packages",
         "taxonomy_nodes",
         "questions",
         "topics",
@@ -281,49 +280,21 @@ def import_legacy(w: Workspace, path: Path, p: JSONDocument) -> JSONDocument:
                 for row in ready:
                     parent = mapped("taxonomy", row.get("parent_id"))
                     node_type = str(row.get("node_type", "project")).casefold()
-                    if parent and node_type in ("subcategory", "work_package", "workpackage"):
-                        root_project = mapped("taxonomy_project", row.get("parent_id")) or parent
-                        item = save(
-                            "work_packages",
-                            row,
-                            {
-                                "project_id": root_project,
-                                "name": row.get("name", "Imported work package"),
-                                "description": "Imported legacy taxonomy scope.",
-                            },
-                        )
-                    else:
-                        item = save(
-                            "projects",
-                            row,
-                            {
-                                "name": row.get("name", "Imported project"),
-                                "description": "Imported taxonomy " + node_type,
-                                "legacy_parent_id": parent,
-                            },
-                        )
-                        root_project = item["id"] if item else None
+                    item = save(
+                        "projects",
+                        row,
+                        {
+                            "name": row.get("name", "Imported project"),
+                            "description": "Imported taxonomy " + node_type,
+                            "legacy_parent_id": parent,
+                        },
+                    )
+                    root_project = item["id"] if item else None
                     if item:
                         assert root_project is not None
                         mapping.setdefault("taxonomy", {})[old_id(row)] = item["id"]
                         mapping.setdefault("taxonomy_project", {})[old_id(row)] = root_project
                     pending.remove(row)
-            for row in rows("work_packages"):
-                project = mapped("projects", row.get("project_id")) or mapped(
-                    "taxonomy_project", row.get("project_id")
-                )
-                if project:
-                    save(
-                        "work_packages",
-                        row,
-                        {
-                            "project_id": project,
-                            "name": row.get("name", "Imported work package"),
-                            "description": row.get("description", ""),
-                        },
-                    )
-                else:
-                    reject("work_packages", row, "unresolved_project")
             for row in rows("templates"):
                 template = save(
                     "templates",
@@ -372,9 +343,6 @@ def import_legacy(w: Workspace, path: Path, p: JSONDocument) -> JSONDocument:
                     or mapped("taxonomy_project", row.get("project_id"))
                     or mapped("taxonomy_project", row.get("category_id"))
                 )
-                package = mapped("work_packages", row.get("work_package_id")) or mapped(
-                    "work_packages", row.get("subcategory_id")
-                )
                 config = decode_json(
                     row.get("config_snapshot", row.get("config_snapshot_json")), {}
                 )
@@ -401,7 +369,6 @@ def import_legacy(w: Workspace, path: Path, p: JSONDocument) -> JSONDocument:
                         "ended_at": ended,
                         "elapsed_ms": max(0, (ended or started or 0) - (started or 0)),
                         "project_id": project,
-                        "work_package_id": package,
                         "config_snapshot": sanitized,
                         "policy_hash": fingerprint(sanitized),
                         "interrupted_reason": "Imported unfinished capture; preserved text can be finalized. Audio not present in the source is not recoverable."
@@ -831,7 +798,6 @@ def import_legacy(w: Workspace, path: Path, p: JSONDocument) -> JSONDocument:
                     {
                         "meeting_id": mid,
                         "project_id": meeting.get("project_id"),
-                        "work_package_id": meeting.get("work_package_id"),
                         "result_id": result_id,
                         "input_revision": meeting["transcript_revision"],
                         "summary": row.get("summary", ""),
@@ -853,7 +819,6 @@ def import_legacy(w: Workspace, path: Path, p: JSONDocument) -> JSONDocument:
                         {
                             "meeting_id": mid,
                             "project_id": meeting.get("project_id"),
-                            "work_package_id": meeting.get("work_package_id"),
                             "kind": "post"
                             if "post" in str(row.get("briefing_type", row.get("kind", "pre")))
                             else "pre",

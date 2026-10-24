@@ -173,7 +173,6 @@
   flex-shrink: 0;
   background: var(--accent);
   border-radius: 50%;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .sidebarBottom > small {

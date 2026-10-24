@@ -64,7 +64,6 @@ def register_media(w: Workspace, r: CommandRegistry) -> None:
                         "title": p.get("title", "Imported recording"),
                         "source": "file",
                         "project_id": p.get("project_id"),
-                        "work_package_id": p.get("work_package_id"),
                         "config": {
                             "asr_policy": policy,
                             "recording": bool(p.get("retain_audio", False)),

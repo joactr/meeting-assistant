@@ -18,7 +18,6 @@ if TYPE_CHECKING:
 EDITABLE = frozenset(
     {
         "projects",
-        "work_packages",
         "actions",
         "important_moments",
         "questions",
@@ -114,14 +113,6 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             status=422,
         )
         project = p.get("project_id")
-        package = p.get("work_package_id")
-        if package:
-            require(
-                w.require_item("work_packages", package)["project_id"] == project,
-                "taxonomy_mismatch",
-                "Work package belongs to a different project.",
-                status=422,
-            )
         config = {**w.settings(), **p.get("config", {})}
         if isinstance(config.get("capture"), dict):
             config = {**config, **config["capture"]}
@@ -155,7 +146,6 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                     "title": title,
                     "state": "draft",
                     "project_id": project,
-                    "work_package_id": package,
                     "template_version_id": template_version,
                     "template_snapshot": template_snapshot,
                     "calendar_event_id": p.get("calendar_event_id"),
@@ -184,9 +174,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
         from meeting_assistant.application.transcripts import all_items
 
         filters = dict(p.get("filters", {}))
-        filters.update(
-            {key: p[key] for key in ("project_id", "work_package_id", "state") if key in p}
-        )
+        filters.update({key: p[key] for key in ("project_id", "state") if key in p})
         items = all_items(w, "meetings", filters)
         return paginate(
             items,
@@ -202,33 +190,19 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
 
     def update_meeting(p: dict[str, Any]) -> dict[str, Any]:
         entity_id = cast(str, p.get("id", p.get("meeting_id")))
-        current = w.require_item("meetings", entity_id)
         data = p.get(
             "changes",
             p.get(
                 "data",
-                {
-                    k: v
-                    for k, v in p.items()
-                    if k in ("title", "project_id", "work_package_id", "template_version_id")
-                },
+                {k: v for k, v in p.items() if k in ("title", "project_id", "template_version_id")},
             ),
         )
         require(
-            set(data) <= {"title", "project_id", "work_package_id", "template_version_id"},
+            set(data) <= {"title", "project_id", "template_version_id"},
             "invalid_edit",
             "Lifecycle and revision fields cannot be patched.",
             status=422,
         )
-        merged = {**current, **data}
-        if merged.get("work_package_id"):
-            require(
-                w.require_item("work_packages", merged["work_package_id"])["project_id"]
-                == merged.get("project_id"),
-                "taxonomy_mismatch",
-                "Work package belongs to a different project.",
-                status=422,
-            )
         return {
             "item": w.put("meetings", entity_id, data, expected_revision=p.get("expected_revision"))
         }
@@ -969,7 +943,6 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
         r["entity." + op] = lambda p, op=op: mutate(p, op)
     for prefix, collection in (
         ("projects", "projects"),
-        ("work_packages", "work_packages"),
         ("actions", "actions"),
         ("moments", "important_moments"),
         ("questions", "questions"),
@@ -1006,12 +979,14 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                     },
                     op,
                 )
-    for prefix in ("projects", "work_packages"):
-        r[prefix + ".archive"] = lambda p, c=prefix: {
-            "item": w.put(
-                c, p["id"], {"archived_at": now_ms()}, expected_revision=p.get("expected_revision")
-            )
-        }
+    r["projects.archive"] = lambda p: {
+        "item": w.put(
+            "projects",
+            p["id"],
+            {"archived_at": now_ms()},
+            expected_revision=p.get("expected_revision"),
+        )
+    }
 
     def clear_actions(p: dict[str, Any]) -> dict[str, Any]:
         require(
@@ -1695,7 +1670,6 @@ def promote_result(w: Workspace, result_id: str, expected_revision: int | None) 
                 new_id(),
                 {
                     "project_id": meeting.get("project_id"),
-                    "work_package_id": meeting.get("work_package_id"),
                     "meeting_id": meeting["id"],
                     "result_id": result_id,
                     "input_revision": run["input_revision"],
@@ -1709,12 +1683,10 @@ def promote_result(w: Workspace, result_id: str, expected_revision: int | None) 
                 {
                     "meeting_id": meeting["id"],
                     "project_id": meeting.get("project_id"),
-                    "work_package_id": meeting.get("work_package_id"),
                     "kind": "post" if meeting["state"] in ("processing", "complete") else "pre",
                     "scope_hash": fingerprint(
                         {
                             "project_id": meeting.get("project_id"),
-                            "work_package_id": meeting.get("work_package_id"),
                         }
                     ),
                     "input_fingerprint": fingerprint(

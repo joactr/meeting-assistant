@@ -29,14 +29,15 @@ export function ActionMenu({ label: menuLabel, actions }: { label: string; actio
   </Menu.Root>;
 }
 
-/** Collapsible group for secondary filters. `count` surfaces how many are active even while collapsed. */
-export function FilterDisclosure({ children, count = 0, title = 'Filters' }: { children: ReactNode; count?: number; title?: string }) {
+/** Primary `bar` filters share one row with the toggle; secondary `children` render on the row below. */
+export function FilterDisclosure({ bar, children, count = 0, title = 'Filters' }: { bar?: ReactNode; children: ReactNode; count?: number; title?: string }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const toggle = <button type="button" className={styles.disclosureToggle} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(!open)}>
+    <SlidersHorizontal size={15} aria-hidden="true" />{title}{count > 0 && <span className={styles.count}>{count}</span>}<ChevronDown size={15} aria-hidden="true" className={open ? styles.flipped : undefined} />
+  </button>;
   return <div className={styles.disclosure}>
-    <button type="button" className={styles.disclosureToggle} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(!open)}>
-      <SlidersHorizontal size={15} aria-hidden="true" />{title}{count > 0 && <span className={styles.count}>{count}</span>}<ChevronDown size={15} aria-hidden="true" className={open ? styles.flipped : undefined} />
-    </button>
+    {bar ? <div className={styles.disclosureBar}>{bar}{toggle}</div> : toggle}
     <div id={panelId} hidden={!open} className={styles.disclosurePanel}>{children}</div>
   </div>;
 }

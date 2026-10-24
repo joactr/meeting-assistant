@@ -198,10 +198,5 @@ pub const OPERATION_IDS: &[&str] = &[
     "voice_profiles.create",
     "voice_profiles.delete",
     "voice_profiles.list",
-    "work_packages.archive",
-    "work_packages.create",
-    "work_packages.delete",
-    "work_packages.list",
-    "work_packages.update",
     "workspace.status",
 ];

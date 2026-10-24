@@ -28,12 +28,7 @@ def scoped_meetings(
     if explicit:
         selected = [item for item in meetings if item["id"] in explicit]
     elif meeting.get("project_id"):
-        selected = [
-            item
-            for item in meetings
-            if item.get("project_id") == meeting["project_id"]
-            and item.get("work_package_id") in (None, meeting.get("work_package_id"))
-        ]
+        selected = [item for item in meetings if item.get("project_id") == meeting["project_id"]]
     else:
         selected = []
     selected = [
@@ -205,7 +200,6 @@ def register_knowledge(workspace: Workspace, registry: CommandRegistry) -> None:
         policy = payload.get("policy") or task_policy(workspace, "briefings", meeting)
         scope = {
             "project_id": meeting.get("project_id"),
-            "work_package_id": meeting.get("work_package_id"),
             "meeting_ids": [item["id"] for item in selected],
             "kind": kind,
         }
@@ -318,7 +312,6 @@ def register_knowledge(workspace: Workspace, registry: CommandRegistry) -> None:
                 {
                     "meeting_id": meeting["id"],
                     "project_id": meeting.get("project_id"),
-                    "work_package_id": meeting.get("work_package_id"),
                     "kind": kind,
                     "scope_hash": fingerprint(scope),
                     "input_fingerprint": input_hash,
@@ -402,7 +395,6 @@ def register_knowledge(workspace: Workspace, registry: CommandRegistry) -> None:
                 new_id(),
                 {
                     "project_id": meeting.get("project_id"),
-                    "work_package_id": meeting.get("work_package_id"),
                     "meeting_id": meeting["id"],
                     "result_id": result["id"],
                     "input_revision": meeting["transcript_revision"],

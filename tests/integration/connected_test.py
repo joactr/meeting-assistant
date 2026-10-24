@@ -606,7 +606,7 @@ async def test_digest_history_boundary_excludes_later_edits(workspace, monkeypat
         expected_revision=action["revision"],
     )
     snapshot = workspace.connected.digest.snapshot(
-        {"project_id": item["id"], "work_package_ids": []},
+        {"project_id": item["id"]},
         datetime.fromtimestamp(boundary_ms / 1000, UTC),
     )
     assert snapshot["actions:" + action["id"]]["description"] == "Before boundary"

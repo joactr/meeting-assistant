@@ -15,7 +15,6 @@ from .common import (
     fail,
     fingerprint,
     instant,
-    is_json_list,
     iso,
     native,
     required,
@@ -244,13 +243,6 @@ class DigestService:
         except (ValueError, TypeError):
             fail("invalid_schedule", "Use a weekday from 0 (Monday) to 6 and local HH:MM")
         old = self.workspace.get("digest_schedules", project_id)
-        work_packages = payload.get("work_package_ids", [])
-        if not is_json_list(work_packages):
-            fail("invalid_scope", "Work package filters must be explicit IDs")
-        for work_package_id in work_packages:
-            work_package = existing(self.workspace, "work_packages", work_package_id)
-            if work_package.get("project_id") != project_id:
-                fail("invalid_scope", "Digest work packages must belong to the selected project")
         delivery_ids = payload.get("delivery_ids", [])
         for identity in delivery_ids:
             settings = existing(self.workspace, "delivery_settings", identity)
@@ -266,7 +258,6 @@ class DigestService:
             "weekday": weekday,
             "time": clock,
             "timezone": timezone,
-            "work_package_ids": work_packages,
             "delivery_ids": delivery_ids,
             "policy": payload.get("policy"),
             "last_success_boundary": (old or {}).get("last_success_boundary"),
@@ -302,21 +293,12 @@ class DigestService:
             item["id"]: item
             for item in rows("meetings")
             if item.get("project_id") == rule["project_id"]
-            and (
-                not rule.get("work_package_ids")
-                or item.get("work_package_id") in rule["work_package_ids"]
-            )
         }
         result: dict[str, dict[str, Any]] = {}
         for collection in ("actions", "artifacts", "questions"):
             for item in rows(collection):
                 if item.get("meeting_id") not in meetings:
                     if item.get("project_id") != rule["project_id"] or item.get("meeting_id"):
-                        continue
-                    if (
-                        rule.get("work_package_ids")
-                        and item.get("work_package_id") not in rule["work_package_ids"]
-                    ):
                         continue
                 result[collection + ":" + item["id"]] = {**item, "collection": collection}
         for meeting in meetings.values():
@@ -470,7 +452,6 @@ class DigestService:
         snapshot = self.snapshot(rule, end)
         scope = {
             "project_id": rule["project_id"],
-            "work_package_ids": rule.get("work_package_ids", []),
         }
         baseline = (
             previous["snapshot"]
@@ -497,7 +478,6 @@ class DigestService:
                 "snapshot_hash": fingerprint(snapshot),
                 "scope": {
                     "project_id": rule["project_id"],
-                    "work_package_ids": rule.get("work_package_ids", []),
                 },
                 "content": content,
             },

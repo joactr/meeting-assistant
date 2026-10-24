@@ -181,7 +181,6 @@
 .utterance {
   padding: 0.95rem 1.1rem 0.85rem;
   border-bottom: 1px solid var(--border);
-  border-left: 3px solid transparent;
   background: var(--panel);
   transition: background 0.14s var(--ease);
 }
@@ -192,7 +191,6 @@
 
 .utterance.selected {
   background: var(--accent-soft);
-  border-left-color: var(--accent);
 }
 
 .utterance header {
@@ -371,18 +369,6 @@
   background: color-mix(in srgb, var(--soft) 60%, transparent);
 }
 
-.filterBar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.9rem 1.1rem;
-  margin-bottom: 0.9rem;
-}
-
-.filterBar > div {
-  min-width: 11rem;
-}
-
 .taskMark {
   margin-top: 0.15rem;
   color: var(--accent);
@@ -454,8 +440,7 @@
 
 .actionRow blockquote {
   margin: 0.3rem 0;
-  padding: 0.5rem 0.9rem;
-  border-left: 2px solid var(--accent);
+  padding: 0;
   font-family: var(--font-serif);
   font-size: 0.98rem;
   font-style: italic;
