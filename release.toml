@@ -9,8 +9,8 @@ bundle_identifier = "io.github.joactr.meeting-assistant"
 support_url = "https://github.com/joactr/meeting-assistant/issues"
 
 [updates]
-enabled = false
-public_key = ""
+enabled = true
+public_key = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDAxQzg4QUE0OUM5MjlFODYKUldTR25wS2NwSXJJQVZ3UHR6VkJpRzBIQzRmMHIvLy93SC9lV0Z2aGNwUVFzWVhKSHZKcHZrdjEK"
 catalog_public_key = "Ihgiq1o7OKKvjjMaFcXR1qauy87AX6xfsVUvGdmQ62s="
 
 [oauth]

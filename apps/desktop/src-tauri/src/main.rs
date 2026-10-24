@@ -360,7 +360,7 @@ async fn prepare_exit(
     }
     Ok(value)
 }
-fn update_endpoint(channel: &str) -> Result<url::Url> {
+fn update_endpoint() -> Result<url::Url> {
     let owner = env!("MA_GITHUB_OWNER");
     let repo = env!("MA_GITHUB_REPO");
     ensure!(!owner.is_empty()&&!repo.is_empty()&&!env!("MA_UPDATER_KEY").is_empty(),"Updates disabled: configure a real public GitHub repository and updater public-key contents in release.toml");
@@ -371,11 +371,10 @@ fn update_endpoint(channel: &str) -> Result<url::Url> {
                 .all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c)),
         "invalid publisher repository"
     );
-    Ok(url::Url::parse(&if channel == "beta" {
-        format!("https://{owner}.github.io/{repo}/updates/beta.json")
-    } else {
-        format!("https://github.com/{owner}/{repo}/releases/latest/download/latest.json")
-    })?)
+    // GitHub's "latest" release (pre-releases excluded) carries the signed latest.json.
+    Ok(url::Url::parse(&format!(
+        "https://github.com/{owner}/{repo}/releases/latest/download/latest.json"
+    ))?)
 }
 #[tauri::command]
 async fn update_check(
@@ -391,7 +390,7 @@ async fn update_check(
         prefs.updates.consent,
         "Update checks require separate onboarding consent"
     );
-    let endpoint = update_endpoint(&prefs.updates.channel)?;
+    let endpoint = update_endpoint()?;
     let updater = app
         .updater_builder()
         .pubkey(env!("MA_UPDATER_KEY"))
@@ -412,9 +411,9 @@ async fn update_check(
                 )),
             "updater artifact is outside public configured GitHub releases"
         );
-        json!({"state":"available","version":update.version,"notes":update.body,"channel":prefs.updates.channel})
+        json!({"state":"available","version":update.version,"current_version":update.current_version,"notes":update.body})
     } else {
-        json!({"state":"current","channel":prefs.updates.channel})
+        json!({"state":"current"})
     };
     *host.pending_update.lock().await = update;
     app.emit(
@@ -691,7 +690,8 @@ async fn automatic_update_check(app: tauri::AppHandle, focus: bool) {
 }
 fn spawn_update_checks(app: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        // Give the webview time to subscribe before the first check emits its prompt event.
+        tokio::time::sleep(Duration::from_secs(10)).await;
         loop {
             if app.state::<Host>().safe_exit.load(Ordering::Acquire) {
                 break;

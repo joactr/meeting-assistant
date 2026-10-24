@@ -182,16 +182,18 @@ def package() -> None:
     updates = config.get("updates", {})
     thumbprint = os.environ.get("WINDOWS_CERTIFICATE_THUMBPRINT")
     if os.name == "nt" and not thumbprint:
-        if updates.get("enabled", False):
-            raise GateError(
-                "Update-enabled Windows packaging requires WINDOWS_CERTIFICATE_THUMBPRINT and its provisioned private key"
-            )
         print(
-            "WARNING: WINDOWS_CERTIFICATE_THUMBPRINT is unset; building an UNSIGNED developer installer. "
+            "WARNING: WINDOWS_CERTIFICATE_THUMBPRINT is unset; building an UNSIGNED installer "
+            "(SmartScreen will warn). Updater payloads are still minisign-signed via TAURI_SIGNING_PRIVATE_KEY. "
             "release-check rejects unsigned artifacts."
         )
     overrides: dict = {
-        "bundle": {"createUpdaterArtifacts": bool(updates.get("enabled", False))},
+        # Without the private updater key, build a plain developer installer instead of failing.
+        "bundle": {
+            "createUpdaterArtifacts": bool(
+                updates.get("enabled", False) and os.environ.get("TAURI_SIGNING_PRIVATE_KEY")
+            )
+        },
         "plugins": {"updater": {"pubkey": updates.get("public_key", "")}},
     }
     if publisher.get("bundle_identifier"):
@@ -243,9 +245,12 @@ def main() -> int:
             "dev",
             "dev-engine",
             "fetch-model",
+            "release-local",
         ],
     )
-    parser.add_argument("model", nargs="?")
+    parser.add_argument(
+        "value", nargs="?", help="model ID for fetch-model, version for release-local"
+    )
     args = parser.parse_args()
     ARTIFACTS.mkdir(exist_ok=True)
     started = time.time()
@@ -253,9 +258,14 @@ def main() -> int:
     error = None
     try:
         if args.command == "fetch-model":
-            if not args.model:
+            if not args.value:
                 raise GateError("fetch-model requires a catalog model ID")
-            fetch_model(args.model)
+            fetch_model(args.value)
+        elif args.command == "release-local":
+            sys.modules["run"] = sys.modules[__name__]  # one GateError class for release_local
+            import release_local
+
+            release_local.main(args.value)
         else:
             globals()[args.command.replace("-", "_")]()
         status = 0

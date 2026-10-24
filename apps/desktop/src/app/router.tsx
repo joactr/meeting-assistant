@@ -50,6 +50,41 @@ function QuitGuard() {
   </Modal>;
 }
 
+/** Asks once per version when the native host's automatic check finds a signed GitHub release. */
+function UpdatePrompt() {
+  const [offer, setOffer] = useState<RecordData | null>(null);
+  const [dismissed, setDismissed] = useState('');
+  const [state, setState] = useState<{ phase: 'working' } | { phase: 'blocked'; result: RecordData } | { phase: 'error'; error: unknown } | null>(null);
+  useEffect(() => {
+    if (!nativeAvailable()) return undefined;
+    let disposed = false; let cleanup: (() => void) | undefined;
+    void listen<{ type?: string; data?: RecordData }>('engine-event', ({ payload }) => { if (payload.type === 'native.update' && payload.data?.state === 'available') setOffer(payload.data); })
+      .then((unlisten) => { if (disposed) unlisten(); else cleanup = unlisten; });
+    return () => { disposed = true; cleanup?.(); };
+  }, []);
+  const version = text(offer?.version);
+  const later = (): void => { setDismissed(version); setState(null); };
+  const install = async (): Promise<void> => {
+    setState({ phase: 'working' });
+    try {
+      await flushDrafts();
+      // On success the installer replaces and restarts the app; a returned value means something blocks it.
+      const result = await nativeRequest<RecordData>('update_install');
+      if (result.state === 'blocked') setState({ phase: 'blocked', result });
+    } catch (error) { setState({ phase: 'error', error }); }
+  };
+  const busy = state?.phase === 'working';
+  return <Modal open={!!offer && version !== dismissed} onOpenChange={(open) => { if (!open && !busy) later(); }} title={`Update available: ${version}`} description={`You have ${text(offer?.current_version)}. The update is downloaded from this project's GitHub releases and its signature is verified before installing. The app restarts afterwards.`}>
+    {busy && <Notice>Downloading, saving your work and installing…</Notice>}
+    {state?.phase === 'blocked' && <><Notice danger>Stop the active meeting first, then install again.</Notice><Details value={state.result} title="Blockers" /></>}
+    {state?.phase === 'error' && <ErrorNotice error={state.error} />}
+    <Toolbar>
+      <button disabled={busy} onClick={later}>Later</button>
+      <button disabled={busy} onClick={() => { void install(); }}>Install and restart</button>
+    </Toolbar>
+  </Modal>;
+}
+
 function Shell() {
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -96,7 +131,7 @@ function Shell() {
     void flushDrafts().then(() => navigate({ to })).catch(setError);
   };
   const active = object(item(workspace.data).capabilities);
-  return <><a className="skip-link" href="#workspace-content">Skip to workspace</a><div className={`${styles.shell} ${collapsed ? styles.collapsed : ''}`}><aside className={styles.sidebar} aria-label="Application navigation"><Link className={styles.brand} to="/" onClick={(event) => followLink(event, '/')}><span className={styles.brandMark} aria-hidden="true"><i /><i /><i /></span><span className={styles.brandText}>Meeting<strong>Assistant</strong></span></Link><nav aria-label="Main navigation">{navigation.map((entry) => <Link key={entry.to} to={entry.to} onClick={(event) => followLink(event, entry.to)} className={`${styles.navLink} ${(entry.to === '/' ? pathname === '/' || pathname.startsWith('/meeting/') : pathname === entry.to || pathname.startsWith(entry.to + '/')) ? styles.active : ''}`} aria-current={(entry.to === '/' ? pathname === '/' || pathname.startsWith('/meeting/') : pathname === entry.to || pathname.startsWith(entry.to + '/')) ? 'page' : undefined}><entry.icon className={styles.navIcon} size={18} aria-hidden="true" /><span className={styles.navLabel}>{entry.label}</span>{entry.to === '/search' && <kbd>⌘K</kbd>}</Link>)}</nav><div className={styles.sidebarAction}><NewMeeting trigger={<><Plus size={16} aria-hidden="true" /><span className={styles.actionLabel}>New meeting</span></>} /></div><div className={styles.sidebarBottom}><div className={styles.localStatus}><span aria-hidden="true" />{nativeAvailable() ? 'Local engine' : 'Browser preview'}</div><button onClick={() => setShortcutsOpen(true)}><Keyboard size={15} aria-hidden="true" /><span className={styles.navLabel}>Keyboard shortcuts</span><kbd>?</kbd></button><span className={styles.version}>1.0.0 beta{active.capture === true ? '' : ' · no capture host'}</span></div></aside><div className={styles.mainFrame}>{!nativeAvailable() && <div className={styles.offlineBanner} role="status"><strong>Native desktop features are unavailable in this browser.</strong> Recording, providers, files and playback are disabled.</div>}{workspace.isError && <ErrorNotice error={workspace.error} retry={() => { void workspace.refetch(); }} />}{Boolean(error) && <Notice danger><ErrorNotice error={error} /><button onClick={() => setError(undefined)}>Dismiss after review</button></Notice>}<main id="workspace-content" className={styles.content} tabIndex={-1}><Outlet /></main></div></div><QuitGuard /><Modal open={shortcutsOpen} onOpenChange={setShortcutsOpen} title="Keyboard shortcuts"><dl><dt>Search</dt><dd><kbd>Ctrl/Cmd K</kbd></dd><dt>Start / stop</dt><dd><kbd>Ctrl/Cmd Shift M</kbd></dd><dt>Save minutes</dt><dd><kbd>Ctrl/Cmd Shift S</kbd></dd><dt>Settings</dt><dd><kbd>Ctrl/Cmd ,</kbd></dd><dt>This list</dt><dd><kbd>?</kbd></dd><dt>Edit utterance</dt><dd>Double-click or Enter · Shift+Enter for newline</dd></dl></Modal></>;
+  return <><a className="skip-link" href="#workspace-content">Skip to workspace</a><div className={`${styles.shell} ${collapsed ? styles.collapsed : ''}`}><aside className={styles.sidebar} aria-label="Application navigation"><Link className={styles.brand} to="/" onClick={(event) => followLink(event, '/')}><span className={styles.brandMark} aria-hidden="true"><i /><i /><i /></span><span className={styles.brandText}>Meeting<strong>Assistant</strong></span></Link><nav aria-label="Main navigation">{navigation.map((entry) => <Link key={entry.to} to={entry.to} onClick={(event) => followLink(event, entry.to)} className={`${styles.navLink} ${(entry.to === '/' ? pathname === '/' || pathname.startsWith('/meeting/') : pathname === entry.to || pathname.startsWith(entry.to + '/')) ? styles.active : ''}`} aria-current={(entry.to === '/' ? pathname === '/' || pathname.startsWith('/meeting/') : pathname === entry.to || pathname.startsWith(entry.to + '/')) ? 'page' : undefined}><entry.icon className={styles.navIcon} size={18} aria-hidden="true" /><span className={styles.navLabel}>{entry.label}</span>{entry.to === '/search' && <kbd>⌘K</kbd>}</Link>)}</nav><div className={styles.sidebarAction}><NewMeeting trigger={<><Plus size={16} aria-hidden="true" /><span className={styles.actionLabel}>New meeting</span></>} /></div><div className={styles.sidebarBottom}><div className={styles.localStatus}><span aria-hidden="true" />{nativeAvailable() ? 'Local engine' : 'Browser preview'}</div><button onClick={() => setShortcutsOpen(true)}><Keyboard size={15} aria-hidden="true" /><span className={styles.navLabel}>Keyboard shortcuts</span><kbd>?</kbd></button><span className={styles.version}>1.0.0 beta{active.capture === true ? '' : ' · no capture host'}</span></div></aside><div className={styles.mainFrame}>{!nativeAvailable() && <div className={styles.offlineBanner} role="status"><strong>Native desktop features are unavailable in this browser.</strong> Recording, providers, files and playback are disabled.</div>}{workspace.isError && <ErrorNotice error={workspace.error} retry={() => { void workspace.refetch(); }} />}{Boolean(error) && <Notice danger><ErrorNotice error={error} /><button onClick={() => setError(undefined)}>Dismiss after review</button></Notice>}<main id="workspace-content" className={styles.content} tabIndex={-1}><Outlet /></main></div></div><QuitGuard /><UpdatePrompt /><Modal open={shortcutsOpen} onOpenChange={setShortcutsOpen} title="Keyboard shortcuts"><dl><dt>Search</dt><dd><kbd>Ctrl/Cmd K</kbd></dd><dt>Start / stop</dt><dd><kbd>Ctrl/Cmd Shift M</kbd></dd><dt>Save minutes</dt><dd><kbd>Ctrl/Cmd Shift S</kbd></dd><dt>Settings</dt><dd><kbd>Ctrl/Cmd ,</kbd></dd><dt>This list</dt><dd><kbd>?</kbd></dd><dt>Edit utterance</dt><dd>Double-click or Enter · Shift+Enter for newline</dd></dl></Modal></>;
 }
 
 const rootRoute = createRootRoute({ component: Shell });

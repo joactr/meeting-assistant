@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "id": "whisper-large-v3-turbo",
+  "role": "asr",
+  "source": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+  "revision": "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf",
+  "files": [
+    {
+      "path": "config.json",
+      "url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/config.json",
+      "bytes": 2263,
+      "sha256": "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e",
+      "git_blob_sha1": "0351d1d6870005e865747b781b5d7c23ea0459cd"
+    },
+    {
+      "path": "model.bin",
+      "url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/model.bin",
+      "bytes": 1617884929,
+      "sha256": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+      "git_blob_sha1": "c849f26401bf079fdea48ac9f7461fdff2e743ea"
+    },
+    {
+      "path": "preprocessor_config.json",
+      "url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/preprocessor_config.json",
+      "bytes": 340,
+      "sha256": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+      "git_blob_sha1": "931c77a740890c46365c7ae0c9d350ba3cca908f"
+    },
+    {
+      "path": "tokenizer.json",
+      "url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/tokenizer.json",
+      "bytes": 2710337,
+      "sha256": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+      "git_blob_sha1": "17456db595adc78a973f97d69d8cb50bc87c0b1c"
+    },
+    {
+      "path": "vocabulary.json",
+      "url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo/resolve/0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf/vocabulary.json",
+      "bytes": 1068114,
+      "sha256": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+      "git_blob_sha1": "0adcd01e7c237205d593b707e66dd5d7bc785d2d"
+    }
+  ],
+  "license": {
+    "spdx": "MIT",
+    "url": "https://raw.githubusercontent.com/openai/whisper/main/LICENSE",
+    "text": "MIT License\n\nCopyright (c) 2022 OpenAI\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
+    "attribution": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+    "upstream_license_url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo"
+  },
+  "transformations": [
+    "Upstream CTranslate2 conversion by Mobius Labs (faster-whisper's default large-v3-turbo source)"
+  ],
+  "gating": {
+    "required": false,
+    "terms_url": "https://huggingface.co/mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+    "token_required": false
+  },
+  "platforms": [
+    "windows-x86_64",
+    "macos-aarch64",
+    "macos-x86_64",
+    "linux-x86_64"
+  ],
+  "platform_status": {
+    "windows-x86_64": "requires actual model smoke",
+    "macos-aarch64": "experimental-untested",
+    "macos-x86_64": "experimental-untested",
+    "linux-x86_64": "experimental-untested"
+  },
+  "runtime": {
+    "family": "whisper",
+    "version_range": ">=1.0.0,<2.0.0"
+  },
+  "minimum_resources": {
+    "free_disk_bytes": 3243331966,
+    "ram_bytes": null,
+    "ram_note": "Unmeasured; run target hardware gate before claiming capacity"
+  },
+  "capability_profile": {
+    "vocabulary": "prompt_hint",
+    "streaming_native": false
+  },
+  "acquisition": "explicit-consent-only",
+  "hash_source": "Hugging Face LFS SHA256 metadata; non-LFS public files hashed from exact pinned revision",
+  "blocked_reason": null
+}

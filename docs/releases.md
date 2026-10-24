@@ -12,12 +12,23 @@ Each worker family has its own dependency environment and target artifact.
 Packaging inventories actual binaries and dependency/license metadata, not a
 hardcoded list of presumed packages.
 
-With the checked-in empty publisher identity and `updates.enabled = false`,
-`just package` produces an unsigned developer installer and does not request
-updater signatures. Enabling updates generates updater artifacts and requires
-the real signing key. Configuring an official Windows publisher also requires
-its Authenticode certificate. `just release-check` still rejects an unsigned
-developer installer; this mode does not satisfy official release acceptance.
+`release.toml` enables updates with the public Tauri updater key. `just package`
+creates updater artifacts (`.sig`) only when `TAURI_SIGNING_PRIVATE_KEY` is set;
+without it, it builds a plain developer installer. Without
+`WINDOWS_CERTIFICATE_THUMBPRINT` the installer is Authenticode-unsigned (SmartScreen
+warns) but update payloads are still minisign-verified by the app. `just release-check`
+still rejects an unsigned installer; this mode does not satisfy official release acceptance.
+
+**One-command local release (Windows):** `just release-local 1.0.0-beta.2` (or `python tooling/run.py release-local VERSION`)
+bumps the app version, rebuilds and catalog-signs only runtime packs whose
+`worker.py`, `uv.lock` or worker protocol differ from the hashes in their signed
+descriptor (unchanged packs keep their earlier release URLs, so never delete old
+release assets), packages the updater-signed installer, writes `latest.json`,
+commits, tags, pushes and publishes the GitHub release as "latest" after all
+assets are uploaded and byte-verified. It needs a clean `main`, a GitHub
+credential in git's credential helper, and `catalog-signing-key.pem` plus
+`updater.key` in `MEETING_RELEASE_KEYS` (default `~/.meeting-assistant-release`).
+Run `just check` and `just test` first; the script does not.
 
 Windows builds prioritize System32 Visual C runtimes over unrelated SDK DLLs
 on PATH. Worker NumPy imports must precede the control-input reader: importing
@@ -27,8 +38,12 @@ its native extension while that reader blocks on stdin reproduced a deadlock.
 payloads. Windows uses NSIS payload plus `.sig`; macOS updater payloads are app
 archives rather than DMG installer bytes; Linux uses AppImage. Signature fields
 contain complete Tauri signature file contents. URLs are version-tagged assets
-under the configured real repository. Stable latest and beta manifest discovery
-are distinct; a beta channel must not depend on GitHub's stable latest endpoint.
+under the configured real repository. GitHub stores asset names with spaces as
+dots, so manifest URLs use the dotted name. The app checks
+`releases/latest/download/latest.json` shortly after start, daily and at most hourly
+on focus, then asks the user before installing. GitHub's "latest" excludes
+pre-releases, so updater-carrying releases must be published as normal releases.
+Turning off automatic checks or enabling privacy mode in Settings stops all update requests.
 
 `just release-check` rejects missing publisher input, installer signatures,
 required real acceptance receipts and manifest entries. It verifies updater
@@ -59,7 +74,7 @@ and a private separate catalog key file via `MEETING_CATALOG_SIGNING_KEY_FILE`.
 updater signing uses its different protected Tauri signing secrets.
 
 Without the thumbprint, `just package` builds an **unsigned developer installer** and prints
-a warning; with `updates.enabled = true` it refuses to build. Release verification runs
+a warning. Release verification runs
 `signtool verify` on the installer, so an unsigned developer build can never pass
 `just release-check` or be published.
 

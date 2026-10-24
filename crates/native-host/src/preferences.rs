@@ -24,13 +24,14 @@ impl Default for Window {
 #[serde(deny_unknown_fields)]
 pub struct Updates {
     pub consent: bool,
+    /// Retained only so stored preferences keep deserializing; every build uses the one GitHub feed.
     pub channel: String,
     pub privacy_mode: bool,
 }
 impl Default for Updates {
     fn default() -> Self {
         Self {
-            consent: false,
+            consent: true,
             channel: "stable".into(),
             privacy_mode: false,
         }

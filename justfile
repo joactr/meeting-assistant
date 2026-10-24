@@ -27,6 +27,9 @@ package:
 release-check:
     python tooling/run.py release-check
 
+release-local version:
+    python tooling/run.py release-local {{version}}
+
 dev:
     python tooling/run.py dev
 

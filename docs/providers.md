@@ -87,6 +87,11 @@ bundled with the installer. It supports Windows and Linux x86-64 only.
 Measured locally (RTX 4060 Ti, Whisper small, 7 s clip, same text): CPU 2.25 s,
 CUDA 0.25 s warm. Receipt: `artifacts/cuda-acceptance/runtime-acceptance.json`.
 
+Catalog entries `whisper-large-v3-turbo` (1.6 GB) and `whisper-large-v3` (3.1 GB) run on the
+same Whisper packs. Measured on an RTX 4090 with an 8 s synthetic clip, identical text:
+large-v3-turbo CPU int8 7.8 s, CUDA float16 0.25 s; large-v3 CUDA 0.44 s. Prefer
+large-v3-turbo on a GPU; on CPU, small is the practical live choice.
+
 ## Extending an adapter
 
 Implement the typed port and normalize times into integer meeting milliseconds.

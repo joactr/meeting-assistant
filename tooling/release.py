@@ -218,8 +218,10 @@ def manifest() -> None:
             raise RuntimeError(
                 f"Multiple updater payloads for {target}; select one release artifact"
             )
+        # GitHub stores uploaded asset names with spaces replaced by dots.
+        asset = path.name.replace(" ", ".")
         item = {
-            "url": f"https://github.com/{repository}/releases/download/v{version}/{path.name}",
+            "url": f"https://github.com/{repository}/releases/download/v{version}/{asset}",
             "signature": signature,
         }
         platforms[target] = item
