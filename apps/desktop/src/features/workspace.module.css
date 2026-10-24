@@ -99,27 +99,6 @@
   flex-shrink: 0;
 }
 
-/* ---------- meeting layout ---------- */
-
-.meetingLayout {
-  display: grid;
-  grid-template-columns: minmax(340px, 1.1fr) minmax(360px, 1fr);
-  gap: 1.4rem;
-  align-items: start;
-}
-
-.transcriptColumn,
-.resultsColumn {
-  min-width: 0;
-}
-
-.resultsColumn > div:first-child > div:first-child {
-  position: sticky;
-  top: 3.6rem;
-  background: var(--canvas);
-  z-index: 5;
-}
-
 .captureActions {
   margin-left: auto;
   display: flex;
@@ -188,7 +167,7 @@
 /* ---------- transcript ---------- */
 
 .transcriptScroll {
-  height: 600px;
+  height: max(360px, calc(100vh - 19rem));
   overflow: auto;
   position: relative;
   overscroll-behavior: contain;
@@ -693,20 +672,6 @@
 
 /* ---------- responsive ---------- */
 
-@media (max-width: 1250px) {
-  .meetingLayout {
-    grid-template-columns: 1fr;
-  }
-
-  .transcriptScroll {
-    height: 480px;
-  }
-
-  .resultsColumn > div:first-child > div:first-child {
-    position: static;
-  }
-}
-
 @media (max-width: 700px) {
   .listRow {
     align-items: flex-start;
@@ -745,10 +710,6 @@
 
   .filters > div {
     max-width: none;
-  }
-
-  .transcriptScroll {
-    height: 430px;
   }
 }
 

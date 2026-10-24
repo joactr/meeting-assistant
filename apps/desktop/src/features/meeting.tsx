@@ -27,20 +27,21 @@ function MeetingWorkspace({ meeting }: { meeting: RecordData }) {
   const panel = useInterface((state) => state.panel);
   const setPanel = useInterface((state) => state.setPanel);
   const recording = ['recording', 'starting', 'paused'].includes(text(meeting.state));
-  const [notesVisible, setNotesVisible] = useState(true);
-  return <><PageHeader title={label(meeting)}><MeetingActions meeting={meeting} notesVisible={notesVisible} onToggleNotes={() => setNotesVisible(!notesVisible)} /></PageHeader><CaptureStatus meeting={meeting}><div className={styles.captureActions}><CaptureControls meeting={meeting} /></div></CaptureStatus>{meeting.health === 'degraded' && <Notice danger>Capture is degraded. Review individual source status; retry the missing source, pause, or explicitly continue with remaining audio. The app does not claim full capture.</Notice>}<div className={styles.meetingLayout}><main className={styles.transcriptColumn}><Transcript meetingId={meetingId} recording={recording} />{!recording && <ReplayPanel meetingId={meetingId} recording={recording} />}{!recording && <CandidatePanel meetingId={meetingId} />}</main><aside className={styles.resultsColumn} aria-label="Meeting notes and generated outcomes"><TabSet value={panel} onValueChange={setPanel} tabs={[
+  return <><PageHeader title={label(meeting)}><MeetingActions meeting={meeting} /></PageHeader><CaptureStatus meeting={meeting}><div className={styles.captureActions}><CaptureControls meeting={meeting} /></div></CaptureStatus>{meeting.health === 'degraded' && <Notice danger>Capture is degraded. Review individual source status; retry the missing source, pause, or explicitly continue with remaining audio. The app does not claim full capture.</Notice>}<TabSet value={panel} onValueChange={setPanel} tabs={[
+    { label: 'Transcript', content: <><Transcript meetingId={meetingId} recording={recording} />{!recording && <ReplayPanel meetingId={meetingId} recording={recording} />}{!recording && <CandidatePanel meetingId={meetingId} />}</> },
+    { label: 'Notes', content: <HumanNotes meetingId={meetingId} /> },
     { label: 'Summary', content: <><AnalysisPanel meetingId={meetingId} /><AnalysisPanel meetingId={meetingId} task="topics" /></> },
     { label: 'Actions', content: <ActionsPanel meetingId={meetingId} /> },
     { label: 'Questions', content: <><QuestionsPanel meetingId={meetingId} /><ImportantPanel meetingId={meetingId} /></> },
     { label: 'Speakers', content: <SpeakersPanel meetingId={meetingId} /> },
     { label: 'Minutes', content: <><MinutesPanel meeting={meeting} /><FinalizationPanel meetingId={meetingId} /></> },
-  ]} />{notesVisible && <HumanNotes meetingId={meetingId} />}</aside></div></>;
+  ]} /></>;
 }
 
 type MeetingDialog = 'export' | 'edit' | 'language' | 'delete' | null;
 
 /** One primary action (Export) plus an overflow menu; each dialog stays mounted so the menu can close first. */
-function MeetingActions({ meeting, notesVisible, onToggleNotes }: { meeting: RecordData; notesVisible: boolean; onToggleNotes: () => void }) {
+function MeetingActions({ meeting }: { meeting: RecordData }) {
   const navigate = useNavigate();
   const projects = useResource('projects.list');
   const packages = useResource('entity.list', { collection: 'work_packages' });
@@ -51,7 +52,6 @@ function MeetingActions({ meeting, notesVisible, onToggleNotes }: { meeting: Rec
     <ActionMenu label="More meeting actions" actions={[
       { label: 'Edit details…', onSelect: () => setDialog('edit') },
       { label: 'Output language…', onSelect: () => setDialog('language') },
-      { label: notesVisible ? 'Hide notes' : 'Show notes', onSelect: onToggleNotes },
       { label: 'Delete meeting…', danger: true, onSelect: () => setDialog('delete') },
     ]} />
     <ExportControls meeting={meeting} {...bind('export')} />

@@ -102,8 +102,22 @@ fn apply_preferences(app: &tauri::AppHandle, prefs: &Preferences) -> Result<()> 
         prefs.window.width,
         prefs.window.height,
     ))?;
+    // Position is stored in physical desktop pixels: logical coordinates are per-monitor on
+    // mixed-DPI setups and land off-screen when the window starts on a different monitor.
     if let (Some(x), Some(y)) = (prefs.window.x, prefs.window.y) {
-        window.set_position(tauri::LogicalPosition::new(x, y))?;
+        let (x, y) = (x as i32, y as i32);
+        // Title bar must be on a connected monitor, else keep the default centred placement.
+        let visible = window.available_monitors()?.iter().any(|monitor| {
+            let (origin, size) = (monitor.position(), monitor.size());
+            let (grab_x, grab_y) = (x + 100, y + 16);
+            grab_x >= origin.x
+                && grab_y >= origin.y
+                && grab_x < origin.x + size.width as i32
+                && grab_y < origin.y + size.height as i32
+        });
+        if visible {
+            window.set_position(tauri::PhysicalPosition::new(x, y))?;
+        }
     }
     window.set_theme(match prefs.theme.as_str() {
         "light" => Some(tauri::Theme::Light),
@@ -728,7 +742,8 @@ fn persist_geometry(app: tauri::AppHandle) {
             return;
         };
         let size = size.to_logical::<f64>(scale);
-        let position = position.to_logical::<f64>(scale);
+        // Physical on purpose; see apply_preferences.
+        let position = position.cast::<f64>();
         if size.width < 640. || size.height < 400. {
             return;
         }

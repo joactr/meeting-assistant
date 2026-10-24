@@ -15,10 +15,10 @@ interface InterfaceState {
 export const useInterface = create<InterfaceState>((set) => ({
   activeMeeting: null,
   selectedUtterance: null,
-  panel: 'Summary',
+  panel: 'Transcript',
   shortcutsOpen: false,
   setActiveMeeting: (activeMeeting) => set({ activeMeeting }),
-  selectUtterance: (selectedUtterance) => set({ selectedUtterance }),
+  selectUtterance: (selectedUtterance) => set(selectedUtterance ? { selectedUtterance, panel: 'Transcript' } : { selectedUtterance }),
   setPanel: (panel) => set({ panel }),
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
 }));

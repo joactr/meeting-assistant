@@ -9,7 +9,7 @@ import { useCursorResource } from '../lib/paged-query';
 import { flushDrafts } from '../lib/drafts';
 import { useInterface } from '../lib/ui-store';
 import { array, clock, id, item, items, number, revision, text, type RecordData } from '../lib/data';
-import { accuracyNotice, AsyncView, Badge, CommandForm, Empty, ErrorNotice, Modal, Notice, Panel, Toolbar } from '../components/ui';
+import { AsyncView, Badge, CommandForm, Empty, ErrorNotice, Modal, Panel, Toolbar } from '../components/ui';
 import styles from './workspace.module.css';
 
 export function Transcript({ meetingId, recording }: { meetingId: string; recording: boolean }) {
@@ -29,7 +29,7 @@ export function Transcript({ meetingId, recording }: { meetingId: string; record
     if (query.hasNextPage && !query.isFetchingNextPage && (recording || (selected && !rows.some((row) => id(row) === selected)))) void query.fetchNextPage();
   }, [query.hasNextPage, query.isFetchingNextPage, rows.length, selected, recording]);
   const combined = { ...query, data: { items: rows } };
-  return <Panel title="Transcript"><Notice>{accuracyNotice}</Notice><InterimCaptions meetingId={meetingId} recording={recording} finalRows={rows} /><AsyncView query={combined}>{() => <TranscriptRows meetingId={meetingId} rows={rows} recording={recording} />}</AsyncView>{query.hasNextPage && <button disabled={query.isFetchingNextPage} onClick={() => { void query.fetchNextPage(); }}>{query.isFetchingNextPage ? 'Loading transcript page…' : 'Load more transcript'}</button>}</Panel>;
+  return <Panel><InterimCaptions meetingId={meetingId} recording={recording} finalRows={rows} /><AsyncView query={combined}>{() => <TranscriptRows meetingId={meetingId} rows={rows} recording={recording} />}</AsyncView>{query.hasNextPage && <button disabled={query.isFetchingNextPage} onClick={() => { void query.fetchNextPage(); }}>{query.isFetchingNextPage ? 'Loading transcript page…' : 'Load more transcript'}</button>}</Panel>;
 }
 
 function InterimCaptions({ meetingId, recording, finalRows }: { meetingId: string; recording: boolean; finalRows: RecordData[] }) {

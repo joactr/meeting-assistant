@@ -30,9 +30,9 @@ Fireflies or Granola.
 |---|---|
 | ![Meeting library](docs/screenshots/library.png) | ![Follow-ups](docs/screenshots/followups.png) |
 
-| Transcript and actions | Search with transcript evidence |
+| Meeting transcript | Search with transcript evidence |
 |---|---|
-| ![Meeting view](docs/screenshots/actions.png) | ![Search & Ask](docs/screenshots/search.png) |
+| ![Meeting transcript](docs/screenshots/transcript.png) | ![Search & Ask](docs/screenshots/search.png) |
 
 Screenshots use a synthetic demo workspace; no real meeting data.
 
