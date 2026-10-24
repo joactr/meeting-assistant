@@ -11,7 +11,7 @@ support_url = "https://github.com/joactr/meeting-assistant/issues"
 [updates]
 enabled = false
 public_key = ""
-catalog_public_key = ""
+catalog_public_key = "Ihgiq1o7OKKvjjMaFcXR1qauy87AX6xfsVUvGdmQ62s="
 
 [oauth]
 google_client_id = ""
