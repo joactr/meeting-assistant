@@ -45,6 +45,9 @@ impl Engine {
         for key in [
             "SYSTEMROOT",
             "WINDIR",
+            // NVML (nvidia-smi, CUDA runtimes) fails to initialize without these.
+            "ProgramFiles",
+            "ProgramW6432",
             "TEMP",
             "TMP",
             "HOME",

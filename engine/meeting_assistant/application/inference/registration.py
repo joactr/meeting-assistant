@@ -15,6 +15,7 @@ from ...infrastructure.hardware import detect_nvidia, evaluate_gpu_requirement
 from ...infrastructure.providers.contracts import Connection, ModelProfile, ProviderError
 from ...infrastructure.providers.registry import ProviderRegistry, descriptors, resolve_capabilities
 from ...infrastructure.resources import resource_root
+from ...infrastructure.workers.developer import target
 from ...infrastructure.workers.models import ModelRuntime
 from .catalog import CatalogService
 from .command_models import COMMAND_MODELS
@@ -190,29 +191,79 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
         },
     )
 
+    def installed(entry: dict[str, Any]) -> bool:
+        return (
+            bool(entry.get("revision"))
+            and (catalog.install_root / entry["id"] / entry["revision"]).is_dir()
+        )
+
+    def gpu_requirement(entry: dict[str, Any], by_id: dict[str, Any]) -> dict[str, Any] | None:
+        # Signed platform runtimes inherit the GPU requirement of their source descriptor.
+        source = by_id.get(entry["id"].removesuffix("-" + target()), {})
+        return (entry.get("host_requirements") or source.get("host_requirements", {})).get("gpu")
+
+    def local_runtime(
+        entry: dict[str, Any], entries: list[dict[str, Any]]
+    ) -> dict[str, Any] | None:
+        """The downloadable CPU runtime for a model's family; GPU variants stay an explicit choice."""
+        if entry.get("role") == "runtime":
+            return None
+        by_id = {item["id"]: item for item in entries}
+        family = entry.get("runtime", {}).get("family")
+        return next(
+            (
+                item
+                for item in entries
+                if item.get("role") == "runtime"
+                and item.get("runtime", {}).get("family") == family
+                and item.get("files")
+                and not item.get("blocked_reason")
+                and target() in item.get("platforms", [])
+                and gpu_requirement(item, by_id) is None
+            ),
+            None,
+        )
+
     async def catalog_list(p: dict[str, Any]) -> dict[str, Any]:
         entries = catalog.entries()
-        if any("gpu" in entry.get("host_requirements", {}) for entry in entries):
-            gpus = await asyncio.to_thread(detect_nvidia)
-            for entry in entries:
-                requirement = entry.get("host_requirements", {}).get("gpu")
-                if requirement:
-                    entry["host_check"] = {"gpu": evaluate_gpu_requirement(requirement, gpus)}
+        by_id = {entry["id"]: entry for entry in entries}
+        gpus: list[dict[str, Any]] | None = None
+        for entry in entries:
+            runtime = local_runtime(entry, entries)
+            entry["installed"] = installed(entry) and (runtime is None or installed(runtime))
+            requirement = gpu_requirement(entry, by_id)
+            if requirement:
+                if gpus is None:
+                    gpus = await asyncio.to_thread(detect_nvidia)
+                entry["host_check"] = {"gpu": evaluate_gpu_requirement(requirement, gpus)}
         return {"items": entries}
 
     register("catalog.list", catalog_list)
 
     async def download(p: dict[str, Any]) -> dict[str, Any]:
         token = await workspace.resolve_secret(p["secret_ref"]) if p.get("secret_ref") else None
-        item = await catalog.download(
-            p["id"],
-            accepted_license=p.get("accepted_license", False),
-            accepted_destination=p.get("accepted_destination", False),
-            accepted_terms=p.get("accepted_terms", False),
-            token=token,
-        )
-        workspace.emit("catalog.activated", {"id": item["id"], "revision": item["revision"]})
-        return {"item": item}
+        entries = catalog.entries()
+        entry = catalog.entry(p["id"])
+        runtime = local_runtime(entry, entries)
+        activated: list[dict[str, Any]] = []
+        for wanted in [entry] + ([runtime] if runtime else []):
+            if installed(wanted):
+                continue
+            item = await catalog.download(
+                wanted["id"],
+                accepted_license=p.get("accepted_license", False),
+                accepted_destination=p.get("accepted_destination", False),
+                accepted_terms=p.get("accepted_terms", False),
+                token=token,
+            )
+            workspace.emit("catalog.activated", {"id": item["id"], "revision": item["revision"]})
+            activated.append(item)
+        return {
+            "item": activated[0]
+            if activated
+            else {"id": entry["id"], "revision": entry["revision"], "activated": True},
+            "items": activated,
+        }
 
     register("catalog.download", download)
 

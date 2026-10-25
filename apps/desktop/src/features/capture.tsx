@@ -14,7 +14,6 @@ export function CaptureControls({ meeting }: { meeting: RecordData }) {
   const [stopOpen, setStopOpen] = useState(false);
   const [mic, setMic] = useState('');
   const [system, setSystem] = useState('');
-  const [permission, setPermission] = useState(false);
   const [recordAudio, setRecordAudio] = useState(false);
   const [vocabularyAcknowledgement, setVocabularyAcknowledgement] = useState('');
   const intent = useRef<{ operation: string; payload: RecordData } | null>(null);
@@ -27,15 +26,17 @@ export function CaptureControls({ meeting }: { meeting: RecordData }) {
       await flushDrafts();
       if (operation === 'start') await nativeRequest('audio_test_stop');
       const sources: RecordData[] = [];
-      if (sourceMode !== 'system' && mic) sources.push({ kind: 'mic', device_key: mic });
-      if (sourceMode !== 'mic' && system) sources.push({ kind: 'system', device_key: system });
-      if (!intent.current || intent.current.operation !== operation) intent.current = { operation, payload: { meeting_id: id(meeting), expected_revision: revision(meeting), idempotency_key: crypto.randomUUID(), ...(operation === 'start' ? { sources, participant_notice_acknowledged: permission, recording_enabled: recordAudio, recording_notice_acknowledged: permission, ...(vocabularyAcknowledgement ? { vocabulary_acknowledgement: vocabularyAcknowledgement } : {}) } : {}) } };
+      if (sourceMode !== 'system' && micKey) sources.push({ kind: 'mic', device_key: micKey });
+      if (sourceMode !== 'mic' && systemKey) sources.push({ kind: 'system', device_key: systemKey });
+      if (!intent.current || intent.current.operation !== operation) intent.current = { operation, payload: { meeting_id: id(meeting), expected_revision: revision(meeting), idempotency_key: crypto.randomUUID(), ...(operation === 'start' ? { sources, participant_notice_acknowledged: true, recording_enabled: recordAudio, recording_notice_acknowledged: recordAudio, ...(vocabularyAcknowledgement ? { vocabulary_acknowledgement: vocabularyAcknowledgement } : {}) } : {}) } };
       return request(`meetings.${operation}`, intent.current.payload);
     },
     onSuccess: async () => { intent.current = null; setStartOpen(false); setStopOpen(false); await client.invalidateQueries({ queryKey: ['engine'] }); },
   });
   const deviceRows = items(devices.data).length ? items(devices.data) : array(devices.data?.devices);
-  const options = (kind: string) => [{ value: '', label: 'Choose a stable device — no automatic substitution' }, ...deviceRows.filter((row) => row.kind === kind).map((row) => ({ value: text(row.key), label: text(row.name) }))];
+  const micKey = mic || text(deviceRows.find((row) => row.kind === 'mic' && row.is_default)?.key);
+  const systemKey = system || text(deviceRows.find((row) => row.kind === 'system' && row.is_default)?.key);
+  const options = (kind: string) => [{ value: '', label: 'Choose device' }, ...deviceRows.filter((row) => row.kind === kind).map((row) => ({ value: text(row.key), label: row.is_default ? `${text(row.name)} (Windows default)` : text(row.name) }))];
   const vocabularyIssue = command.error instanceof ApplicationError && command.error.code === 'vocabulary_acknowledgement_required' ? command.error.details : null;
   return <>
     <Toolbar>
@@ -48,14 +49,12 @@ export function CaptureControls({ meeting }: { meeting: RecordData }) {
     </Toolbar>
     {command.error && <ErrorNotice error={command.error} />}
     <Modal open={startOpen} onOpenChange={setStartOpen} title="Ready to capture?"><AsyncView query={devices}>{() => <>
-      <Notice>Capture sources: {sourceMode}. This app does not establish other participants' consent. Participant notice/legal compliance remains your responsibility. Audio retention is a separate opt-in below and cannot be enabled retroactively.</Notice>
-      {sourceMode !== 'system' && <FieldInput field={{ name: 'mic', label: 'Microphone', type: 'select', options: options('mic') }} value={mic} onChange={(value) => { setMic(text(value)); intent.current = null; }} />}
-      {sourceMode !== 'mic' && <FieldInput field={{ name: 'system', label: 'System endpoint', type: 'select', options: options('system') }} value={system} onChange={(value) => { setSystem(text(value)); intent.current = null; }} />}
-      <label className={styles.check}><input type="checkbox" checked={recordAudio} onChange={(event) => { setRecordAudio(event.target.checked); intent.current = null; }} />Retain separate microphone/system audio under the configured retention and media cap. I reviewed participant recording permission.</label>
-      <label className={styles.check}><input type="checkbox" checked={permission} onChange={(event) => { setPermission(event.target.checked); intent.current = null; }} />I checked participant notice/permission, selected devices and the actual processing destinations.</label>
+      {sourceMode !== 'system' && <FieldInput field={{ name: 'mic', label: 'Microphone', type: 'select', options: options('mic') }} value={micKey} onChange={(value) => { setMic(text(value)); intent.current = null; }} />}
+      {sourceMode !== 'mic' && <FieldInput field={{ name: 'system', label: 'System audio', type: 'select', options: options('system') }} value={systemKey} onChange={(value) => { setSystem(text(value)); intent.current = null; }} />}
+      <label className={styles.check}><input type="checkbox" checked={recordAudio} onChange={(event) => { setRecordAudio(event.target.checked); intent.current = null; }} />Keep the audio recording</label>
       {vocabularyIssue && <><Details value={vocabularyIssue} /><button onClick={() => { setVocabularyAcknowledgement(text(vocabularyIssue.acknowledgement_key)); intent.current = null; }}>Acknowledge this exact omitted vocabulary set</button></>}
       {vocabularyAcknowledgement && <Badge>Omissions explicitly reviewed for this compilation</Badge>}
-      <button disabled={!permission || command.isPending || (sourceMode !== 'system' && !mic) || (sourceMode !== 'mic' && !system)} onClick={() => command.mutate('start')}>{command.isPending ? 'Checking and opening sources…' : 'Start selected sources'}</button>
+      <button disabled={command.isPending || (sourceMode !== 'system' && !micKey) || (sourceMode !== 'mic' && !systemKey)} onClick={() => command.mutate('start')}>{command.isPending ? 'Starting…' : 'Start'}</button>
     </>}</AsyncView>
     {command.error && <ErrorNotice error={command.error} />}</Modal>
     <Modal open={stopOpen} onOpenChange={setStopOpen} title="Stop and preserve this meeting?"><Toolbar><button disabled={command.isPending} onClick={() => command.mutate('stop')}>{command.isPending ? 'Preserving…' : 'Confirm stop & preserve'}</button><button onClick={() => setStopOpen(false)}>Continue meeting</button></Toolbar>

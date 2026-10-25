@@ -73,6 +73,8 @@ class WorkerClient:
                 "LANG",
                 "LC_ALL",
                 "PATH",
+                "PROGRAMFILES",
+                "PROGRAMW6432",
             }
         }
         safe_env.update(
