@@ -85,7 +85,7 @@ export function AudioMeters() {
       if (text(payload.type) !== 'native.audio.level') return;
       const data = object(payload.data ?? payload);
       const source = data.source_kind === 'system' ? 'Computer audio' : data.source_kind === 'mic' ? 'Microphone' : 'Level';
-      setLevels((current) => [...current.filter((level) => level.source !== source), { source, rms: number(data.rms), peak: number(data.peak) }].slice(-2));
+      setLevels((current) => [...current.filter((level) => level.source !== source), { source, rms: number(data.rms), peak: number(data.peak) }].slice(-2).sort((a, b) => a.source.localeCompare(b.source)));
     }).then((unlisten) => { if (disposed) unlisten(); else cleanup = unlisten; });
     return () => { disposed = true; cleanup?.(); };
   }, []);
