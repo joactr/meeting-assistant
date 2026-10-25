@@ -48,9 +48,9 @@ export function CaptureControls({ meeting }: { meeting: RecordData }) {
       {state === 'draft' && <button data-testid="start-meeting" onClick={() => setStartOpen(true)} disabled={!nativeAvailable()}>Start meeting</button>}
       {state === 'recording' && <button disabled={command.isPending} onClick={() => command.mutate('pause')}>Pause capture</button>}
       {state === 'paused' && <button disabled={command.isPending} onClick={() => command.mutate('resume')}>Resume capture</button>}
-      {['recording', 'paused', 'interrupted', 'attention_required'].includes(state) && <button data-testid="stop-meeting" disabled={command.isPending} onClick={() => setStopOpen(true)}>{state === 'interrupted' ? 'Preserve & finalize' : 'Stop & preserve'}</button>}
-      {state === 'starting' && <Badge tone="warning">Waiting for device acknowledgement</Badge>}
-      {state === 'stopping' && <Badge tone="warning">Draining and saving…</Badge>}
+      {['recording', 'paused', 'interrupted', 'attention_required'].includes(state) && <button data-testid="stop-meeting" disabled={command.isPending} onClick={() => setStopOpen(true)}>{state === 'interrupted' ? 'Finish meeting' : 'Stop meeting'}</button>}
+      {state === 'starting' && <Badge tone="warning">Starting…</Badge>}
+      {state === 'stopping' && <Badge tone="warning">Saving…</Badge>}
     </Toolbar>
     {failure}
     <Modal open={startOpen} onOpenChange={setStartOpen} title="Ready to capture?"><AsyncView query={devices}>{() => <>
@@ -61,7 +61,7 @@ export function CaptureControls({ meeting }: { meeting: RecordData }) {
       <button disabled={command.isPending || (sourceMode !== 'system' && !micKey) || (sourceMode !== 'mic' && !systemKey) || (omitted.length > 0 && !vocabularyReviewed)} onClick={() => command.mutate('start')}>{command.isPending ? 'Starting…' : 'Start'}</button>
     </>}</AsyncView>
     {failure}</Modal>
-    <Modal open={stopOpen} onOpenChange={setStopOpen} title="Stop and preserve this meeting?"><Toolbar><button disabled={command.isPending} onClick={() => command.mutate('stop')}>{command.isPending ? 'Preserving…' : 'Confirm stop & preserve'}</button><button onClick={() => setStopOpen(false)}>Continue meeting</button></Toolbar>
+    <Modal open={stopOpen} onOpenChange={setStopOpen} title="Stop this meeting?"><Toolbar><button disabled={command.isPending} onClick={() => command.mutate('stop')}>{command.isPending ? 'Stopping…' : 'Stop'}</button><button onClick={() => setStopOpen(false)}>Keep going</button></Toolbar>
     {command.error && <ErrorNotice error={command.error} />}</Modal>
   </>;
 }
@@ -84,12 +84,12 @@ export function AudioMeters() {
     void listen<RecordData>('engine-event', ({ payload }) => {
       if (text(payload.type) !== 'native.audio.level') return;
       const data = object(payload.data ?? payload);
-      const source = text(data.source_kind ?? data.source_index, 'Source');
+      const source = data.source_kind === 'system' ? 'Computer audio' : data.source_kind === 'mic' ? 'Microphone' : 'Level';
       setLevels((current) => [...current.filter((level) => level.source !== source), { source, rms: number(data.rms), peak: number(data.peak) }].slice(-2));
     }).then((unlisten) => { if (disposed) unlisten(); else cleanup = unlisten; });
     return () => { disposed = true; cleanup?.(); };
   }, []);
-  return <div className={styles.meters}>{levels.length ? levels.map((level) => <label key={level.source}>{level.source}<meter min={0} max={1} value={level.rms} aria-label={`${level.source} audio level`} />{level.peak >= .98 && <small>Clipping — lower input gain</small>}</label>) : null}</div>;
+  return <div className={styles.meters}>{levels.length ? levels.map((level) => <label key={level.source}>{level.source}<meter min={0} max={1} value={level.rms} aria-label={`${level.source} audio level`} />{level.peak >= .98 && <small>Clipping — lower the input gain</small>}</label>) : null}</div>;
 }
 
 export function SpeakersPanel({ meetingId }: { meetingId: string }) {
@@ -97,20 +97,20 @@ export function SpeakersPanel({ meetingId }: { meetingId: string }) {
   const analytics = useResource('speakers.analytics', { meeting_id: meetingId });
   const people = useResource('people.list');
   const [profilesOpen, setProfilesOpen] = useState(false);
-  const personOptions = [{ value: '', label: 'Select an explicitly created person' }, ...items(people.data).map((person) => ({ value: id(person), label: label(person) }))];
-  return <Panel title="Speakers & participation">
+  const personOptions = [{ value: '', label: 'Choose person' }, ...items(people.data).map((person) => ({ value: id(person), label: label(person) }))];
+  return <Panel title="Speakers">
     <AsyncView query={speakers}>{(data) => items(data).length === 0 ? <Empty title="No speakers yet" /> : items(data).map((row) => <article key={id(row)} className={styles.actionRow}>
       <div><strong>{text(row.display_name, 'Unknown speaker')}</strong><Badge>{text(row.source_kind, 'Meeting-scoped')}</Badge></div>
       <Toolbar>
         <EditResource operation="speakers.rename" row={row} fixed={{ meeting_id: meetingId }} label="Rename speaker" fields={[{ name: 'display_name', label: 'Display name', required: true }]} />
-        <Modal trigger={<button>Merge speaker…</button>} title="Merge speaker assignments"><CommandForm operation="speakers.merge" fixed={{ meeting_id: meetingId, source_id: id(row), expected_revision: revision(row) }} fields={[{ name: 'target_id', label: 'Merge into speaker', type: 'select', required: true, options: [{ value: '', label: 'Choose a different speaker' }, ...items(data).filter((target) => id(target) !== id(row)).map((target) => ({ value: id(target), label: label(target) }))] }]} confirm="Merge assignments while preserving manual identity decisions." /></Modal>
-        <Modal trigger={<button>Split speaker…</button>} title="Split selected speaker utterances"><CommandForm operation="speakers.split" fixed={{ meeting_id: meetingId, id: id(row), expected_revision: revision(row) }} fields={[{ name: 'display_name', label: 'New speaker name', required: true }, { name: 'utterance_ids', label: 'Selected utterance IDs (JSON array)', type: 'json', value: [], required: true }]} /></Modal>
-        <Modal trigger={<button>Adopt recurring person…</button>} title="Explicitly adopt a person identity"><CommandForm operation="voice_profiles.adopt" fixed={{ speaker_id: id(row), expected_revision: revision(row), confirm: true }} fields={[{ name: 'person_id', label: 'Reviewed person', type: 'select', options: personOptions, required: true }]} confirm="I reviewed this speaker and explicitly adopt the selected person identity." /></Modal>
+        <Modal trigger={<button>Merge speaker…</button>} title="Merge speaker"><CommandForm operation="speakers.merge" fixed={{ meeting_id: meetingId, source_id: id(row), expected_revision: revision(row) }} fields={[{ name: 'target_id', label: 'Merge into', type: 'select', required: true, options: [{ value: '', label: 'Choose speaker' }, ...items(data).filter((target) => id(target) !== id(row)).map((target) => ({ value: id(target), label: label(target) }))] }]} confirm="Merge into the selected speaker." /></Modal>
+        <Modal trigger={<button>Split speaker…</button>} title="Split speaker"><CommandForm operation="speakers.split" fixed={{ meeting_id: meetingId, id: id(row), expected_revision: revision(row) }} fields={[{ name: 'display_name', label: 'New speaker name', required: true }, { name: 'utterance_ids', label: 'Utterance IDs (JSON array)', type: 'json', value: [], required: true }]} /></Modal>
+        <Modal trigger={<button>Link to person…</button>} title="Link to person"><CommandForm operation="voice_profiles.adopt" fixed={{ speaker_id: id(row), expected_revision: revision(row), confirm: true }} fields={[{ name: 'person_id', label: 'Person', type: 'select', options: personOptions, required: true }]} confirm="I confirm this speaker is the selected person." /></Modal>
       </Toolbar>
     </article>)}</AsyncView>
-    <h3>Speaking coaching</h3>
-    <AsyncView query={analytics}>{(data) => <><div className={styles.statsGrid}>{items(data).map((row) => <section key={id(row)}><strong>{text(row.display_name, 'Unknown')}</strong><dl><dt>Talk time</dt><dd>{clock(row.talk_time_ms)}</dd><dt>Turns</dt><dd>{number(row.turns)}</dd><dt>Overlap</dt><dd>{clock(row.overlap_ms)}</dd><dt>Interruptions</dt><dd>{text(row.interruptions, 'Unavailable — not measured')}</dd><dt>Speaking rate</dt><dd>{typeof row.words_per_minute === 'number' ? row.words_per_minute.toFixed(1) : 'Unavailable'} words/min</dd><dt>Filler count</dt><dd>{number(row.filler_count)}</dd><dt>Participation</dt><dd>{typeof row.participation === 'number' ? `${Math.round(row.participation * 100)}%` : 'Unavailable'}</dd></dl></section>)}</div><Details value={data} /></>}</AsyncView>
-    <Modal open={profilesOpen} onOpenChange={setProfilesOpen} trigger={<button>Opt into recurring voice profile…</button>} title="Sensitive voice profile opt-in" description="Voice vectors are biometric data and stay local."><CommandForm operation="voice_profiles.create" fixed={{ consent: true }} fields={[{ name: 'person_id', label: 'Consenting person', type: 'select', options: personOptions, required: true }, { name: 'meeting_speaker_id', label: 'Speaker evidence to enroll', type: 'select', options: [{ value: '', label: 'Choose speaker' }, ...items(speakers.data).map((row) => ({ value: id(row), label: label(row) }))], required: true }, { name: 'scope', label: 'Matching scope', type: 'select', value: 'project', options: [{ value: 'project', label: 'Selected project' }, { value: 'workspace', label: 'Workspace' }] }, { name: 'project_id', label: 'Project ID (required for project scope)' }, { name: 'trusted_auto_match', label: 'Explicitly trust automatic matches for this profile', type: 'checkbox', value: false }]} confirm="I explicitly consent to storing this sensitive voice vector in the selected matching scope." onSuccess={() => setProfilesOpen(false)} /></Modal>
+    <h3>Speaking stats</h3>
+    <AsyncView query={analytics}>{(data) => <><div className={styles.statsGrid}>{items(data).map((row) => <section key={id(row)}><strong>{text(row.display_name, 'Unknown')}</strong><dl><dt>Talk time</dt><dd>{clock(row.talk_time_ms)}</dd><dt>Turns</dt><dd>{number(row.turns)}</dd><dt>Overlap</dt><dd>{clock(row.overlap_ms)}</dd><dt>Interruptions</dt><dd>{text(row.interruptions, 'Not measured')}</dd><dt>Speaking rate</dt><dd>{typeof row.words_per_minute === 'number' ? row.words_per_minute.toFixed(1) : 'Unavailable'} words/min</dd><dt>Filler count</dt><dd>{number(row.filler_count)}</dd><dt>Participation</dt><dd>{typeof row.participation === 'number' ? `${Math.round(row.participation * 100)}%` : 'Unavailable'}</dd></dl></section>)}</div><Details value={data} /></>}</AsyncView>
+    <Modal open={profilesOpen} onOpenChange={setProfilesOpen} trigger={<button>Create voice profile…</button>} title="Create voice profile"><CommandForm operation="voice_profiles.create" fixed={{ consent: true }} fields={[{ name: 'person_id', label: 'Person', type: 'select', options: personOptions, required: true }, { name: 'meeting_speaker_id', label: 'Speaker', type: 'select', options: [{ value: '', label: 'Choose speaker' }, ...items(speakers.data).map((row) => ({ value: id(row), label: label(row) }))], required: true }, { name: 'scope', label: 'Scope', type: 'select', value: 'project', options: [{ value: 'project', label: 'Selected project' }, { value: 'workspace', label: 'Workspace' }] }, { name: 'project_id', label: 'Project ID (for project scope)' }, { name: 'trusted_auto_match', label: 'Trust automatic matches', type: 'checkbox', value: false }]} confirm="I consent to storing this person's voice data on this device." onSuccess={() => setProfilesOpen(false)} /></Modal>
   </Panel>;
 }
 

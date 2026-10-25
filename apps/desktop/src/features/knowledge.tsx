@@ -93,7 +93,7 @@ export function SearchPage() {
       <label className={styles.searchInput}>Query<input name="query" value={queryText} onChange={(event) => setQueryText(event.target.value)} placeholder="A phrase, decision, or question…" required autoFocus /></label>
       <div className={styles.searchActions}>
         <button type="submit" className={styles.primaryAction} disabled={!queryText.trim()}>Search</button>
-        <button type="button" disabled={!queryText.trim() || askRequest.isPending} onClick={() => submit(true)}>{askRequest.isPending ? 'Finding an answer…' : 'Ask'}</button>
+        <button type="button" disabled={!queryText.trim() || askRequest.isPending} onClick={() => submit(true)}>{askRequest.isPending ? 'Asking…' : 'Ask'}</button>
         <label className={styles.check}><input type="checkbox" checked={historicalConsent} onChange={(event) => setHistoricalConsent(event.target.checked)} />Let Ask send matching excerpts to your AI provider</label>
       </div>
     </form>
@@ -109,24 +109,24 @@ export function SearchPage() {
     </Panel>
     {!currentQuery && <Empty title="Search across your meetings" />}
     {currentQuery && !ask && <Panel title="Results"><AsyncView query={results}>{(data) => <>
-      {data.retrieval_mode === 'keyword' && mode !== 'keyword' && <Notice>Matching by meaning isn't available yet, so these are exact-word matches.</Notice>}
+      {data.retrieval_mode === 'keyword' && mode !== 'keyword' && <Notice>Meaning search isn't available yet; showing exact matches.</Notice>}
       {(Boolean(data.destination) || Boolean(data.fallback_reason ?? data.warning)) && <Toolbar>{Boolean(data.destination) && <Badge>Sent to: {text(data.destination)}</Badge>}{Boolean(data.fallback_reason ?? data.warning) && <Notice>{text(data.fallback_reason ?? data.warning)}</Notice>}</Toolbar>}
       {items(data).length === 0 ? <Empty title="No matches" /> : <VirtualList label="Search results" rows={items(data)} estimate={130} render={(row) => <article className={styles.searchResult}><h3>{text(row.meeting_title, 'Meeting passage')}</h3><p><Highlight value={excerpt(text(row.excerpt ?? row.text), terms)} terms={terms} /></p><Toolbar><Citation source={row} /><small>{clock(row.start_ms)}–{clock(row.end_ms)}</small></Toolbar></article>} />}
       <Toolbar><button disabled={!previous.length} onClick={() => { setCursor(previous[previous.length - 1] ?? null); setPrevious((values) => values.slice(0, -1)); }}>Previous results</button><button disabled={!data.next_cursor} onClick={() => { setPrevious((values) => [...values, cursor]); setCursor(text(data.next_cursor)); }}>Next results</button></Toolbar>
     </>}</AsyncView></Panel>}
-    {ask && <Panel title="Answer">{askRequest.isPending && <Notice>Finding relevant passages and checking every citation…</Notice>}{askRequest.error && <ErrorNotice error={askRequest.error} retry={() => submit(true)} />}{askRequest.data && <AskAnswer answer={askRequest.data} />}</Panel>}
+    {ask && <Panel title="Answer">{askRequest.isPending && <Notice>Searching…</Notice>}{askRequest.error && <ErrorNotice error={askRequest.error} retry={() => submit(true)} />}{askRequest.data && <AskAnswer answer={askRequest.data} />}</Panel>}
   </>;
 }
 
 function SemanticIndex({ meetingIds }: { meetingIds: string[] }) {
-  return <Modal trigger={<button type="button">Build / rebuild semantic index…</button>} title="Explicit semantic index rebuild" description="The active index is replaced only after all embedding batches succeed.">
-    <Notice>{meetingIds.length ? `Embedding scope: ${meetingIds.length} selected meeting${meetingIds.length === 1 ? '' : 's'}` : 'Embedding scope: all active meetings in this workspace.'} A remote embeddings destination requires separate historical-excerpt consent.</Notice>
-    <CommandForm operation="search.reindex" fixed={{ ...(meetingIds.length ? { meeting_ids: meetingIds } : {}), idempotency_key: crypto.randomUUID() }} fields={[]} submit="Queue real semantic rebuild" confirm="I reviewed the exact embedding scope and configured provider destination/cost." />
+  return <Modal trigger={<button type="button">Rebuild search index…</button>} title="Rebuild search index">
+    <Notice>{meetingIds.length ? `${meetingIds.length} selected meeting${meetingIds.length === 1 ? '' : 's'}` : 'All meetings'}</Notice>
+    <CommandForm operation="search.reindex" fixed={{ ...(meetingIds.length ? { meeting_ids: meetingIds } : {}), idempotency_key: crypto.randomUUID() }} fields={[]} submit="Rebuild" confirm="I reviewed the scope and provider cost." />
   </Modal>;
 }
 
 function AskAnswer({ answer }: { answer: RecordData }) {
   const result: RecordData = { ...item(answer), citations: answer.citations ?? [] };
   const insufficient = result.insufficient_evidence === true || result.insufficient_evidence === 1;
-  return <><Toolbar><Badge>Destination: {text(result.destination, 'Configured Ask task policy')}</Badge><Badge>Retrieval: {text(answer.retrieval_mode, 'Reported in provenance')}</Badge>{insufficient && <Badge tone="warning">Insufficient evidence</Badge>}</Toolbar><CitedResult result={result} />{array(result.citations).length === 0 && !insufficient && <Notice>No valid citations returned. Do not treat uncited text as a grounded meeting claim.</Notice>}<Details value={answer} title="Details" /></>;
+  return <><Toolbar><Badge>Sent to: {text(result.destination, 'Ask provider')}</Badge><Badge>Retrieval: {text(answer.retrieval_mode, 'unknown')}</Badge>{insufficient && <Badge tone="warning">Insufficient evidence</Badge>}</Toolbar><CitedResult result={result} />{array(result.citations).length === 0 && !insufficient && <Notice>No citations returned. Treat this answer with caution.</Notice>}<Details value={answer} title="Details" /></>;
 }

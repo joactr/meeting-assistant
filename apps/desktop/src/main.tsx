@@ -13,7 +13,7 @@ class RenderBoundary extends Component<{ children: ReactNode }, { error: Error |
   static getDerivedStateFromError(error: Error): { error: Error } { return { error }; }
   componentDidCatch(_error: Error, _info: ErrorInfo): void { /* No automatic telemetry or meeting-content logging. */ }
   render() {
-    if (this.state.error) return <main style={{ maxWidth: '50rem', margin: '4rem auto', padding: '2rem' }}><h1>Workspace view could not render</h1><p role="alert">A local interface error occurred. Your persisted meeting data has not been discarded.</p><p>Restart the desktop interface after preserving any active capture through the native tray controls. Report the build and redacted diagnostic trace, not meeting content.</p><button onClick={() => window.location.reload()}>Reload interface</button><details><summary>Local interface error</summary><pre>{this.state.error.message}</pre></details></main>;
+    if (this.state.error) return <main style={{ maxWidth: '50rem', margin: '4rem auto', padding: '2rem' }}><h1>Something went wrong</h1><p role="alert">Your meeting data is safe. Reload to continue.</p><button onClick={() => window.location.reload()}>Reload</button><details><summary>Details</summary><pre>{this.state.error.message}</pre></details></main>;
     return this.props.children;
   }
 }

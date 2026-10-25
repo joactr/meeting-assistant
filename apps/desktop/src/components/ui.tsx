@@ -32,7 +32,7 @@ export function ErrorNotice({ error, retry, children }: { error: unknown; retry?
 
 export function AsyncView({ query, children, empty, isEmpty = false }: { query: Pick<UseQueryResult<RecordData>, 'isPending' | 'isError' | 'error' | 'data' | 'isFetching'> & { refetch: () => unknown }; children: (data: RecordData) => ReactNode; empty?: ReactNode; isEmpty?: boolean }) {
   if (!nativeAvailable()) return <Empty title="Desktop connection unavailable" />;
-  if (query.isPending) return <div className={styles.loading} role="status">Loading workspace…</div>;
+  if (query.isPending) return <div className={styles.loading} role="status">Loading…</div>;
   if (query.isError) return <ErrorNotice error={query.error} retry={() => { void query.refetch(); }} />;
   if (isEmpty) return <>{empty ?? <Empty />}</>;
   return <div>{children(query.data ?? {})}</div>;
@@ -110,7 +110,7 @@ export function CommandForm({ operation, fields, fixed = {}, submit = 'Save chan
     } catch (error) { setLocalError(error); }
   };
   const input = (field: Field) => <FieldInput key={field.name} field={field} value={values[field.name] ?? null} onChange={(value) => { setValues((current) => ({ ...current, [field.name]: value })); command.reset(); }} />;
-  return <form className={styles.form} onSubmit={submitForm}>{fields.filter((field) => !field.advanced).map(input)}{fields.some((field) => field.advanced) && <details className={styles.details}><summary>Advanced</summary><div className={styles.form}>{fields.filter((field) => field.advanced).map(input)}</div></details>}{children}{confirm && <label className={styles.check}><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} required />{confirm}</label>}{Boolean(command.error || localError) && <ErrorNotice error={command.error ?? localError} />}{command.isSuccess && <Notice>Saved successfully.</Notice>}<button className={styles.primary} disabled={command.isPending || !nativeAvailable() || (!!confirm && !confirmed)} type="submit">{command.isPending ? 'Working…' : submit}</button></form>;
+  return <form className={styles.form} onSubmit={submitForm}>{fields.filter((field) => !field.advanced).map(input)}{fields.some((field) => field.advanced) && <details className={styles.details}><summary>Advanced</summary><div className={styles.form}>{fields.filter((field) => field.advanced).map(input)}</div></details>}{children}{confirm && <label className={styles.check}><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} required />{confirm}</label>}{Boolean(command.error || localError) && <ErrorNotice error={command.error ?? localError} />}{command.isSuccess && <Notice>Saved.</Notice>}<button className={styles.primary} disabled={command.isPending || !nativeAvailable() || (!!confirm && !confirmed)} type="submit">{command.isPending ? 'Working…' : submit}</button></form>;
 }
 export function CommandButton({ operation, payload = {}, children, danger = false, disabled = false, onSuccess }: { operation: string; payload?: Payload; children: ReactNode; danger?: boolean; disabled?: boolean; onSuccess?: (result: RecordData) => void }) {
   const command = useCommand(operation);
@@ -126,7 +126,7 @@ export function useOpenState(open?: boolean, onOpenChange?: (open: boolean) => v
 
 export function ConfirmCommand({ trigger, title, message, operation, payload, onSuccess, open: controlledOpen, onOpenChange }: { trigger: string; title: string; message: string; operation: string; payload: Payload; onSuccess?: (result: RecordData) => void; open?: boolean; onOpenChange?: (open: boolean) => void }) {
   const { open, setOpen, controlled } = useOpenState(controlledOpen, onOpenChange);
-  return <Modal open={open} onOpenChange={setOpen} trigger={controlled ? undefined : <button className={styles.dangerButton}>{trigger}</button>} title={title} description={message}><CommandForm operation={operation} fixed={{ ...payload, confirm: true }} fields={[]} submit={trigger} confirm="I understand the consequences described above." onSuccess={(result) => { setOpen(false); onSuccess?.(result); }} /></Modal>;
+  return <Modal open={open} onOpenChange={setOpen} trigger={controlled ? undefined : <button className={styles.dangerButton}>{trigger}</button>} title={title} description={message}><CommandForm operation={operation} fixed={{ ...payload, confirm: true }} fields={[]} submit={trigger} confirm="I understand." onSuccess={(result) => { setOpen(false); onSuccess?.(result); }} /></Modal>;
 }
 
 export function Details({ value, title = 'Details' }: { value: unknown; title?: string }) {

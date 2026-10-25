@@ -113,11 +113,12 @@ async def setup_status(w: Workspace, service: InferenceService) -> dict[str, Any
         ollama = {"available": True, "models": [m["name"] for m in response.json()["models"]]}
     except Exception:  # noqa: BLE001 - an absent or odd Ollama only means "not available"
         pass
+    asr = current_choice(w, ("asr",))
     return {
         "asr_ready": task_policy(w, "asr") is not None,
         "llm_ready": task_policy(w, "summary") is not None,
         "ollama": ollama,
-        "asr": current_choice(w, ("asr",)),
+        "asr": asr and {**asr, "language_selectable": FAMILIES.get(asr["adapter"]) == "whisper"},
         "diarization": current_choice(w, ("diarization",)),
         "llm": current_choice(w, ("summary", "general")),
     }

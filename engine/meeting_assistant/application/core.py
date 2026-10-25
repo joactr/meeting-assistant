@@ -127,6 +127,9 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             selected = task_policy(w, task, {"project_id": project, "config_snapshot": config})
             if selected:
                 config[task + "_policy"] = selected
+        language = p.get("language")
+        if language and language != "auto":
+            config["meeting_language"] = language
         config["source"] = p.get("source", config.get("source", "both"))
         require(
             config["source"] in ("mic", "system", "both", "file", "text"),

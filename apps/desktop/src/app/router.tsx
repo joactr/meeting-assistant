@@ -39,9 +39,9 @@ function QuitGuard() {
   const keepWorking = (): void => { setState(null); void nativeRequest('prepare_exit', { cancel: true }).catch(() => undefined); };
   const busy = state?.phase === 'working';
   return <Modal open={state !== null} onOpenChange={(open) => { if (!open) keepWorking(); }} title="Quit Meeting Assistant">
-    {busy && <Notice>Saving and checking for active work…</Notice>}
-    {state?.phase === 'blocked' && <><Notice danger>Quitting is blocked. Stop any active meeting, then try again.</Notice><Details value={state.result} title="Blockers" /></>}
-    {state?.phase === 'error' && <><ErrorNotice error={state.error} /><Notice danger>Preservation could not be confirmed. Quitting now can lose active capture audio.</Notice></>}
+    {busy && <Notice>Checking…</Notice>}
+    {state?.phase === 'blocked' && <><Notice danger>Stop the active meeting, then try again.</Notice><Details value={state.result} title="Blockers" /></>}
+    {state?.phase === 'error' && <><ErrorNotice error={state.error} /><Notice danger>Quitting now can lose active recording audio.</Notice></>}
     <Toolbar>
       <button disabled={busy} onClick={keepWorking}>Keep working</button>
       <button disabled={busy} onClick={() => { void attempt(); }}>Try again</button>
@@ -74,9 +74,9 @@ function UpdatePrompt() {
     } catch (error) { setState({ phase: 'error', error }); }
   };
   const busy = state?.phase === 'working';
-  return <Modal open={!!offer && version !== dismissed} onOpenChange={(open) => { if (!open && !busy) later(); }} title={`Update available: ${version}`} description={`You have ${text(offer?.current_version)}. The update is downloaded from this project's GitHub releases and its signature is verified before installing. The app restarts afterwards.`}>
-    {busy && <Notice>Downloading, saving your work and installing…</Notice>}
-    {state?.phase === 'blocked' && <><Notice danger>Stop the active meeting first, then install again.</Notice><Details value={state.result} title="Blockers" /></>}
+  return <Modal open={!!offer && version !== dismissed} onOpenChange={(open) => { if (!open && !busy) later(); }} title={`Update available: ${version}`}>
+    {busy && <Notice>Installing…</Notice>}
+    {state?.phase === 'blocked' && <><Notice danger>Stop the active meeting first.</Notice><Details value={state.result} title="Blockers" /></>}
     {state?.phase === 'error' && <ErrorNotice error={state.error} />}
     <Toolbar>
       <button disabled={busy} onClick={later}>Later</button>

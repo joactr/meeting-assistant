@@ -143,7 +143,7 @@ pinned to an exact revision, after you accept its license.
 | [Whisper large-v3](https://huggingface.co/Systran/faster-whisper-large-v3) | OpenAI; CTranslate2 conversion by SYSTRAN | [MIT](https://github.com/openai/whisper/blob/main/LICENSE) | Format conversion only |
 | [Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) | NVIDIA | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Converted to ONNX and int8-quantized by the [sherpa-onnx](https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8) project |
 | [Phonon-2.5](https://huggingface.co/FermionResearch/Phonon-2.5) | Fermion Research, derived from NVIDIA Parakeet TDT 0.6B v3 | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Re-trained for 25 languages and compressed by Fermion Research ([NOTICE](https://huggingface.co/FermionResearch/Phonon-2.5/blob/main/NOTICE)) |
-| [speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1) | pyannote | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | None. Gated: each user accepts pyannote's terms on Hugging Face |
+| [speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1) | pyannote | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | None. Downloaded from pyannote's ungated mirror [pyannote-community/speaker-diarization-community-1](https://huggingface.co/pyannote-community/speaker-diarization-community-1) |
 | [multilingual-e5-small](https://huggingface.co/intfloat/multilingual-e5-small) | Microsoft (intfloat) | [MIT](https://github.com/microsoft/unilm/blob/master/LICENSE) | None |
 
 Runtimes: [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (MIT),

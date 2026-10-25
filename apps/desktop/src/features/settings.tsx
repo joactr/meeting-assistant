@@ -26,7 +26,7 @@ const groups: { id: string; title: string; notice?: string; fields: Field[] }[] 
     { name: 'echo_cancellation', label: 'Cancel speaker echo (run calibration first)', type: 'checkbox', value: false },
     { name: 'source_failure_policy', label: 'If a device disconnects', type: 'select', value: 'warn', options: [{ value: 'warn', label: 'Keep going and show a warning' }, { value: 'pause', label: 'Pause the meeting' }] },
   ] },
-  { id: 'recording', title: 'Recording', notice: 'Recording is off by default. Make sure everyone in the meeting agrees to it.', fields: [
+  { id: 'recording', title: 'Recording', notice: 'Recording is off by default. Get everyone\'s consent first.', fields: [
     { name: 'enabled', label: 'Keep meeting audio', type: 'checkbox', value: false },
     { name: 'retain_days', label: 'Delete kept audio after', type: 'select', value: '7', options: [{ value: '1', label: '1 day' }, { value: '7', label: '7 days' }, { value: '30', label: '30 days' }, { value: 'forever', label: 'Never (delete manually)' }] },
     { name: 'byte_cap', label: 'Total audio storage limit (bytes)', type: 'number', value: 10737418240, min: 104857600 },
@@ -50,7 +50,7 @@ const groups: { id: string; title: string; notice?: string; fields: Field[] }[] 
   { id: 'retrieval', title: 'Search', fields: [
     { name: 'mode', label: 'Default search', type: 'select', value: 'keyword', options: [{ value: 'keyword', label: 'Exact words' }, { value: 'semantic', label: 'Meaning' }, { value: 'hybrid', label: 'Both' }] },
     { name: 'semantic_enabled', label: 'Enable search by meaning', type: 'checkbox', value: false },
-    { name: 'embedding_profile_id', label: 'Search-by-meaning model profile ID' },
+    { name: 'embedding_profile_id', label: 'Search model profile ID' },
     { name: 'chunk_tokens', label: 'Passage size (tokens)', type: 'number', value: 256, min: 32, max: 512 },
     { name: 'overlap_tokens', label: 'Passage overlap (tokens)', type: 'number', value: 32, min: 0, max: 128 },
   ] },
@@ -114,7 +114,7 @@ function SettingsGroup({ groupId, advancedOnly = false }: { groupId: string; adv
 
 function AudioSettings() {
   const devices = useNativeResource('audio_devices');
-  return <Panel title="Devices & local audio test"><AsyncView query={devices}>{(data) => <><div className={styles.deviceGrid}>{items(data).map((row) => <section key={text(row.key)}><strong>{text(row.name)}</strong><Badge>{row.kind === 'system' ? 'computer audio' : 'microphone'}</Badge>{row.available === false && <Notice danger>Device unavailable. Reconnect it or choose another device.</Notice>}</section>)}</div><AudioTest devices={items(data)} /><AudioCalibration devices={items(data)} /><Details title="Details" value={data} /></>}</AsyncView></Panel>;
+  return <Panel title="Audio devices"><AsyncView query={devices}>{(data) => <><div className={styles.deviceGrid}>{items(data).map((row) => <section key={text(row.key)}><strong>{text(row.name)}</strong><Badge>{row.kind === 'system' ? 'computer audio' : 'microphone'}</Badge>{row.available === false && <Notice danger>Device unavailable.</Notice>}</section>)}</div><AudioTest devices={items(data)} /><AudioCalibration devices={items(data)} /><Details title="Details" value={data} /></>}</AsyncView></Panel>;
 }
 
 function AudioTest({ devices }: { devices: RecordData[] }) {
@@ -125,39 +125,40 @@ function AudioTest({ devices }: { devices: RecordData[] }) {
   const start = useMutation({ mutationFn: () => nativeRequest('audio_test_start', { deviceKey }), onSuccess: async (result) => { if (openRef.current) setLease(result); else await nativeRequest('audio_test_stop'); } });
   const stop = useMutation({ mutationFn: () => nativeRequest('audio_test_stop'), onSuccess: () => setLease(null) });
   useEffect(() => () => { if (nativeAvailable()) void nativeRequest('audio_test_stop').catch(() => undefined); }, []);
-  return <Modal open={open} onOpenChange={(next) => { setOpen(next); if (!next && nativeAvailable()) stop.mutate(); }} trigger={<button>Open local audio test…</button>} title="Local device test / calibration" description="No ASR, cloud processing or durable audio. This lease closes when the dialog closes or meeting capture starts. No setting changes implicitly."><FieldInput field={{ name: 'device', label: 'Exact device', type: 'select', required: true, options: [{ value: '', label: 'Choose device' }, ...devices.map((device) => ({ value: text(device.key), label: text(device.name) }))] }} value={deviceKey} onChange={(value) => setDeviceKey(text(value))} /><AudioMeters /><Toolbar><button disabled={!deviceKey || start.isPending || !!lease} onClick={() => start.mutate()}>Start local test</button><button disabled={!lease || stop.isPending} onClick={() => stop.mutate()}>Stop test</button></Toolbar>{lease && <Notice>Test active · lease {text(lease.lease_id)}. Speak normally and check each source level. High peaks indicate clipping; missing system signal can be an inactive endpoint.</Notice>}{(start.error || stop.error) && <ErrorNotice error={start.error ?? stop.error} />}</Modal>;
+  return <Modal open={open} onOpenChange={(next) => { setOpen(next); if (!next && nativeAvailable()) stop.mutate(); }} trigger={<button>Test audio…</button>} title="Test audio"><FieldInput field={{ name: 'device', label: 'Device', type: 'select', required: true, options: [{ value: '', label: 'Choose device' }, ...devices.map((device) => ({ value: text(device.key), label: text(device.name) }))] }} value={deviceKey} onChange={(value) => setDeviceKey(text(value))} /><AudioMeters /><Toolbar><button disabled={!deviceKey || start.isPending || !!lease} onClick={() => start.mutate()}>Start test</button><button disabled={!lease || stop.isPending} onClick={() => stop.mutate()}>Stop test</button>{lease && <Badge tone="success">Testing…</Badge>}</Toolbar>{(start.error || stop.error) && <ErrorNotice error={start.error ?? stop.error} />}</Modal>;
 }
 
 function AudioCalibration({ devices }: { devices: RecordData[] }) {
   const [mic, setMic] = useState('');
   const [system, setSystem] = useState('');
   const run = useMutation({ mutationFn: async () => { await nativeRequest('audio_test_stop'); return nativeRequest('audio_calibrate', { request: { mic_key: mic, system_key: system, seconds: 5 } }); } });
-  const options = (kind: string) => [{ value: '', label: 'Choose exact endpoint' }, ...devices.filter((device) => device.kind === kind).map((device) => ({ value: text(device.key), label: text(device.name) }))];
-  return <Modal trigger={<button>Measure echo calibration…</button>} title="Real microphone / system echo calibration" description="Stop any active meeting first. Play actual system audio through speakers that the microphone can hear during this five-second RAM-only measurement. No audio is retained or sent to ASR/cloud. Headphones remain recommended.">
-    <FieldInput field={{ name: 'mic', label: 'Calibration microphone', type: 'select', options: options('mic') }} value={mic} onChange={(value) => setMic(text(value))} />
-    <FieldInput field={{ name: 'system', label: 'Calibration system endpoint', type: 'select', options: options('system') }} value={system} onChange={(value) => setSystem(text(value))} />
-    <button disabled={!nativeAvailable() || !mic || !system || run.isPending} onClick={() => run.mutate()}>{run.isPending ? 'Measuring real signals…' : 'Measure five seconds of real audio'}</button>
+  const options = (kind: string) => [{ value: '', label: 'Choose device' }, ...devices.filter((device) => device.kind === kind).map((device) => ({ value: text(device.key), label: text(device.name) }))];
+  return <Modal trigger={<button>Calibrate echo…</button>} title="Echo calibration" description="Play audio through your speakers. Measures 5 seconds; nothing is saved.">
+    <FieldInput field={{ name: 'mic', label: 'Microphone', type: 'select', options: options('mic') }} value={mic} onChange={(value) => setMic(text(value))} />
+    <FieldInput field={{ name: 'system', label: 'Computer audio', type: 'select', options: options('system') }} value={system} onChange={(value) => setSystem(text(value))} />
+    <button disabled={!nativeAvailable() || !mic || !system || run.isPending} onClick={() => run.mutate()}>{run.isPending ? 'Measuring…' : 'Measure'}</button>
     {run.error && <ErrorNotice error={run.error} />}
-    {run.data && <><Badge tone={run.data.passed === true ? 'success' : 'warning'}>{run.data.passed === true ? 'Calibration passed' : 'AEC unavailable'}</Badge><Details title="Details" value={run.data} /></>}
+    {run.data && <><Badge tone={run.data.passed === true ? 'success' : 'warning'}>{run.data.passed === true ? 'Calibration passed' : 'Echo cancellation unavailable'}</Badge><Details title="Details" value={run.data} /></>}
   </Modal>;
 }
 
 function Profiles() {
   const people = useResource('people.list');
   const profiles = useResource('voice_profiles.list');
-  return <Panel title="People & sensitive voice data"><Modal trigger={<button>Add person</button>} title="Create a person label"><CommandForm operation="people.create" fields={[{ name: 'display_name', label: 'Person display name', required: true }]} /></Modal><AsyncView query={people}>{(data) => items(data).map((row) => <article className={styles.listRow} key={id(row)}><strong>{text(row.display_name)}</strong><ConfirmCommand trigger="Delete person" title="Delete person identity?" message="Transcripts remain; this person's voice profiles and biometric voice data are deleted." operation="people.delete" payload={{ id: id(row), expected_revision: revision(row) }} /></article>)}</AsyncView><AsyncView query={profiles}>{(data) => items(data).length === 0 ? <Empty title="No recurring voice profiles" /> : items(data).map((row) => <article className={styles.actionRow} key={id(row)}><div><strong>{text(row.person_id)}</strong><p>Scope {text(object(row.matching_scope).scope)} · {text(row.model_fingerprint)}</p><Details value={row} title="Details" /></div><ConfirmCommand trigger="Delete voice data" title="Delete this voice embedding?" message="Deletes biometric voice data independently of transcript text and invalidates all matching references." operation="voice_profiles.delete" payload={{ id: id(row), expected_revision: revision(row) }} /></article>)}</AsyncView></Panel>;
+  const names = new Map(items(people.data ?? {}).map((row) => [id(row), text(row.display_name)]));
+  return <Panel title="People"><Modal trigger={<button>Add person</button>} title="Add person"><CommandForm operation="people.create" fields={[{ name: 'display_name', label: 'Name', required: true }]} /></Modal><AsyncView query={people}>{(data) => items(data).map((row) => <article className={styles.listRow} key={id(row)}><strong>{text(row.display_name)}</strong><ConfirmCommand trigger="Delete person" title="Delete person?" message="Deletes this person and their voice data. Transcripts remain." operation="people.delete" payload={{ id: id(row), expected_revision: revision(row) }} /></article>)}</AsyncView><AsyncView query={profiles}>{(data) => items(data).length === 0 ? <Empty title="No voice profiles" /> : items(data).map((row) => <article className={styles.actionRow} key={id(row)}><div><strong>{names.get(text(row.person_id)) ?? 'Unknown person'}</strong><Details value={row} title="Details" /></div><ConfirmCommand trigger="Delete voice data" title="Delete voice data?" message="Permanently deletes this voice profile." operation="voice_profiles.delete" payload={{ id: id(row), expected_revision: revision(row) }} /></article>)}</AsyncView></Panel>;
 }
 
 export function WindowSettings() {
   const query = useNativeResource('native_preferences_get');
-  return <Panel title="Native window preferences"><AsyncView query={query}>{(data) => <NativePreferences saved={object(data.preferences ?? data)} />}</AsyncView></Panel>;
+  return <Panel title="Window"><AsyncView query={query}>{(data) => <NativePreferences saved={object(data.preferences ?? data)} />}</AsyncView></Panel>;
 }
 
 function NativePreferences({ saved }: { saved: RecordData }) {
   const [values, setValues] = useState<Payload>({ theme: saved.theme ?? 'system', tray_enabled: saved.tray_enabled ?? false, always_on_top: saved.always_on_top ?? true, sidebar_collapsed: saved.sidebar_collapsed ?? false });
   const client = useQueryClient();
   const save = useMutation({ mutationFn: () => updatePreferences(values), onSuccess: async () => { document.documentElement.dataset.theme = text(values.theme); await client.invalidateQueries({ queryKey: ['native'] }); } });
-  return <form className={styles.settingsForm} onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>{[{ name: 'theme', label: 'Theme', type: 'select' as const, options: ['system', 'light', 'dark'].map((value) => ({ value, label: value })) }, { name: 'always_on_top', label: 'Always on top', type: 'checkbox' as const }, { name: 'tray_enabled', label: 'Tray icon', type: 'checkbox' as const }, { name: 'sidebar_collapsed', label: 'Compact sidebar', type: 'checkbox' as const }].map((field) => <FieldInput key={field.name} field={field} value={values[field.name] ?? false} onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))} />)}<button disabled={save.isPending || !nativeAvailable()} type="submit">Apply & save native preferences</button>{save.error && <ErrorNotice error={save.error} />}{save.isSuccess && <Notice>Native preferences saved.</Notice>}</form>;
+  return <form className={styles.settingsForm} onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>{[{ name: 'theme', label: 'Theme', type: 'select' as const, options: ['system', 'light', 'dark'].map((value) => ({ value, label: value })) }, { name: 'always_on_top', label: 'Always on top', type: 'checkbox' as const }, { name: 'tray_enabled', label: 'Tray icon', type: 'checkbox' as const }, { name: 'sidebar_collapsed', label: 'Compact sidebar', type: 'checkbox' as const }].map((field) => <FieldInput key={field.name} field={field} value={values[field.name] ?? false} onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))} />)}<button disabled={save.isPending || !nativeAvailable()} type="submit">Save</button>{save.error && <ErrorNotice error={save.error} />}{save.isSuccess && <Notice>Saved.</Notice>}</form>;
 }
 
 export function UpdatesSettings() {
@@ -173,7 +174,7 @@ export function UpdatesSettings() {
     await flushDrafts();
     return nativeRequest(operation === 'check' ? 'update_check' : 'update_install');
   }, onSuccess: setStatus });
-  return <Panel title="Signed updates & safe shutdown"><label className={styles.check}><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />Check GitHub releases for updates automatically and ask before installing</label><label className={styles.check}><input type="checkbox" checked={privacy} onChange={(event) => setPrivacy(event.target.checked)} />Privacy mode: no update network requests</label><Toolbar><button disabled={!nativeAvailable() || update.isPending} onClick={() => update.mutate('save')}>Save update preferences</button><button disabled={!nativeAvailable() || !consent || privacy || update.isPending} onClick={() => update.mutate('check')}>Check now</button><Modal trigger={<button disabled={!status || update.isPending}>Review install…</button>} title="Install a verified update?" description="You can cancel the shutdown reservation instead of installing."><Details title="Details" value={status} /><button disabled={!nativeAvailable() || update.isPending} onClick={() => update.mutate('install')}>Preserve state & install verified update</button><PrepareExit cancelOnly /></Modal><PrepareExit /></Toolbar>{update.error && <ErrorNotice error={update.error} />}{status && <Details title="Details" value={status} />}<Diagnostics /></Panel>;
+  return <Panel title="Updates"><label className={styles.check}><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />Check for updates automatically</label><label className={styles.check}><input type="checkbox" checked={privacy} onChange={(event) => setPrivacy(event.target.checked)} />Privacy mode (no update requests)</label><Toolbar><button disabled={!nativeAvailable() || update.isPending} onClick={() => update.mutate('save')}>Save</button><button disabled={!nativeAvailable() || !consent || privacy || update.isPending} onClick={() => update.mutate('check')}>Check now</button><Modal trigger={<button disabled={!status || update.isPending}>Install…</button>} title="Install update?"><Details title="Details" value={status} /><button disabled={!nativeAvailable() || update.isPending} onClick={() => update.mutate('install')}>Install update</button><PrepareExit cancelOnly /></Modal><PrepareExit /></Toolbar>{update.error && <ErrorNotice error={update.error} />}{status && <Details title="Details" value={status} />}<Diagnostics /></Panel>;
 }
 
 function Diagnostics() {
@@ -184,5 +185,5 @@ function Diagnostics() {
 export function PrepareExit({ cancelOnly = false }: { cancelOnly?: boolean }) {
   const [result, setResult] = useState<RecordData | null>(null);
   const exit = useMutation({ mutationFn: async () => { await flushDrafts(); return nativeRequest('prepare_exit', { cancel: cancelOnly }); }, onSuccess: setResult });
-  return <span><button disabled={!nativeAvailable() || exit.isPending} onClick={() => exit.mutate()}>{cancelOnly ? 'Cancel shutdown reservation' : 'Prepare safe quit'}</button>{exit.error && <ErrorNotice error={exit.error} />}{result && <Details value={result} title="Details" />}</span>;
+  return <span><button disabled={!nativeAvailable() || exit.isPending} onClick={() => exit.mutate()}>{cancelOnly ? 'Cancel quit' : 'Safe quit'}</button>{exit.error && <ErrorNotice error={exit.error} />}{result && <Details value={result} title="Details" />}</span>;
 }
