@@ -171,14 +171,22 @@ class ModelRuntime:
             if not executable.is_relative_to(runtime_dir.resolve()):
                 raise ProviderError("permission", "Runtime executable escapes its installed grant")
             if not developer:
-                for item in manifest.get("files", []):
-                    file = (runtime_dir / item["path"]).resolve()
-                    if not file.is_relative_to(runtime_dir.resolve()) or not file.is_file():
-                        raise ProviderError("permission", "Installed runtime file grant is invalid")
-                    with file.open("rb") as source:
-                        digest = hashlib.file_digest(source, "sha256").hexdigest()
-                    if file.stat().st_size != item["bytes"] or digest != item["sha256"]:
-                        raise ProviderError("permission", "Installed runtime file was modified")
+
+                def verify() -> None:
+                    for item in manifest.get("files", []):
+                        file = (runtime_dir / item["path"]).resolve()
+                        if not file.is_relative_to(runtime_dir.resolve()) or not file.is_file():
+                            raise ProviderError(
+                                "permission", "Installed runtime file grant is invalid"
+                            )
+                        with file.open("rb") as source:
+                            digest = hashlib.file_digest(source, "sha256").hexdigest()
+                        if file.stat().st_size != item["bytes"] or digest != item["sha256"]:
+                            raise ProviderError("permission", "Installed runtime file was modified")
+
+                # Hashing a runtime pack takes seconds to a minute; on the loop it starves the
+                # engine heartbeat and the native watchdog kills the engine mid-capture.
+                await asyncio.to_thread(verify)
             model_dir = developer_model
             if family != "azure-speech" and not developer:
                 model_dir, model = self._active(profile.options.get("catalog_id"))

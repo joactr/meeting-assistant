@@ -51,8 +51,12 @@ class WorkerClient:
         options: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         executable = self.executable.resolve(strict=True)
-        with executable.open("rb") as source:
-            actual_hash = hashlib.file_digest(source, "sha256").hexdigest()
+
+        def digest() -> str:
+            with executable.open("rb") as source:
+                return hashlib.file_digest(source, "sha256").hexdigest()
+
+        actual_hash = await asyncio.to_thread(digest)
         if not executable.is_file() or actual_hash != self.package_sha256:
             raise ProviderError(
                 "permission", "Worker executable does not match the reviewed package hash"
