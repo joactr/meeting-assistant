@@ -202,49 +202,51 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
         source = by_id.get(entry["id"].removesuffix("-" + target()), {})
         return (entry.get("host_requirements") or source.get("host_requirements", {})).get("gpu")
 
-    def local_runtime(
-        entry: dict[str, Any], entries: list[dict[str, Any]]
-    ) -> dict[str, Any] | None:
-        """The downloadable CPU runtime for a model's family; GPU variants stay an explicit choice."""
-        if entry.get("role") == "runtime":
-            return None
-        by_id = {item["id"]: item for item in entries}
-        family = entry.get("runtime", {}).get("family")
-        return next(
-            (
-                item
-                for item in entries
-                if item.get("role") == "runtime"
-                and item.get("runtime", {}).get("family") == family
-                and item.get("files")
-                and not item.get("blocked_reason")
-                and target() in item.get("platforms", [])
-                and gpu_requirement(item, by_id) is None
-            ),
-            None,
-        )
-
-    async def catalog_list(p: dict[str, Any]) -> dict[str, Any]:
+    async def annotated() -> list[dict[str, Any]]:
+        """Catalog entries with GPU eligibility and, per model, the runtime it will use."""
         entries = catalog.entries()
         by_id = {entry["id"]: entry for entry in entries}
         gpus: list[dict[str, Any]] | None = None
         for entry in entries:
-            runtime = local_runtime(entry, entries)
-            entry["installed"] = installed(entry) and (runtime is None or installed(runtime))
             requirement = gpu_requirement(entry, by_id)
             if requirement:
                 if gpus is None:
                     gpus = await asyncio.to_thread(detect_nvidia)
                 entry["host_check"] = {"gpu": evaluate_gpu_requirement(requirement, gpus)}
-        return {"items": entries}
+        runtimes = [
+            item
+            for item in entries
+            if item.get("role") == "runtime"
+            and item.get("files")
+            and not item.get("blocked_reason")
+            and target() in item.get("platforms", [])
+            and (gpu_requirement(item, by_id) is None or item["host_check"]["gpu"]["met"])
+        ]
+        for entry in entries:
+            if entry.get("role") == "runtime":
+                continue
+            family = entry.get("runtime", {}).get("family")
+            matching = [
+                item for item in runtimes if item.get("runtime", {}).get("family") == family
+            ]
+            # An eligible GPU runtime wins over the CPU one.
+            matching.sort(key=lambda item: "host_check" not in item)
+            runtime = matching[0] if matching else None
+            entry["runtime_id"] = runtime["id"] if runtime else None
+            entry["gpu"] = bool(runtime and "host_check" in runtime)
+            entry["installed"] = installed(entry) and (runtime is None or installed(runtime))
+        return entries
+
+    async def catalog_list(p: dict[str, Any]) -> dict[str, Any]:
+        return {"items": await annotated()}
 
     register("catalog.list", catalog_list)
 
     async def download(p: dict[str, Any]) -> dict[str, Any]:
         token = await workspace.resolve_secret(p["secret_ref"]) if p.get("secret_ref") else None
-        entries = catalog.entries()
-        entry = catalog.entry(p["id"])
-        runtime = local_runtime(entry, entries)
+        by_id = {entry["id"]: entry for entry in await annotated()}
+        entry = by_id[catalog.entry(p["id"])["id"]]
+        runtime = by_id.get(entry.get("runtime_id") or "")
         activated: list[dict[str, Any]] = []
         for wanted in [entry] + ([runtime] if runtime else []):
             if installed(wanted):
