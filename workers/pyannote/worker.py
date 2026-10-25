@@ -56,8 +56,13 @@ class CommunityRuntime:
             labels = result.speaker_diarization.labels()
             if result.speaker_embeddings is None or len(result.speaker_embeddings) != len(labels):
                 raise ValueError("Pinned pipeline speaker embedding conformance failed")
+            # Speakers active too briefly get a NaN centroid (or a zero pad); NaN cannot cross
+            # the JSON protocol and failed the whole window. Their turns stay unlabelled.
             embeddings = {
-                str(label): result.speaker_embeddings[i].tolist() for i, label in enumerate(labels)
+                str(label): result.speaker_embeddings[i].tolist()
+                for i, label in enumerate(labels)
+                if self.np.isfinite(result.speaker_embeddings[i]).all()
+                and self.np.any(result.speaker_embeddings[i])
             }
 
             def turns(annotation, overlap):

@@ -103,6 +103,8 @@ class SpeakerEvidence:
                 },
             )
             for label, vector in vectors.items():
+                if not any(vector):
+                    continue  # pyannote zero-pads speakers it counted but could not cluster
                 # Best cluster per speaker: every window stores another cluster for the matched
                 # speaker, so a per-cluster margin would split one voice into new speakers.
                 # ponytail: scan is linear in stored clusters; cap clusters per speaker if long

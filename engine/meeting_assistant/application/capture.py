@@ -188,6 +188,10 @@ class AudioPipeline:
                         try:
                             done.result()
                         except Exception as exc:
+                            # One bad window (the installed pyannote pack fails a window where a
+                            # speaker talks too briefly to embed) must not end labelling.
+                            if getattr(exc, "code", None) == "invalid_input":
+                                return
                             self.diarization_disabled.add(source_key)
                             self.workspace.emit(
                                 "capture.attention",
