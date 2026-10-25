@@ -1,23 +1,23 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { nativeAvailable, nativeRequest, request } from '../lib/bridge';
-import { useResource } from '../lib/queries';
+import { useNativeResource, useResource } from '../lib/queries';
 import { updatePreferences } from '../lib/preferences';
 import { array, id, item, items, label, object, revision, text, type RecordData } from '../lib/data';
-import { AsyncView, Badge, CommandForm, ConfirmCommand, Details, EditResource, Empty, ErrorNotice, FieldInput, Grid, Modal, Notice, Panel, TabSet, Toolbar, type Field } from '../components/ui';
+import { AsyncView, Badge, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, ErrorNotice, FieldInput, Grid, Modal, Notice, Panel, TabSet, Toolbar, type Field } from '../components/ui';
 import { FilterDisclosure } from '../components/controls';
 import styles from './workspace.module.css';
 
 /** Settings tab labels in order; the tab set persists its selection under their joined key. */
-export const settingsTabs = ['Audio', 'Meetings', 'AI providers & models', 'Calendar & integrations', 'Privacy & backup', 'App & updates', 'Advanced', 'About'];
+export const settingsTabs = ['Transcription & AI', 'Audio', 'Meetings', 'Privacy & backup', 'Calendar & integrations', 'App & updates', 'Advanced', 'About'];
 
-/** Opens Settings on the AI providers & models tab. */
+/** Opens Settings on the Transcription & AI tab. */
 export function SetupLink({ children = 'Set up transcription' }: { children?: ReactNode }) {
   const navigate = useNavigate();
   const client = useQueryClient();
   const open = useMutation({ mutationFn: async () => {
-    if (nativeAvailable()) await updatePreferences({ selected_tabs: { [settingsTabs.join('|')]: 'AI providers & models' } });
+    if (nativeAvailable()) await updatePreferences({ selected_tabs: { [settingsTabs.join('|')]: 'Transcription & AI' } });
     await client.invalidateQueries({ queryKey: ['native'] });
     await navigate({ to: '/settings' });
   } });
@@ -49,7 +49,7 @@ export function ProviderSettings() {
   const profiles = useResource('entity.list', { collection: 'model_profiles' });
   const policies = useResource('entity.list', { collection: 'task_policies' });
   return <TabSet tabs={[
-    { label: 'Connections', content: <><LlmSetup descriptors={items(descriptors.data)} /><Panel title="Provider catalog"><AsyncView query={descriptors}>{(data) => <Grid>{items(data).map((row) => <section key={id(row)}><h3>{label(row)}</h3><Toolbar>{Array.isArray(row.roles) && row.roles.map((role) => <Badge key={text(role)}>{text(role)}</Badge>)}</Toolbar><Details value={row} title="Details" /></section>)}</Grid>}</AsyncView></Panel><Panel title="Your connections"><AsyncView query={connections}>{(data) => items(data).length === 0 ? <Empty title="No connections yet" /> : items(data).map((row) => <article key={id(row)} className={styles.actionRow}><div><strong>{label(row)}</strong><p>{text(row.adapter_id ?? row.adapter)} · {text(row.endpoint ?? row.base_url, 'Local runtime')}</p><Toolbar><Badge>{text(row.declared_execution, 'Unverified execution location')}</Badge></Toolbar><Details value={row} title="Details" /></div><Toolbar><ConnectionTest connection={row} profiles={items(profiles.data)} /><EditResource operation="entity.update" row={row} fixed={{ collection: 'provider_connections' }} fields={[{ name: 'display_name', label: 'Name', required: true }, { name: 'endpoint', label: 'Endpoint (no credentials in URL)' }, { name: 'region', label: 'Region', advanced: true }, { name: 'deployment', label: 'Azure deployment', advanced: true }]} label="Edit connection" /><ConfirmCommand trigger="Remove connection" title="Remove connection?" message="Dependent active tasks block deletion. Revoke consent to cancel active tasks before removing a connection. Stored credentials are deleted separately in the native vault." operation="entity.delete" payload={{ collection: 'provider_connections', id: id(row), expected_revision: revision(row) }} /></Toolbar></article>)}</AsyncView></Panel><NewConnection descriptors={items(descriptors.data)} /></> },
+    { label: 'Connections', content: <><Panel title="Your connections"><AsyncView query={connections}>{(data) => items(data).length === 0 ? <Empty title="No connections yet" /> : items(data).map((row) => <article key={id(row)} className={styles.actionRow}><div><strong>{label(row)}</strong><p>{text(row.adapter_id ?? row.adapter)} · {text(row.endpoint ?? row.base_url, 'Local runtime')}</p><Toolbar><Badge>{text(row.declared_execution, 'Unverified execution location')}</Badge></Toolbar><Details value={row} title="Details" /></div><Toolbar><ConnectionTest connection={row} profiles={items(profiles.data)} /><EditResource operation="entity.update" row={row} fixed={{ collection: 'provider_connections' }} fields={[{ name: 'display_name', label: 'Name', required: true }, { name: 'endpoint', label: 'Endpoint (no credentials in URL)' }, { name: 'region', label: 'Region', advanced: true }, { name: 'deployment', label: 'Azure deployment', advanced: true }]} label="Edit connection" /><ConfirmCommand trigger="Remove connection" title="Remove connection?" message="Dependent active tasks block deletion. Revoke consent to cancel active tasks before removing a connection. Stored credentials are deleted separately in the native vault." operation="entity.delete" payload={{ collection: 'provider_connections', id: id(row), expected_revision: revision(row) }} /></Toolbar></article>)}</AsyncView></Panel><NewConnection descriptors={items(descriptors.data)} /></> },
     { label: 'Model profiles', content: <Panel title="Model profiles" actions={<ModelProfileCreation connections={items(connections.data)} />}><AsyncView query={profiles}>{(data) => items(data).length === 0 ? <Empty title="No model profiles" /> : items(data).map((row) => <article key={id(row)} className={styles.actionRow}><div><strong>{label(row)}</strong><p>{text(row.model_id)} · {text(row.role)}</p><Details value={row} title="Details" /></div><Toolbar><EditResource operation="entity.update" row={row} fixed={{ collection: 'model_profiles' }} fields={profileFields(items(connections.data))} label="Edit profile" /><ConfirmCommand trigger="Delete profile" title="Delete model profile?" message="Active dependent tasks must drain first. This does not delete unrelated model files." operation="entity.delete" payload={{ collection: 'model_profiles', id: id(row), expected_revision: revision(row) }} /></Toolbar></article>)}</AsyncView></Panel> },
     { label: 'Task routing', content: <Panel title="Task routing" actions={<Modal trigger={<button>Add task policy</button>} title="Configure task routing"><CommandForm operation="entity.create" fixed={{ collection: 'task_policies' }} fields={taskPolicyFields(items(profiles.data))} /></Modal>}><AsyncView query={policies}>{(data) => items(data).length === 0 ? <Empty title="No task routing yet" /> : items(data).map((row) => <article key={id(row)} className={styles.actionRow}><div><strong>{taskLabel(text(row.task))}</strong><p>Profile {text(row.model_profile_id)} · Language {text(row.language, 'auto')}</p><Details value={row} title="Details" /></div><EditResource operation="entity.update" row={row} fixed={{ collection: 'task_policies' }} fields={taskPolicyFields(items(profiles.data))} label="Edit task policy" /></article>)}</AsyncView></Panel> },
   ]} />;
@@ -68,7 +68,8 @@ function taskPolicyFields(profiles: RecordData[]): Field[] {
 }
 
 /** One form that creates the connection, profile, consent and task policies for summaries. */
-function LlmSetup({ descriptors }: { descriptors: RecordData[] }) {
+export function LlmSetup() {
+  const descriptors = items(useResource('providers.descriptors').data);
   const status = useResource('setup.status');
   const client = useQueryClient();
   const ollama = object(status.data?.ollama);
@@ -133,11 +134,92 @@ export function ModelSettings() {
   }}</AsyncView></Panel>;
 }
 
+const modelBytes = (entry: RecordData): number => typeof entry.bytes === 'number' ? entry.bytes : array(entry.files).reduce((total, file) => total + (typeof file.bytes === 'number' ? file.bytes : 0), 0);
+
 function ModelCard({ entry }: { entry: RecordData }) {
+  const license = object(entry.license);
+  return <Panel title={label(entry)} actions={<><Badge>{text(entry.role)}</Badge>{entry.gpu === true && <Badge>GPU</Badge>}{entry.installed === true && <Badge>Installed</Badge>}</>}><dl><dt>Download</dt><dd>{(modelBytes(entry) / 1024 / 1024).toFixed(1)} MiB</dd><dt>License</dt><dd>{text(license.spdx ?? entry.license_spdx, 'Review license details')}</dd><dt>Revision</dt><dd>{text(entry.revision ?? entry.upstream_revision)}</dd></dl>{entry.installed === true ? <ConfirmCommand trigger="Delete" title={`Delete ${label(entry)}?`} message="Loaded models must finish their jobs before removal." operation="catalog.delete" payload={{ id: id(entry), confirmed: true, revision: text(entry.revision) }} /> : <ModelDownload entry={entry} />}</Panel>;
+}
+
+/** License review and download; the engine also switches the model's task to it. */
+function ModelDownload({ entry }: { entry: RecordData }) {
   const [open, setOpen] = useState(false);
   const license = object(entry.license);
-  const bytes = typeof entry.bytes === 'number' ? entry.bytes : array(entry.files).reduce((total, file) => total + (typeof file.bytes === 'number' ? file.bytes : 0), 0);
-  return <Panel title={label(entry)} actions={<><Badge>{text(entry.role)}</Badge>{entry.gpu === true && <Badge>GPU</Badge>}{entry.installed === true && <Badge>Installed</Badge>}</>}><dl><dt>Download</dt><dd>{(bytes / 1024 / 1024).toFixed(1)} MiB</dd><dt>License</dt><dd>{text(license.spdx ?? entry.license_spdx, 'Review license details')}</dd><dt>Revision</dt><dd>{text(entry.revision ?? entry.upstream_revision)}</dd></dl>{entry.installed === true ? <ConfirmCommand trigger="Delete" title={`Delete ${label(entry)}?`} message="Loaded models must finish their jobs before removal." operation="catalog.delete" payload={{ id: id(entry), confirmed: true, revision: text(entry.revision) }} /> : <Modal open={open} onOpenChange={setOpen} trigger={<button>Download…</button>} title={`Download ${label(entry)}`}><Details value={entry} title="Details" /><p className={styles.preWrap}>{text(license.text ?? entry.license_text)}</p><CommandForm operation="catalog.download" fixed={{ id: id(entry), accepted_license: true, accepted_destination: true }} fields={entry.gating && object(entry.gating).required ? [{ name: 'accepted_terms', label: 'I accepted the upstream access terms', type: 'checkbox', value: false }, { name: 'secret_ref', label: 'Hugging Face credential reference' }] : []} submit="Download" confirm="I accept the license above." onSuccess={() => setOpen(false)} /></Modal>}</Panel>;
+  return <Modal open={open} onOpenChange={setOpen} trigger={<button>Download…</button>} title={`Download ${label(entry)}`}><Details value={entry} title="Details" /><p className={styles.preWrap}>{text(license.text ?? entry.license_text)}</p><CommandForm operation="catalog.download" fixed={{ id: id(entry), accepted_license: true, accepted_destination: true }} fields={entry.gating && object(entry.gating).required ? [{ name: 'accepted_terms', label: 'I accepted the upstream access terms', type: 'checkbox', value: false }, { name: 'secret_ref', label: 'Hugging Face credential reference' }] : []} submit="Download" confirm="I accept the license above." onSuccess={() => setOpen(false)} /></Modal>;
+}
+
+function ModelRow({ entry, current }: { entry: RecordData; current: string }) {
+  const installed = entry.installed === true;
+  return <article className={styles.aiRow}><div><strong>{label(entry)}</strong><span>{entry.gpu === true && <Badge>GPU</Badge>} {installed ? 'Installed' : `${(modelBytes(entry) / 1024 / 1024).toFixed(0)} MiB`}</span></div>{id(entry) === current ? <Badge tone="success">In use</Badge> : installed ? <CommandButton operation="catalog.download" payload={{ id: id(entry), accepted_license: true, accepted_destination: true }}>Use</CommandButton> : <ModelDownload entry={entry} />}</article>;
+}
+
+function ModelList({ role, current }: { role: string; current: string }) {
+  const catalog = useResource('catalog.list');
+  return <AsyncView query={catalog}>{(data) => items(data).filter((row) => row.role === role && !row.blocked_reason).sort((a, b) => Number(b.installed === true) - Number(a.installed === true)).map((row) => <ModelRow key={id(row)} entry={row} current={current} />)}</AsyncView>;
+}
+
+const aiRows = [['asr', 'Transcription'], ['diarization', 'Speaker labels'], ['llm', 'Summaries, actions & minutes']] as const;
+
+/** What transcription, speaker labels and summaries currently use, each with a Change button. */
+export function AiSettings() {
+  const status = useResource('setup.status');
+  return <Panel title="Transcription & AI"><AsyncView query={status}>{(data) => aiRows.map(([role, title]) => {
+    const choice = data[role] ? object(data[role]) : null;
+    return <article key={role} className={styles.aiRow}><div><span className={styles.aiTitle}>{title}</span><strong>{choice ? <>{text(choice.label)} <Badge>{choice.gpu === true ? 'GPU' : text(choice.adapter)}</Badge></> : 'Not set up'}</strong></div><Modal trigger={<button>{choice ? 'Change' : 'Set up'}</button>} title={title}>{role === 'llm' ? <LlmSetup /> : <ModelList role={role} current={text(choice?.model_id, '')} />}</Modal></article>;
+  })}</AsyncView></Panel>;
+}
+
+const GET_STARTED = 'get-started';
+
+/** Open state for the Get started dialog; opens itself once on first launch while transcription is unset. */
+export function useGetStarted() {
+  const client = useQueryClient();
+  const setup = useResource('setup.status');
+  const preferences = useNativeResource('native_preferences_get');
+  const [open, setOpen] = useState(false);
+  const shown = text(object(object(preferences.data?.preferences ?? preferences.data).selected_tabs)[GET_STARTED]);
+  useEffect(() => {
+    if (setup.data?.asr_ready !== false || !preferences.isSuccess || shown || !nativeAvailable()) return;
+    setOpen(true);
+    void updatePreferences({ selected_tabs: { [GET_STARTED]: 'shown' } }).then(() => client.invalidateQueries({ queryKey: ['native'] }));
+  }, [setup.data?.asr_ready, preferences.isSuccess]);
+  return [open, setOpen] as const;
+}
+
+function SummarySetup() {
+  const status = useResource('setup.status');
+  const client = useQueryClient();
+  const ollama = object(status.data?.ollama);
+  const models = (Array.isArray(ollama.models) ? ollama.models : []).map((name) => text(name)).filter(Boolean);
+  const [model, setModel] = useState('');
+  const picked = model || models[0] || '';
+  const use = useMutation({ mutationFn: () => request('setup.llm', { adapter: 'ollama', model: picked }), onSuccess: async () => { await client.invalidateQueries({ queryKey: ['engine'] }); } });
+  if (ollama.available !== true || models.length === 0) return <LlmSetup />;
+  return <div className={styles.settingsForm}>
+    {models.length > 1 && <FieldInput field={{ name: 'model', label: 'Model', type: 'select', options: models.map((name) => ({ value: name, label: name })) }} value={picked} onChange={(value) => setModel(text(value))} />}
+    <button type="button" disabled={!nativeAvailable() || use.isPending} onClick={() => use.mutate()}>{use.isPending ? 'Saving…' : `Use Ollama · ${picked}`}</button>
+    {Boolean(use.error) && <ErrorNotice error={use.error} />}
+    {use.isSuccess && <Notice>Summaries are set up.</Notice>}
+  </div>;
+}
+
+/** First-run setup: pick transcription, then summaries. */
+export function GetStarted({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const status = useResource('setup.status');
+  const catalog = useResource('catalog.list');
+  const asr = items(catalog.data).filter((row) => row.role === 'asr' && !row.blocked_reason);
+  const recommended = asr.find((row) => id(row) === 'whisper-large-v3-turbo' && row.gpu === true) ?? asr.find((row) => id(row) === 'parakeet-tdt-v3-int8') ?? asr[0];
+  const current = text(object(status.data?.asr).model_id, '');
+  return <Modal open={open} onOpenChange={onOpenChange} title="Get started">
+    <h3>Transcription</h3>
+    <AsyncView query={catalog}>{() => <>
+      {recommended && <ModelRow entry={recommended} current={current} />}
+      {asr.length > 1 && <FilterDisclosure title="Other models">{asr.filter((row) => row !== recommended).map((row) => <ModelRow key={id(row)} entry={row} current={current} />)}</FilterDisclosure>}
+    </>}</AsyncView>
+    <h3>Summaries</h3>
+    <SummarySetup />
+    <Toolbar>{status.data?.asr_ready !== true && <button type="button" onClick={() => onOpenChange(false)}>Skip for now</button>}<button type="button" onClick={() => onOpenChange(false)}>Done</button></Toolbar>
+  </Modal>;
 }
 
 function ModelArchiveImport({ templates }: { templates: RecordData[] }) {

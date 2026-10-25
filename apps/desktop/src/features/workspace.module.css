@@ -421,6 +421,30 @@
   border-bottom: 1px solid var(--border);
 }
 
+.aiRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.aiRow > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.aiRow span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.aiTitle {
+  font-weight: 650;
+}
+
 .actionRow > div:first-child {
   display: flex;
   flex-direction: column;
