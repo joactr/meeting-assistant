@@ -353,3 +353,4 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
     register("setup.status", lambda p: setup_status(workspace, service))
     register("setup.llm", lambda p: setup_llm(workspace, p))
     register("setup.models", lambda p: setup_models(workspace, service, p))
+    register("secrets.store", lambda p: workspace.store_secret(p["value"]))

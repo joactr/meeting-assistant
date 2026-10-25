@@ -6,6 +6,7 @@ import importlib
 import inspect
 import json
 import os
+import uuid
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -265,8 +266,26 @@ class Workspace(Store):
         return await result if inspect.isawaitable(result) else result
 
     async def resolve_secret(self, ref: str) -> str:
+        local = self._local_secrets().get(ref)
+        if local is not None:
+            return local
         reply = await self.native("vault.resolve", {"secret_ref": ref})
         return str(reply.get("value", reply.get("secret", "")))
+
+    def _local_secrets(self) -> dict[str, str]:
+        # ponytail: plain JSON in the user-only workspace dir; the OS vault caused too many failures.
+        path = self.root / "secrets.json"
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+    def store_secret(self, value: str) -> dict[str, str]:
+        require(bool(value.strip()), "invalid_input", "Enter a value.", status=422)
+        ref = f"credential:{uuid.uuid4()}"
+        secrets = {**self._local_secrets(), ref: value.strip()}
+        path = self.root / "secrets.json"
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(secrets), encoding="utf-8")
+        os.replace(temporary, path)
+        return {"secret_ref": ref}
 
     def check_consent(
         self,

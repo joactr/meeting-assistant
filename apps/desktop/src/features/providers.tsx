@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { nativeAvailable, nativeRequest, request } from '../lib/bridge';
@@ -41,6 +42,14 @@ function profileFields(connections: RecordData[]): Field[] {
 export function SecureSecret({ label: promptLabel, onStored }: { label: string; onStored: (reference: string) => void }) {
   const command = useMutation({ mutationFn: () => nativeRequest('vault_prompt', { secretRef: `credential:${crypto.randomUUID()}`, label: promptLabel }), onSuccess: (result) => { if (result.stored === true) onStored(text(result.secret_ref)); } });
   return <div><button type="button" disabled={!nativeAvailable() || command.isPending} onClick={() => command.mutate()}>{command.isPending ? 'Waiting for secure dialog…' : 'Store credential in native vault…'}</button>{Boolean(command.error) && <ErrorNotice error={command.error} />}</div>;
+}
+
+/** API key field: hidden text with a show toggle; stored by the engine on blur. */
+export function SecretInput({ label: fieldLabel, onStored }: { label: string; onStored: (reference: string) => void }) {
+  const [value, setValue] = useState('');
+  const [shown, setShown] = useState(false);
+  const store = useMutation({ mutationFn: (secret: string) => request('secrets.store', { value: secret }), onSuccess: (result) => onStored(text(result.secret_ref)) });
+  return <label>{fieldLabel}<span className={styles.secret}><input type={shown ? 'text' : 'password'} autoComplete="off" spellCheck={false} value={value} onChange={(event) => setValue(event.target.value)} onBlur={() => { if (value.trim()) store.mutate(value); }} /><button type="button" aria-label={shown ? 'Hide' : 'Show'} onClick={() => setShown(!shown)}>{shown ? <EyeOff size={16} /> : <Eye size={16} />}</button></span>{Boolean(store.error) && <ErrorNotice error={store.error} />}</label>;
 }
 
 export function ProviderSettings() {
@@ -96,7 +105,7 @@ export function LlmSetup() {
     {adapters.length > 0 && <form className={styles.settingsForm} onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>
       <FieldInput field={{ name: 'provider', label: 'Provider', type: 'select', options: adapters.map((value) => ({ value, label: value === 'ollama' && ollama.available === true ? 'ollama (running on this computer)' : value === 'openrouter' ? 'OpenRouter' : value })) }} value={adapter} onChange={(value) => choose(text(value))} />
       {needsEndpoint && <FieldInput field={{ name: 'endpoint', label: 'Endpoint', required: true }} value={endpoint} onChange={(value) => setEndpoint(text(value))} />}
-      {!isOllama && <><SecureSecret label="Provider API key" onStored={setSecretRef} />{secretRef && <Badge>API key stored</Badge>}</>}
+      {!isOllama && <SecretInput label="API key" onStored={setSecretRef} />}
       <FieldInput field={{ name: 'model', label: 'Model', required: true, ...(canList && available.length > 0 ? { suggestions: available.map(id) } : {}) }} value={model} onChange={(value) => setModel(text(value))} />
       {canList && listed.isLoading && <p>Loading models…</p>}
       {canList && Boolean(listed.error) && <ErrorNotice error={listed.error} />}
@@ -117,10 +126,9 @@ function NewConnection({ descriptors }: { descriptors: RecordData[] }) {
   const localRuntime = adapter !== 'ollama' && Array.isArray(schemes) && schemes.every((scheme) => scheme === 'none');
   const defaultAuth = Array.isArray(schemes) ? text(schemes[0], 'none') : 'none';
   const endpointField: Field[] = localRuntime ? [] : [{ name: 'endpoint', label: 'Endpoint / resource URL', required: adapter !== 'ollama', value: adapter === 'ollama' ? 'http://127.0.0.1:11434' : undefined }];
-  return <Modal open={open} onOpenChange={setOpen} trigger={<button>Add connection</button>} title="Choose an inference destination" description="Secrets stay in the native vault. Generic OpenAI-compatible endpoints use Chat Completions rather than assumed Responses/tool APIs.">
+  return <Modal open={open} onOpenChange={setOpen} trigger={<button>Add connection</button>} title="Choose an inference destination" description="Generic OpenAI-compatible endpoints use Chat Completions rather than assumed Responses/tool APIs.">
     <FieldInput field={{ name: 'adapter_id', label: 'Adapter', type: 'select', required: true, options: [{ value: '', label: 'Choose protocol adapter' }, ...descriptors.map((candidate) => ({ value: id(candidate), label: label(candidate) }))] }} value={adapter} onChange={(value) => { setAdapter(text(value)); setSecretRef(''); }} />
-    {adapter && !localRuntime && <SecureSecret label="Provider API credential" onStored={setSecretRef} />}
-    {secretRef && <Badge>Credential stored — opaque reference only</Badge>}
+    {adapter && !localRuntime && <SecretInput key={adapter} label="API key" onStored={setSecretRef} />}
     {adapter && <CommandForm key={adapter} operation="entity.create" fixed={{ collection: 'provider_connections', adapter_id: adapter, secret_ref: secretRef || null, ...(localRuntime ? { endpoint: `local://${adapter}` } : {}) }} fields={[{ name: 'display_name', label: 'Connection name', required: true }, ...endpointField, { name: 'auth_kind', label: 'Authentication protocol', type: 'select', value: defaultAuth, options: ['none', 'bearer', 'api_key', 'entra'].map((value) => ({ value, label: value })), advanced: true }, { name: 'region', label: 'Region (where required)', advanced: true }, { name: 'declared_execution', label: 'Execution location declaration', type: 'select', value: localRuntime ? 'local' : 'unknown', options: [{ value: 'unknown', label: 'Unknown — remote consent required' }, { value: 'local', label: 'This device (verified local runtime)' }, { value: 'remote', label: 'External provider / self-hosted server' }], advanced: true }, { name: 'nonsecret_settings', label: 'Adapter settings (JSON: api_version, destination_fingerprint)', type: 'json', value: {}, advanced: true }]} onSuccess={() => setOpen(false)} />}
   </Modal>;
 }

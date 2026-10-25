@@ -36,7 +36,7 @@ export function AsyncView({ query, children, empty, isEmpty = false }: { query: 
   if (query.isPending) return <div className={styles.loading} role="status">Loading workspace…</div>;
   if (query.isError) return <ErrorNotice error={query.error} retry={() => { void query.refetch(); }} />;
   if (isEmpty) return <>{empty ?? <Empty />}</>;
-  return <div aria-busy={query.isFetching}>{query.isFetching && <span className={styles.refreshing} role="status">Updating…</span>}{children(query.data ?? {})}</div>;
+  return <div>{children(query.data ?? {})}</div>;
 }
 
 export function Modal({ trigger, title, description, children, open, onOpenChange }: { trigger?: ReactNode; title: string; description?: string; children: ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void }) {

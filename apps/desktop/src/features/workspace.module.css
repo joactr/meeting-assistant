@@ -99,6 +99,16 @@
   flex-shrink: 0;
 }
 
+.secret {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.secret input {
+  flex: 1;
+}
+
 .captureActions {
   margin-left: auto;
   display: flex;

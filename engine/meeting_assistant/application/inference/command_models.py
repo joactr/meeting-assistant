@@ -119,6 +119,10 @@ class SetupModels(Value):
     secret_ref: str | None = Field(default=None, min_length=1, max_length=200)
 
 
+class StoreSecret(Value):
+    value: str = Field(min_length=1, max_length=4000)
+
+
 COMMAND_MODELS: dict[str, type[Value]] = {
     "providers.descriptors": Empty,
     "providers.capabilities": Selection,
@@ -135,6 +139,7 @@ COMMAND_MODELS: dict[str, type[Value]] = {
     "setup.status": Empty,
     "setup.llm": SetupLlm,
     "setup.models": SetupModels,
+    "secrets.store": StoreSecret,
 }
 
 

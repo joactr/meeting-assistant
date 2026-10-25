@@ -179,13 +179,6 @@
   }
 }
 
-.refreshing {
-  font-size: 0.74rem;
-  display: block;
-  color: var(--muted);
-  padding-bottom: 0.3rem;
-}
-
 /* ---------- dialog ---------- */
 
 .overlay {

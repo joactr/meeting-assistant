@@ -169,6 +169,7 @@ pub const OPERATION_IDS: &[&str] = &[
     "runtime.prepare",
     "search.query",
     "search.reindex",
+    "secrets.store",
     "settings.get",
     "settings.save",
     "setup.llm",

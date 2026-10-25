@@ -129,6 +129,7 @@
   "runtime.prepare",
   "search.query",
   "search.reindex",
+  "secrets.store",
   "settings.get",
   "settings.save",
   "setup.llm",

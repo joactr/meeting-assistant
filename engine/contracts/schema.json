@@ -23340,6 +23340,22 @@
       "title": "SearchReindexPayload",
       "type": "object"
     },
+    "secrets.store": {
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "StoreSecret",
+      "type": "object"
+    },
     "settings.get": {
       "additionalProperties": true,
       "properties": {
