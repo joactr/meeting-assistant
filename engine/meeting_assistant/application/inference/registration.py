@@ -21,6 +21,7 @@ from .catalog import CatalogService
 from .command_models import COMMAND_MODELS
 from .policies import connection_value, profile_value, resolve_policy
 from .service import InferenceService, maybe_await
+from .setup import provision_local, setup_llm, setup_status
 
 if TYPE_CHECKING:
     from ...workspace import Workspace
@@ -265,6 +266,9 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
             if activated
             else {"id": entry["id"], "revision": entry["revision"], "activated": True},
             "items": activated,
+            "provisioned": provision_local(workspace, entry, runtime["id"], entry["gpu"])
+            if runtime
+            else None,
         }
 
     register("catalog.download", download)
@@ -306,3 +310,6 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
         return {"item": await service.prepare_runtime(p["policy"])}
 
     register("runtime.prepare", prepare)
+
+    register("setup.status", lambda p: setup_status(workspace, service))
+    register("setup.llm", lambda p: setup_llm(workspace, p))

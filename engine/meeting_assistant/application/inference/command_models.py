@@ -105,6 +105,14 @@ class Prepare(Value):
     policy: TaskPolicy | PolicyReference
 
 
+class SetupLlm(Value):
+    adapter: str = Field(min_length=1, max_length=100)
+    endpoint: str | None = Field(default=None, min_length=1, max_length=2000)
+    secret_ref: str | None = Field(default=None, min_length=1, max_length=200)
+    model: str = Field(min_length=1, max_length=200)
+    context_window: int | None = Field(default=None, gt=0)
+
+
 COMMAND_MODELS: dict[str, type[Value]] = {
     "providers.descriptors": Empty,
     "providers.capabilities": Selection,
@@ -118,6 +126,8 @@ COMMAND_MODELS: dict[str, type[Value]] = {
     "catalog.import_model": ImportModel,
     "catalog.delete": Remove,
     "runtime.prepare": Prepare,
+    "setup.status": Empty,
+    "setup.llm": SetupLlm,
 }
 
 

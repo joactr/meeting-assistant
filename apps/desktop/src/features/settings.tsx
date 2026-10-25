@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { nativeAvailable, nativeRequest } from '../lib/bridge';
 import { flushDrafts } from '../lib/drafts';
@@ -8,7 +8,7 @@ import { id, item, items, object, revision, text, type Payload, type RecordData 
 import { accuracyNotice, AsyncView, Badge, CommandForm, ConfirmCommand, Details, Empty, ErrorNotice, FieldInput, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, type Field } from '../components/ui';
 import { AudioMeters } from './capture';
 import { CalendarSettings, IntegrationSettings } from './connections';
-import { ModelSettings, ProviderSettings } from './providers';
+import { ModelSettings, ProviderSettings, settingsTabs } from './providers';
 import { PrivacySettings } from './privacy';
 import styles from './workspace.module.css';
 
@@ -75,16 +75,17 @@ const groups: { id: string; title: string; notice?: string; fields: Field[] }[] 
 const advanced: Record<string, true> = { 'capture.microphone_device_key': true, 'capture.system_device_key': true, 'capture.vad_threshold': true, 'capture.pre_roll_ms': true, 'capture.post_silence_ms': true, 'capture.minimum_true_speech_ms': true, 'capture.maximum_utterance_ms': true, 'recording.byte_cap': true, 'recording.max_import_bytes': true, 'recording.max_import_seconds': true, 'analysis.rolling_summary_seconds': true, 'analysis.checkpoint_seconds': true, 'speakers.match_threshold': true, 'speakers.match_margin': true, 'retrieval.embedding_profile_id': true, 'retrieval.chunk_tokens': true, 'retrieval.overlap_tokens': true, 'jobs.max_concurrent_inference': true, 'jobs.queue_limit': true, 'jobs.worker_startup_seconds': true, 'jobs.pyannote_startup_seconds': true, 'jobs.shutdown_grace_seconds': true };
 
 export function SettingsPage() {
-  return <><PageHeader title="Settings" /><TabSet tabs={[
-    { label: 'Audio', content: <><AudioSettings /><SettingsGroup groupId="capture" /></> },
-    { label: 'Meetings', content: <><SettingsGroup groupId="analysis" /><SettingsGroup groupId="speakers" /><Profiles /><SettingsGroup groupId="retrieval" /><SettingsGroup groupId="exports" /></> },
-    { label: 'AI providers & models', content: <><ProviderSettings /><ModelSettings /></> },
-    { label: 'Calendar & integrations', content: <><CalendarSettings /><IntegrationSettings /></> },
-    { label: 'Privacy & backup', content: <><SettingsGroup groupId="privacy" /><SettingsGroup groupId="recording" /><PrivacySettings /></> },
-    { label: 'App & updates', content: <><WindowSettings /><UpdatesSettings /></> },
-    { label: 'Advanced', content: <>{groups.map((group) => <SettingsGroup key={group.id} groupId={group.id} advancedOnly />)}</> },
-    { label: 'About', content: <About /> },
-  ]} /></>;
+  const panels: Record<string, ReactNode> = {
+    'Audio': <><AudioSettings /><SettingsGroup groupId="capture" /></>,
+    'Meetings': <><SettingsGroup groupId="analysis" /><SettingsGroup groupId="speakers" /><Profiles /><SettingsGroup groupId="retrieval" /><SettingsGroup groupId="exports" /></>,
+    'AI providers & models': <><ModelSettings /><ProviderSettings /></>,
+    'Calendar & integrations': <><CalendarSettings /><IntegrationSettings /></>,
+    'Privacy & backup': <><SettingsGroup groupId="privacy" /><SettingsGroup groupId="recording" /><PrivacySettings /></>,
+    'App & updates': <><WindowSettings /><UpdatesSettings /></>,
+    'Advanced': <>{groups.map((group) => <SettingsGroup key={group.id} groupId={group.id} advancedOnly />)}</>,
+    'About': <About />,
+  };
+  return <><PageHeader title="Settings" /><TabSet tabs={settingsTabs.map((label) => ({ label, content: panels[label] }))} /></>;
 }
 
 const credits = [

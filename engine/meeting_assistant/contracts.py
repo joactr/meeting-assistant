@@ -117,6 +117,7 @@ CORE_REQUIRED = {
     "meetings.update": ("id", "expected_revision"),
     "meetings.delete": ("id", "expected_revision"),
     "meetings.start": ("meeting_id", "idempotency_key"),
+    "meetings.vocabulary_check": ("meeting_id",),
     "meetings.pause": ("meeting_id", "idempotency_key"),
     "meetings.resume": ("meeting_id", "idempotency_key"),
     "meetings.stop": ("meeting_id", "idempotency_key"),

@@ -113,7 +113,11 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             status=422,
         )
         project = p.get("project_id")
-        config = {**w.settings(), **p.get("config", {})}
+        settings = w.settings()
+        analysis = cast(dict[str, Any], settings.get("analysis") or {})
+        if analysis.get("output_language"):
+            settings = {**settings, "output_language": analysis["output_language"]}
+        config = {**settings, **p.get("config", {})}
         if isinstance(config.get("capture"), dict):
             config = {**config, **config["capture"]}
         if isinstance(config.get("recording"), dict):
@@ -263,6 +267,46 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
 
     r["meetings.delete"] = delete_meeting
 
+    async def compile_vocabulary(
+        item: dict[str, Any], acknowledgement: str | None = None
+    ) -> dict[str, Any] | None:
+        policy = item["config_snapshot"].get("asr_policy")
+        if not policy or not getattr(w, "connected", None):
+            return None
+        stored_policy: dict[str, Any] | None = (
+            w.get("task_policies", policy["policy_id"]) if policy.get("policy_id") else {}
+        )
+        profile_id = (
+            policy.get(
+                "model_profile_id",
+                policy.get("profile_id", policy.get("profile", {}).get("id")),
+            )
+            or (stored_policy or {}).get("model_profile_id")
+            or (stored_policy or {}).get("profile_id")
+        )
+        if not profile_id:
+            return None
+        return await w.connected.vocabulary.compile(
+            {
+                "project_id": item.get("project_id"),
+                "profile_id": profile_id,
+                "backend": policy.get("connection", {}).get("adapter"),
+                "capabilities": policy.get("capabilities", {}),
+                "acknowledgement": acknowledgement,
+            }
+        )
+
+    async def vocabulary_check(p: dict[str, Any]) -> dict[str, Any]:
+        vocabulary = await compile_vocabulary(w.require_item("meetings", p["meeting_id"]))
+        if not vocabulary or not vocabulary["omitted"]:
+            return {}
+        return {
+            "acknowledgement_key": vocabulary["acknowledgement_key"],
+            "omitted": vocabulary["omitted"],
+        }
+
+    r["meetings.vocabulary_check"] = vocabulary_check
+
     async def lifecycle(p: dict[str, Any], operation: str) -> dict[str, Any]:
         meeting_id = cast(str, p.get("id", p.get("meeting_id")))
         item = w.require_item("meetings", meeting_id)
@@ -323,43 +367,22 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             )
             assert w.inference is not None
             await w.inference.preflight_asr(item["config_snapshot"]["asr_policy"])
-            if getattr(w, "connected", None):
-                policy = item["config_snapshot"]["asr_policy"]
-                stored_policy: dict[str, Any] | None = (
-                    w.get("task_policies", policy["policy_id"]) if policy.get("policy_id") else {}
+            vocabulary = await compile_vocabulary(item, p.get("vocabulary_acknowledgement"))
+            if vocabulary is not None:
+                require(
+                    not vocabulary.get("acknowledgement_required"),
+                    "vocabulary_acknowledgement_required",
+                    "Review omitted vocabulary terms before capture.",
+                    status=422,
+                    details=vocabulary,
                 )
-                profile_id = (
-                    policy.get(
-                        "model_profile_id",
-                        policy.get("profile_id", policy.get("profile", {}).get("id")),
-                    )
-                    or (stored_policy or {}).get("model_profile_id")
-                    or (stored_policy or {}).get("profile_id")
+                config = {**item["config_snapshot"], "vocabulary": vocabulary}
+                item = w.put(
+                    "meetings",
+                    meeting_id,
+                    {"config_snapshot": config, "policy_hash": fingerprint(config)},
+                    expected_revision=item["revision"],
                 )
-                if profile_id:
-                    vocabulary = await w.connected.vocabulary.compile(
-                        {
-                            "project_id": item.get("project_id"),
-                            "profile_id": profile_id,
-                            "backend": policy.get("connection", {}).get("adapter"),
-                            "capabilities": policy.get("capabilities", {}),
-                            "acknowledgement": p.get("vocabulary_acknowledgement"),
-                        }
-                    )
-                    require(
-                        not vocabulary.get("acknowledgement_required"),
-                        "vocabulary_acknowledgement_required",
-                        "Review omitted vocabulary terms before capture.",
-                        status=422,
-                        details=vocabulary,
-                    )
-                    config = {**item["config_snapshot"], "vocabulary": vocabulary}
-                    item = w.put(
-                        "meetings",
-                        meeting_id,
-                        {"config_snapshot": config, "policy_hash": fingerprint(config)},
-                        expected_revision=item["revision"],
-                    )
             raw_sources: object = p.get("sources", item["config_snapshot"].get("sources", []))
             require(
                 isinstance(raw_sources, list) and bool(cast(list[object], raw_sources)),
@@ -1185,18 +1208,12 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                     **p,
                 }
             )
+        policy: dict[str, Any] | None = p.get("policy") or task_policy(w, task, meeting)
         require(
-            w.inference is not None,
+            w.inference is not None and isinstance(policy, dict) and bool(policy),
             "ai_unconfigured",
             "Choose and consent to an AI provider before generation. Deterministic exports remain available.",
             status=503,
-        )
-        policy: dict[str, Any] | None = p.get("policy") or task_policy(w, task, meeting)
-        require(
-            isinstance(policy, dict) and bool(policy),
-            "policy_required",
-            "Choose a task model policy before generation.",
-            status=422,
         )
         job = w.queue_job(
             "analysis",

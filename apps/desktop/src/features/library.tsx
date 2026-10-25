@@ -7,6 +7,7 @@ import { date, id, item, items, label, text, when, type Payload } from '../lib/d
 import { AsyncView, Badge, CommandButton, CommandForm, Details, Empty, ErrorNotice, FieldInput, Modal, Notice, PageHeader, Panel, TabSet, Toolbar } from '../components/ui';
 import { VirtualList } from '../components/virtual-list';
 import { PrepareEvent } from './connections';
+import { SetupLink } from './providers';
 import styles from './workspace.module.css';
 
 export function NewMeeting({ trigger = 'New meeting' }: { trigger?: ReactNode }) {
@@ -18,7 +19,7 @@ export function NewMeeting({ trigger = 'New meeting' }: { trigger?: ReactNode })
     { name: 'title', label: 'Meeting name', required: true },
     { name: 'project_id', label: 'Project', type: 'select', options: [{ value: '', label: 'No project' }, ...items(projects.data).map((row) => ({ value: id(row), label: label(row) }))] },
     { name: 'template_id', label: 'Template', type: 'select', value: 'general', options: items(templates.data).map((row) => ({ value: id(row), label: label(row) })) },
-    { name: 'source', label: 'Capture sources', type: 'select', value: 'both', options: [{ value: 'both', label: 'Microphone + system audio' }, { value: 'mic', label: 'Microphone only' }, { value: 'system', label: 'System audio only' }] },
+    { name: 'source', label: 'Capture sources', type: 'select', value: 'mic', options: [{ value: 'mic', label: 'Microphone only' }, { value: 'both', label: 'Microphone + system audio' }, { value: 'system', label: 'System audio only' }] },
     { name: 'pre_briefing', label: 'Human agenda / preparation', type: 'textarea' },
   ]} mapPayload={(payload) => { const { pre_briefing, ...meeting } = payload; return { ...meeting, config: { human_agenda: pre_briefing ?? '' } }; }} submit="Create preparation" onSuccess={(result) => { const meeting = item(result); setOpen(false); void navigate({ to: '/meeting/$meetingId', params: { meetingId: id(meeting) } }); }} /></Modal>;
 }
@@ -63,7 +64,8 @@ export function LibraryPage() {
   const payload: Payload = { limit: 100, ...(project ? { project_id: project } : {}), ...(status ? { state: status } : {}), ...(fromDate ? { from_date: fromDate } : {}), ...(cursor ? { cursor } : {}) };
   const query = useResource('meetings.list', payload);
   const reset = (): void => { setCursor(null); setPrevious([]); };
-  return <><PageHeader title="Meeting library"><ImportMeeting /></PageHeader><TabSet tabs={[
+  const setup = useResource('setup.status');
+  return <><PageHeader title="Meeting library"><ImportMeeting /></PageHeader>{setup.data?.asr_ready === false && <Empty title="Transcription isn't set up yet"><SetupLink>Set up transcription</SetupLink></Empty>}<TabSet tabs={[
     { label: 'Meetings', content: <div><div className={styles.filters}><FieldInput field={{ name: 'project', label: 'Project', type: 'select', options: [{ value: '', label: 'All projects' }, ...items(projects.data).map((row) => ({ value: id(row), label: label(row) }))] }} value={project} onChange={(value) => { setProject(text(value)); reset(); }} /><FieldInput field={{ name: 'status', label: 'Status', type: 'select', options: ['', 'draft', 'recording', 'paused', 'processing', 'complete', 'interrupted', 'attention_required'].map((value) => ({ value, label: value.replaceAll('_', ' ') || 'All statuses' })) }} value={status} onChange={(value) => { setStatus(text(value)); reset(); }} /><FieldInput field={{ name: 'from', label: 'From date', type: 'date' }} value={fromDate} onChange={(value) => { setFromDate(text(value)); reset(); }} /></div><AsyncView query={query}>{(data) => { const rows = items(data); return rows.length === 0 ? <Empty title="No meetings yet" /> : <><div className={styles.tableHeader}><span>Meeting</span><span>Last updated</span></div><VirtualList rows={rows} label="Meeting history" render={(row) => <article className={styles.listRow}><div><Link className={styles.meetingTitle} to="/meeting/$meetingId" params={{ meetingId: id(row) }}>{label(row)}</Link><p>{text(items(projects.data).find((p) => id(p) === row.project_id)?.name, 'No project')} · {when(row.started_at ?? row.created_at)}</p></div><div>{row.state !== 'complete' && <Badge tone={row.state === 'interrupted' || row.state === 'attention_required' ? 'warning' : row.state === 'recording' ? 'success' : 'neutral'}>{text(row.state ?? row.status, 'draft').replaceAll('_', ' ')}</Badge>}<p>{when(row.updated_at ?? row.created_at)}</p></div></article>} /><Toolbar><button disabled={previous.length === 0} onClick={() => { setCursor(previous[previous.length - 1] ?? null); setPrevious((current) => current.slice(0, -1)); }}>Previous page</button><button disabled={!data.next_cursor} onClick={() => { setPrevious((current) => [...current, cursor]); setCursor(text(data.next_cursor)); }}>Next page</button><small>{rows.length} meetings</small></Toolbar></>; }}</AsyncView></div> },
     { label: 'Upcoming', content: <Upcoming /> },
     { label: 'Attention', content: <AttentionQueue /> },
