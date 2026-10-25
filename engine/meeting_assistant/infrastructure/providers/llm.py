@@ -229,7 +229,7 @@ class NativeLLM:
                     }
                 }
             path = "/responses"
-        elif adapter in {"openai-compatible", "azure-openai"}:
+        elif adapter in {"openai-compatible", "openrouter", "azure-openai"}:
             body = {
                 "model": model,
                 "messages": [{"role": "system", "content": request.system_text}, *request.messages],
@@ -404,7 +404,7 @@ class NativeLLM:
                     truncated=kind != "response.completed",
                     status=response.get("status"),
                 )
-        elif adapter in {"openai-compatible", "azure-openai"}:
+        elif adapter in {"openai-compatible", "openrouter", "azure-openai"}:
             if frame.get("usage"):
                 add("usage", **frame["usage"])
             for choice in frame.get("choices", []):

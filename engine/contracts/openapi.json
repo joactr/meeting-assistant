@@ -32583,6 +32583,114 @@
         ]
       }
     },
+    "/api/v1/commands/setup.models": {
+      "post": {
+        "operationId": "setup.models",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "adapter": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "title": "Adapter",
+                    "type": "string"
+                  },
+                  "endpoint": {
+                    "anyOf": [
+                      {
+                        "maxLength": 2000,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Endpoint"
+                  },
+                  "secret_ref": {
+                    "anyOf": [
+                      {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Secret Ref"
+                  }
+                },
+                "required": [
+                  "adapter"
+                ],
+                "title": "SetupModels",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Committed application response"
+          },
+          "202": {
+            "description": "Durable job accepted"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "title": "Code",
+                      "type": "string"
+                    },
+                    "details": {
+                      "default": null,
+                      "title": "Details"
+                    },
+                    "message": {
+                      "title": "Message",
+                      "type": "string"
+                    },
+                    "retryable": {
+                      "title": "Retryable",
+                      "type": "boolean"
+                    },
+                    "trace_id": {
+                      "title": "Trace Id",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retryable",
+                    "trace_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "State, revision or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/commands/setup.status": {
       "post": {
         "operationId": "setup.status",

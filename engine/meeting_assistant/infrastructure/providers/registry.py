@@ -42,6 +42,11 @@ DESCRIPTORS: list[_Descriptor] = [
         "documentation_url": "https://platform.openai.com/docs/api-reference/chat",
     },
     {
+        "id": "openrouter",
+        "roles": ["llm"],
+        "documentation_url": "https://openrouter.ai/docs/api-reference/chat-completion",
+    },
+    {
         "id": "azure-openai",
         "roles": ["llm", "embeddings"],
         "documentation_url": "https://learn.microsoft.com/azure/ai-foundry/openai/reference",
@@ -122,7 +127,8 @@ def descriptors() -> list[dict[str, Any]]:
             else ["api_key", "bearer"],
             "settings_schema": Connection.model_json_schema(),
             "model_discovery": {
-                "supported": item["id"] in {"openai", "openai-compatible", "ollama", "gemini"},
+                "supported": item["id"]
+                in {"openai", "openai-compatible", "openrouter", "ollama", "gemini"},
                 "manual_allowed": True,
             },
         }
@@ -163,7 +169,15 @@ def resolve_capabilities(connection: Connection, profile: ModelProfile) -> Capab
         values["execution"] = "remote"
     if adapter == "ollama" and not options.get("execution_confirmed", False):
         values["execution"] = "unknown"
-    if adapter in {"openai", "openai-compatible", "azure-openai", "anthropic", "gemini", "ollama"}:
+    if adapter in {
+        "openai",
+        "openai-compatible",
+        "openrouter",
+        "azure-openai",
+        "anthropic",
+        "gemini",
+        "ollama",
+    }:
         values.update(
             streaming={"native": True, "interim": True, "revisions": False},
             structured_output={
@@ -380,7 +394,13 @@ class ProviderRegistry:
         profile = ModelProfile(id="discovery", model="discovery", revision="discovery")
         llm = self.resolve(connection, profile, secret)
         path = "/api/tags" if connection.adapter == "ollama" else "/models"
-        if connection.adapter not in {"openai", "openai-compatible", "ollama", "gemini"}:
+        if connection.adapter not in {
+            "openai",
+            "openai-compatible",
+            "openrouter",
+            "ollama",
+            "gemini",
+        }:
             raise ProviderError(
                 "unsupported",
                 "Model discovery is not supplied by this adapter; enter the actual model/deployment",

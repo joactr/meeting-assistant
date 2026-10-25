@@ -1,10 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { nativeAvailable, nativeRequest, request } from '../lib/bridge';
 import { useNativeResource, useResource } from '../lib/queries';
 import { updatePreferences } from '../lib/preferences';
-import { array, id, item, items, label, object, revision, text, type RecordData } from '../lib/data';
+import { array, id, item, items, label, number, object, revision, text, type RecordData } from '../lib/data';
 import { AsyncView, Badge, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, ErrorNotice, FieldInput, Grid, Modal, Notice, Panel, TabSet, Toolbar, type Field } from '../components/ui';
 import { FilterDisclosure } from '../components/controls';
 import styles from './workspace.module.css';
@@ -73,7 +73,6 @@ export function LlmSetup() {
   const status = useResource('setup.status');
   const client = useQueryClient();
   const ollama = object(status.data?.ollama);
-  const models = (Array.isArray(ollama.models) ? ollama.models : []).map((name) => text(name)).filter(Boolean);
   const adapters = descriptors.filter((descriptor) => Array.isArray(descriptor.roles) && descriptor.roles.includes('llm')).map(id).sort((a, b) => Number(b === 'ollama') - Number(a === 'ollama'));
   const [choice, setChoice] = useState('');
   const [model, setModel] = useState('');
@@ -83,7 +82,11 @@ export function LlmSetup() {
   const adapter = choice || (ollama.available === true ? 'ollama' : adapters.find((candidate) => candidate !== 'ollama') ?? 'ollama');
   const isOllama = adapter === 'ollama';
   const needsEndpoint = adapter === 'openai-compatible' || adapter === 'azure-openai';
-  const windowValue = contextWindow ?? (isOllama ? '' : '128000');
+  const canList = isOllama || Boolean(secretRef && (adapter === 'openrouter' || adapter === 'openai' || (adapter === 'openai-compatible' && endpoint)));
+  const listed = useResource('setup.models', { adapter, ...(needsEndpoint && endpoint ? { endpoint } : {}), ...(!isOllama && secretRef ? { secret_ref: secretRef } : {}) }, canList);
+  const available = items(listed.data);
+  const picked = available.find((row) => id(row) === model)?.context_length;
+  const windowValue = contextWindow ?? (typeof picked === 'number' ? String(picked) : isOllama ? '' : '128000');
   const save = useMutation({
     mutationFn: () => request('setup.llm', { adapter, model, ...(needsEndpoint ? { endpoint } : {}), ...(!isOllama && secretRef ? { secret_ref: secretRef } : {}), ...(windowValue ? { context_window: Number(windowValue) } : {}) }),
     onSuccess: async () => { await client.invalidateQueries({ queryKey: ['engine'] }); },
@@ -91,10 +94,12 @@ export function LlmSetup() {
   const choose = (value: string): void => { setChoice(value); setModel(''); setEndpoint(''); setSecretRef(''); setContextWindow(null); save.reset(); };
   return <Panel title="AI for summaries" actions={status.data?.llm_ready === true ? <Badge tone="success">Ready</Badge> : undefined}>
     {adapters.length > 0 && <form className={styles.settingsForm} onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>
-      <FieldInput field={{ name: 'provider', label: 'Provider', type: 'select', options: adapters.map((value) => ({ value, label: value === 'ollama' && ollama.available === true ? 'ollama (running on this computer)' : value })) }} value={adapter} onChange={(value) => choose(text(value))} />
+      <FieldInput field={{ name: 'provider', label: 'Provider', type: 'select', options: adapters.map((value) => ({ value, label: value === 'ollama' && ollama.available === true ? 'ollama (running on this computer)' : value === 'openrouter' ? 'OpenRouter' : value })) }} value={adapter} onChange={(value) => choose(text(value))} />
       {needsEndpoint && <FieldInput field={{ name: 'endpoint', label: 'Endpoint', required: true }} value={endpoint} onChange={(value) => setEndpoint(text(value))} />}
       {!isOllama && <><SecureSecret label="Provider API key" onStored={setSecretRef} />{secretRef && <Badge>API key stored</Badge>}</>}
-      <FieldInput field={isOllama && models.length > 0 ? { name: 'model', label: 'Model', type: 'select', required: true, options: [{ value: '', label: 'Choose a model' }, ...models.map((name) => ({ value: name, label: name }))] } : { name: 'model', label: 'Model', required: true }} value={model} onChange={(value) => setModel(text(value))} />
+      <FieldInput field={{ name: 'model', label: 'Model', required: true, ...(canList && available.length > 0 ? { suggestions: available.map(id) } : {}) }} value={model} onChange={(value) => setModel(text(value))} />
+      {canList && listed.isLoading && <p>Loading models…</p>}
+      {canList && Boolean(listed.error) && <ErrorNotice error={listed.error} />}
       <FilterDisclosure title="Advanced"><FieldInput field={{ name: 'context_window', label: 'Context window (tokens)', type: 'number', min: 1 }} value={windowValue} onChange={(value) => setContextWindow(text(value))} /></FilterDisclosure>
       {Boolean(save.error) && <ErrorNotice error={save.error} />}
       {save.isSuccess && <Notice>AI for summaries is set up.</Notice>}
@@ -125,8 +130,24 @@ function ConnectionTest({ connection, profiles }: { connection: RecordData; prof
   return <Modal trigger={<button>Test / capabilities…</button>} title="Real connection test" description="This makes a small request to the reviewed destination. It does not send meeting history. Review/grant connection_test consent to this endpoint first if remote."><p>Destination: {text(connection.endpoint, 'Selected local runtime')}</p><CommandForm operation="providers.test" fixed={{ connection_id: id(connection) }} fields={[{ name: 'profile_id', label: 'Model profile to test', type: 'select', required: true, options: [{ value: '', label: 'Choose model profile' }, ...profiles.filter((profile) => profile.connection_id === id(connection)).map((profile) => ({ value: id(profile), label: label(profile) }))] }]} submit="Run actual connection test" confirm="I authorize this small outbound connection test to the displayed destination." onSuccess={(data) => setResult(item(data))} />{result && <Details value={result} title="Details" />}</Modal>;
 }
 
+const downloading = (entry: RecordData): boolean => ['downloading', 'extracting'].includes(text(object(entry.download).state));
+const mib = (bytes: number): string => (bytes / 1024 / 1024).toFixed(0);
+
+/** catalog.list, refreshed every second while a download runs and everything else once it ends. */
+function useCatalog() {
+  const client = useQueryClient();
+  const query = useResource('catalog.list', {}, true, (data) => items(data).some(downloading));
+  const busy = items(query.data).some(downloading);
+  const wasBusy = useRef(false);
+  useEffect(() => {
+    if (wasBusy.current && !busy) void client.invalidateQueries({ queryKey: ['engine'] });
+    wasBusy.current = busy;
+  }, [busy]);
+  return query;
+}
+
 export function ModelSettings() {
-  const catalog = useResource('catalog.list');
+  const catalog = useCatalog();
   return <Panel title="Models & runtime" actions={<ModelArchiveImport templates={items(catalog.data)} />}><AsyncView query={catalog}>{(data) => {
     // Runtimes are fetched with their model; source descriptors can't be downloaded.
     const visible = items(data).filter((row) => row.role !== 'runtime' && !row.blocked_reason);
@@ -143,6 +164,14 @@ function ModelCard({ entry }: { entry: RecordData }) {
 
 /** License review and download; the engine also switches the model's task to it. */
 function ModelDownload({ entry }: { entry: RecordData }) {
+  const download = object(entry.download);
+  const done = number(download.done);
+  const total = number(download.total);
+  if (downloading(entry)) return <span><progress value={done} max={total} /> <small>{download.state === 'extracting' ? 'Installing…' : `${Math.round(done / total * 100)}%  ·  ${mib(done)}/${mib(total)} MiB`}</small></span>;
+  return <>{download.state === 'failed' && <Notice danger>{text(download.error, 'Download failed')}</Notice>}<ModelDownloadDialog entry={entry} /></>;
+}
+
+function ModelDownloadDialog({ entry }: { entry: RecordData }) {
   const [open, setOpen] = useState(false);
   const license = object(entry.license);
   return <Modal open={open} onOpenChange={setOpen} trigger={<button>Download…</button>} title={`Download ${label(entry)}`}><Details value={entry} title="Details" /><p className={styles.preWrap}>{text(license.text ?? entry.license_text)}</p><CommandForm operation="catalog.download" fixed={{ id: id(entry), accepted_license: true, accepted_destination: true }} fields={entry.gating && object(entry.gating).required ? [{ name: 'accepted_terms', label: 'I accepted the upstream access terms', type: 'checkbox', value: false }, { name: 'secret_ref', label: 'Hugging Face credential reference' }] : []} submit="Download" confirm="I accept the license above." onSuccess={() => setOpen(false)} /></Modal>;
@@ -154,7 +183,7 @@ function ModelRow({ entry, current }: { entry: RecordData; current: string }) {
 }
 
 function ModelList({ role, current }: { role: string; current: string }) {
-  const catalog = useResource('catalog.list');
+  const catalog = useCatalog();
   return <AsyncView query={catalog}>{(data) => items(data).filter((row) => row.role === role && !row.blocked_reason).sort((a, b) => Number(b.installed === true) - Number(a.installed === true)).map((row) => <ModelRow key={id(row)} entry={row} current={current} />)}</AsyncView>;
 }
 
@@ -206,7 +235,7 @@ function SummarySetup() {
 /** First-run setup: pick transcription, then summaries. */
 export function GetStarted({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const status = useResource('setup.status');
-  const catalog = useResource('catalog.list');
+  const catalog = useCatalog();
   const asr = items(catalog.data).filter((row) => row.role === 'asr' && !row.blocked_reason);
   const recommended = asr.find((row) => id(row) === 'whisper-large-v3-turbo' && row.gpu === true) ?? asr.find((row) => id(row) === 'parakeet-tdt-v3-int8') ?? asr[0];
   const current = text(object(status.data?.asr).model_id, '');

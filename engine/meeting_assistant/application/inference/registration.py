@@ -21,7 +21,7 @@ from .catalog import CatalogService
 from .command_models import COMMAND_MODELS
 from .policies import connection_value, profile_value, resolve_policy
 from .service import InferenceService, maybe_await
-from .setup import provision_local, setup_llm, setup_status
+from .setup import provision_local, setup_llm, setup_models, setup_status
 
 if TYPE_CHECKING:
     from ...workspace import Workspace
@@ -192,6 +192,9 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
         },
     )
 
+    downloads: dict[str, dict[str, Any]] = {}  # catalog id -> in-flight/failed download state
+    background: set[asyncio.Task[None]] = set()  # strong refs so tasks aren't collected mid-run
+
     def installed(entry: dict[str, Any]) -> bool:
         return (
             bool(entry.get("revision"))
@@ -236,6 +239,9 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
             entry["runtime_id"] = runtime["id"] if runtime else None
             entry["gpu"] = bool(runtime and "host_check" in runtime)
             entry["installed"] = installed(entry) and (runtime is None or installed(runtime))
+        for entry in entries:
+            if entry["id"] in downloads:
+                entry["download"] = dict(downloads[entry["id"]])
         return entries
 
     async def catalog_list(p: dict[str, Any]) -> dict[str, Any]:
@@ -248,28 +254,61 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
         by_id = {entry["id"]: entry for entry in await annotated()}
         entry = by_id[catalog.entry(p["id"])["id"]]
         runtime = by_id.get(entry.get("runtime_id") or "")
-        activated: list[dict[str, Any]] = []
-        for wanted in [entry] + ([runtime] if runtime else []):
-            if installed(wanted):
-                continue
-            item = await catalog.download(
-                wanted["id"],
-                accepted_license=p.get("accepted_license", False),
-                accepted_destination=p.get("accepted_destination", False),
-                accepted_terms=p.get("accepted_terms", False),
-                token=token,
-            )
-            workspace.emit("catalog.activated", {"id": item["id"], "revision": item["revision"]})
-            activated.append(item)
-        return {
-            "item": activated[0]
-            if activated
-            else {"id": entry["id"], "revision": entry["revision"], "activated": True},
-            "items": activated,
-            "provisioned": provision_local(workspace, entry, runtime["id"], entry["gpu"])
-            if runtime
-            else None,
+        ids = [entry["id"]] + ([runtime["id"]] if runtime else [])
+        needed = [by_id[i] for i in ids if not installed(by_id[i])]
+        consent: dict[str, Any] = {
+            "accepted_license": p.get("accepted_license", False),
+            "accepted_destination": p.get("accepted_destination", False),
+            "accepted_terms": p.get("accepted_terms", False),
+            "token": token,
         }
+        for wanted in needed:
+            catalog.check(wanted["id"], **consent)
+        if not needed:
+            return {
+                "item": {"id": entry["id"], "revision": entry["revision"], "activated": True},
+                "items": [],
+                "provisioned": provision_local(workspace, entry, runtime["id"], entry["gpu"])
+                if runtime
+                else None,
+            }
+        if any(i in downloads and downloads[i]["state"] != "failed" for i in ids):
+            raise ProviderError("invalid_input", "This model is already downloading")
+        state: dict[str, Any] = {
+            "state": "downloading",
+            "done": 0,
+            "total": sum(f["bytes"] for wanted in needed for f in wanted["files"]),
+            "error": None,
+        }
+        downloads.update(dict.fromkeys(ids, state))
+
+        async def run() -> None:
+            offset = 0
+            try:
+                for wanted in needed:
+
+                    def progress(done: int, total: int, offset: int = offset) -> None:
+                        state["done"] = offset + done
+                        if state["done"] >= state["total"]:
+                            state["state"] = "extracting"
+
+                    item = await catalog.download(wanted["id"], progress=progress, **consent)
+                    offset += sum(f["bytes"] for f in wanted["files"])
+                    workspace.emit(
+                        "catalog.activated", {"id": item["id"], "revision": item["revision"]}
+                    )
+                if runtime:
+                    provision_local(workspace, entry, runtime["id"], entry["gpu"])
+            except (AppError, ProviderError) as error:
+                state.update(state="failed", error=error.message)
+            else:
+                for i in ids:
+                    downloads.pop(i, None)
+
+        task = asyncio.create_task(run())
+        background.add(task)
+        task.add_done_callback(background.discard)
+        return {"started": True, "id": entry["id"]}
 
     register("catalog.download", download)
 
@@ -313,3 +352,4 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
 
     register("setup.status", lambda p: setup_status(workspace, service))
     register("setup.llm", lambda p: setup_llm(workspace, p))
+    register("setup.models", lambda p: setup_models(workspace, service, p))

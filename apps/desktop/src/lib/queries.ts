@@ -2,13 +2,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { nativeAvailable, nativeRequest, request } from './bridge';
 import { items, type Payload, type RecordData } from './data';
 
-export function useResource(operationId: string, payload: Payload = {}, enabled = true) {
+/** `poll` returning true refetches every second, for resources an engine task updates in place. */
+export function useResource(operationId: string, payload: Payload = {}, enabled = true, poll?: (data: RecordData | undefined) => boolean) {
   return useQuery({
     queryKey: ['engine', operationId, payload],
     queryFn: () => request(operationId, payload),
     enabled: enabled && nativeAvailable(),
     staleTime: 10_000,
     retry: false,
+    refetchInterval: (query) => poll?.(query.state.data) ? 1000 : false,
   });
 }
 

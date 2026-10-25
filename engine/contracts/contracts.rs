@@ -172,6 +172,7 @@ pub const OPERATION_IDS: &[&str] = &[
     "settings.get",
     "settings.save",
     "setup.llm",
+    "setup.models",
     "setup.status",
     "shutdown.cancel",
     "shutdown.commit",

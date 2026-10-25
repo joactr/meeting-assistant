@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
+import httpx
+
 from ...domain.model import new_id, now_ms
 from ...infrastructure.providers.contracts import Connection, ModelProfile, ProviderError
 from ...infrastructure.providers.registry import DESCRIPTORS, resolve_capabilities
@@ -17,6 +19,12 @@ if TYPE_CHECKING:
     from ...workspace import Workspace
 
 OLLAMA = "http://127.0.0.1:11434"
+FIXED_ENDPOINTS = {
+    "ollama": OLLAMA,
+    "openrouter": "https://openrouter.ai/api/v1",
+    "openai": "https://api.openai.com/v1",
+}
+BEARER_LISTING = {"openai", "openrouter", "openai-compatible"}
 LOCAL_ROLES = ("asr", "diarization", "embeddings")
 ADAPTERS = {family: adapter for adapter, family in FAMILIES.items()}
 
@@ -115,11 +123,60 @@ async def setup_status(w: Workspace, service: InferenceService) -> dict[str, Any
     }
 
 
+async def setup_models(
+    w: Workspace, service: InferenceService, p: dict[str, Any]
+) -> dict[str, list[dict[str, Any]]]:
+    """List the models a provider offers: [{id, name?, context_length?}]. Unsupported adapters list none."""
+    adapter = p["adapter"]
+    if adapter != "ollama" and adapter not in BEARER_LISTING:
+        return {"items": []}
+    base = (
+        FIXED_ENDPOINTS["openrouter"]
+        if adapter == "openrouter"
+        else p.get("endpoint") or FIXED_ENDPOINTS.get(adapter)
+    )
+    if not base:
+        raise ProviderError("invalid_input", "This provider needs an endpoint")
+    headers: dict[str, str] = {}
+    if adapter != "ollama":
+        if not p.get("secret_ref"):
+            raise ProviderError("invalid_input", "Store an API key to list models")
+        headers["Authorization"] = f"Bearer {await w.resolve_secret(p['secret_ref'])}"
+    url = base.rstrip("/") + ("/api/tags" if adapter == "ollama" else "/models")
+    try:
+        response = await service.registry.client.get(url, headers=headers, timeout=10.0)
+        response.raise_for_status()
+        body: dict[str, Any] = response.json()
+    except httpx.HTTPStatusError as exc:
+        code = "invalid_input" if exc.response.status_code in (401, 403) else "unavailable"
+        raise ProviderError(
+            code, f"Provider refused the model list ({exc.response.status_code})"
+        ) from exc
+    except (httpx.HTTPError, ValueError) as exc:
+        raise ProviderError("unavailable", "Could not reach the provider to list models") from exc
+    rows: list[dict[str, Any]] = body.get("models" if adapter == "ollama" else "data") or []
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):  # pyright: ignore[reportUnnecessaryIsInstance]
+            continue
+        model_id = row.get("name" if adapter == "ollama" else "id")
+        if not isinstance(model_id, str) or not model_id:
+            continue
+        item: dict[str, Any] = {"id": model_id}
+        if isinstance(row.get("name"), str) and adapter != "ollama":
+            item["name"] = row["name"]
+        if isinstance(row.get("context_length"), int):
+            item["context_length"] = row["context_length"]
+        items.append(item)
+    return {"items": items}
+
+
 def setup_llm(w: Workspace, p: dict[str, Any]) -> dict[str, Any]:
     adapter = p["adapter"]
     if not any(d["id"] == adapter and "llm" in d["roles"] for d in DESCRIPTORS):
         raise ProviderError("invalid_input", "Choose a supported AI provider")
-    endpoint = p.get("endpoint") or (OLLAMA if adapter == "ollama" else None)
+    endpoint = FIXED_ENDPOINTS.get(adapter) if adapter == "openrouter" else None
+    endpoint = endpoint or p.get("endpoint") or FIXED_ENDPOINTS.get(adapter)
     if not endpoint:
         raise ProviderError("invalid_input", "This provider needs an endpoint")
     loopback = urlparse(endpoint).hostname in ("127.0.0.1", "localhost", "::1")

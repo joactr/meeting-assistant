@@ -113,6 +113,12 @@ class SetupLlm(Value):
     context_window: int | None = Field(default=None, gt=0)
 
 
+class SetupModels(Value):
+    adapter: str = Field(min_length=1, max_length=100)
+    endpoint: str | None = Field(default=None, min_length=1, max_length=2000)
+    secret_ref: str | None = Field(default=None, min_length=1, max_length=200)
+
+
 COMMAND_MODELS: dict[str, type[Value]] = {
     "providers.descriptors": Empty,
     "providers.capabilities": Selection,
@@ -128,6 +134,7 @@ COMMAND_MODELS: dict[str, type[Value]] = {
     "runtime.prepare": Prepare,
     "setup.status": Empty,
     "setup.llm": SetupLlm,
+    "setup.models": SetupModels,
 }
 
 

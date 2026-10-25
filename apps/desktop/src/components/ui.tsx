@@ -78,12 +78,14 @@ export interface Field {
   min?: number;
   max?: number;
   advanced?: boolean;
+  /** Free-text suggestions shown as a native datalist. */
+  suggestions?: string[];
 }
 
 export function FieldInput({ field, value, onChange }: { field: Field; value: Json; onChange: (value: Json) => void }) {
   const inputId = useId();
-  const props = { id: inputId, name: field.name, required: field.required };
-  return <div className={styles.field}><label htmlFor={inputId}>{field.label}{field.required && <span aria-hidden="true"> *</span>}</label>{field.type === 'checkbox' ? <input {...props} type="checkbox" checked={value === true || value === 1} onChange={(event) => onChange(event.target.checked)} /> : field.type === 'select' ? <select {...props} value={text(value)} onChange={(event) => onChange(event.target.value)}>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : field.type === 'textarea' || field.type === 'json' ? <textarea {...props} rows={field.type === 'json' ? 7 : 3} spellCheck={field.type !== 'json'} value={text(value)} onChange={(event) => onChange(event.target.value)} /> : <input {...props} type={field.type ?? 'text'} step={field.type === 'number' ? 'any' : undefined} min={field.min} max={field.max} value={text(value)} onChange={(event) => onChange(field.type === 'number' && event.target.value !== '' ? Number(event.target.value) : event.target.value)} />}</div>;
+  const props = { id: inputId, name: field.name, required: field.required, list: field.suggestions ? `${inputId}-list` : undefined };
+  return <div className={styles.field}><label htmlFor={inputId}>{field.label}{field.required && <span aria-hidden="true"> *</span>}</label>{field.type === 'checkbox' ? <input {...props} type="checkbox" checked={value === true || value === 1} onChange={(event) => onChange(event.target.checked)} /> : field.type === 'select' ? <select {...props} value={text(value)} onChange={(event) => onChange(event.target.value)}>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select> : field.type === 'textarea' || field.type === 'json' ? <textarea {...props} rows={field.type === 'json' ? 7 : 3} spellCheck={field.type !== 'json'} value={text(value)} onChange={(event) => onChange(event.target.value)} /> : <input {...props} type={field.type ?? 'text'} step={field.type === 'number' ? 'any' : undefined} min={field.min} max={field.max} value={text(value)} onChange={(event) => onChange(field.type === 'number' && event.target.value !== '' ? Number(event.target.value) : event.target.value)} />}{field.suggestions && <datalist id={`${inputId}-list`}>{field.suggestions.map((name) => <option key={name} value={name} />)}</datalist>}</div>;
 }
 
 export function CommandForm({ operation, fields, fixed = {}, submit = 'Save changes', onSuccess, confirm, children, mapPayload }: { operation: string; fields: Field[]; fixed?: Payload; submit?: string; onSuccess?: (result: RecordData) => void; confirm?: string; children?: ReactNode; mapPayload?: (payload: Payload) => Payload }) {

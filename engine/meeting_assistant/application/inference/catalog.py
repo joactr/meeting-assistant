@@ -41,6 +41,11 @@ def safe_member(name: str) -> Path:
     return Path(*value.parts)
 
 
+def _sha256(path: Path) -> str:
+    with path.open("rb") as source:
+        return hashlib.file_digest(source, "sha256").hexdigest()
+
+
 def extract_verified(
     archive: Path, destination: Path, *, expanded_limit: int, max_files: int = 200000
 ) -> None:
@@ -305,7 +310,7 @@ class CatalogService:
             if staging.exists():
                 shutil.rmtree(staging)
 
-    async def download(
+    def check(
         self,
         identity: str,
         *,
@@ -313,8 +318,8 @@ class CatalogService:
         accepted_destination: bool,
         accepted_terms: bool = False,
         token: str | None = None,
-        cancelled: asyncio.Event | None = None,
     ) -> dict[str, Any]:
+        """Validate that this entry may be acquired now; returns the catalog entry."""
         entry = self.entry(identity)
         if entry.get("trust") == "user-supplied-unreviewed":
             raise ProviderError(
@@ -336,12 +341,32 @@ class CatalogService:
             raise ProviderError(
                 "auth", "This gated model requires the user's accepted upstream terms and HF token"
             )
-        files = entry.get("files", [])
-        if not files:
+        if not entry.get("files"):
             raise ProviderError(
                 "model_missing",
                 "Runtime release assets have not been built/signed; source descriptors do not authorize executable fallback",
             )
+        return entry
+
+    async def download(
+        self,
+        identity: str,
+        *,
+        accepted_license: bool,
+        accepted_destination: bool,
+        accepted_terms: bool = False,
+        token: str | None = None,
+        cancelled: asyncio.Event | None = None,
+        progress: Callable[[int, int], None] | None = None,
+    ) -> dict[str, Any]:
+        entry = self.check(
+            identity,
+            accepted_license=accepted_license,
+            accepted_destination=accepted_destination,
+            accepted_terms=accepted_terms,
+            token=token,
+        )
+        files = entry["files"]
         destination = self.install_root / identity / entry["revision"]
         if str(destination) in self.loaded_artifacts():
             raise ProviderError("permission", "Cannot overwrite an artifact loaded by active jobs")
@@ -361,11 +386,19 @@ class CatalogService:
         staging = self.install_root / ".parts" / identity / entry["revision"]
         staging.mkdir(parents=True, exist_ok=True)
         resolved: list[dict[str, Any]] = []
+        total = sum(item["bytes"] for item in files)
+        base = 0
+
+        def report(done: int) -> None:
+            if progress:
+                progress(done, total)
+
         for item in files:
             path = staging / safe_member(item["path"])
             path.parent.mkdir(parents=True, exist_ok=True)
             part = path.with_name(path.name + ".part")
             size = part.stat().st_size if part.exists() else 0
+            report(base + size)
             headers = {"Range": f"bytes={size}-"} if size else {}
             if token:
                 headers["Authorization"] = "Bearer " + token
@@ -397,6 +430,7 @@ class CatalogService:
                         )
                     mode = "ab" if size and response.status_code == 206 else "wb"
                     written = size if mode == "ab" else 0
+                    report(base + written)
                     with part.open(mode) as output:
                         async for chunk in response.aiter_bytes(1024 * 1024):
                             if cancelled and cancelled.is_set():
@@ -410,6 +444,7 @@ class CatalogService:
                                     "invalid_output", "Artifact exceeds reviewed size"
                                 )
                             output.write(chunk)
+                            report(base + written)
                         output.flush()
                         os.fsync(output.fileno())
                 finally:
@@ -418,8 +453,7 @@ class CatalogService:
                 raise ProviderError(
                     "invalid_output", "Artifact byte size did not match reviewed metadata"
                 )
-            with part.open("rb") as source:
-                digest = hashlib.file_digest(source, "sha256").hexdigest()
+            digest = await asyncio.to_thread(_sha256, part)
             expected = item.get("sha256")
             if expected is None:
                 # Only a small gated metadata object may resolve from an authoritative pinned Git blob.
@@ -442,6 +476,7 @@ class CatalogService:
                 raise ProviderError("permission", "Artifact checksum verification failed")
             resolved.append({**item, "sha256": digest})
             os.replace(part, path)
+            base += item["bytes"]
         resolved_entry = {**entry, "files": resolved, "blocked_reason": None}
         (staging / "resolved-catalog.json").write_text(
             json.dumps(resolved_entry, indent=2), encoding="utf-8"
@@ -467,8 +502,9 @@ class CatalogService:
                 ) from None
             archive = staging / safe_member(resolved[0]["path"])
             expanded = staging / "expanded"
-            expanded.mkdir(exist_ok=False)
-            extract_verified(archive, expanded, expanded_limit=required)
+            shutil.rmtree(expanded, ignore_errors=True)
+            expanded.mkdir()
+            await asyncio.to_thread(extract_verified, archive, expanded, expanded_limit=required)
             (expanded / "resolved-catalog.json").write_text(
                 json.dumps(resolved_entry, indent=2), encoding="utf-8"
             )

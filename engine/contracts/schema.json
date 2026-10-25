@@ -23792,6 +23792,50 @@
       "title": "SetupLlm",
       "type": "object"
     },
+    "setup.models": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Adapter",
+          "type": "string"
+        },
+        "endpoint": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Endpoint"
+        },
+        "secret_ref": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Secret Ref"
+        }
+      },
+      "required": [
+        "adapter"
+      ],
+      "title": "SetupModels",
+      "type": "object"
+    },
     "setup.status": {
       "additionalProperties": false,
       "properties": {},
