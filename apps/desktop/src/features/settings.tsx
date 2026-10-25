@@ -5,7 +5,7 @@ import { flushDrafts } from '../lib/drafts';
 import { useNativeResource, useResource } from '../lib/queries';
 import { updatePreferences } from '../lib/preferences';
 import { id, item, items, object, revision, text, type Payload, type RecordData } from '../lib/data';
-import { accuracyNotice, AsyncView, Badge, CommandForm, ConfirmCommand, Details, Empty, ErrorNotice, FieldInput, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, type Field } from '../components/ui';
+import { AsyncView, Badge, CommandForm, ConfirmCommand, Details, Empty, ErrorNotice, FieldInput, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, type Field } from '../components/ui';
 import { AudioMeters } from './capture';
 import { CalendarSettings, IntegrationSettings } from './connections';
 import { AiSettings, ModelSettings, ProviderSettings, settingsTabs } from './providers';
@@ -99,7 +99,7 @@ const credits = [
 ];
 
 function About() {
-  return <Panel title="About, credits & limitations"><Notice>{accuracyNotice} Do not use output as the sole basis for legal, medical, employment or financial decisions. Provided "as is", without warranty (MIT license).</Notice><h3>Model credits</h3><ul>{credits.map(([name, author, license, source]) => <li key={name}><strong>{name}</strong>: {author}. License: {license}. Source: <code>{source}</code></li>)}</ul><p>Runtimes: faster-whisper (MIT), sherpa-onnx (Apache-2.0), fermion-research (Apache-2.0) with PyTorch (BSD-3-Clause), pyannote.audio (MIT), ONNX Runtime (MIT). The optional GPU Whisper pack includes NVIDIA cuBLAS, cuDNN and NVRTC under NVIDIA's license terms (not MIT), shipped inside the pack. The optional Azure Speech pack uses Microsoft's Speech SDK license.</p></Panel>;
+  return <Panel title="About & credits"><h3>Model credits</h3><ul>{credits.map(([name, author, license, source]) => <li key={name}><strong>{name}</strong>: {author}. License: {license}. Source: <code>{source}</code></li>)}</ul><p>Runtimes: faster-whisper (MIT), sherpa-onnx (Apache-2.0), fermion-research (Apache-2.0) with PyTorch (BSD-3-Clause), pyannote.audio (MIT), ONNX Runtime (MIT). The optional GPU Whisper pack includes NVIDIA cuBLAS, cuDNN and NVRTC under NVIDIA's license terms (not MIT), shipped inside the pack. The optional Azure Speech pack uses Microsoft's Speech SDK license.</p></Panel>;
 }
 
 function SettingsGroup({ groupId, advancedOnly = false }: { groupId: string; advancedOnly?: boolean }) {

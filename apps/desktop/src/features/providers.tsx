@@ -157,8 +157,8 @@ function useCatalog() {
 export function ModelSettings() {
   const catalog = useCatalog();
   return <Panel title="Models & runtime" actions={<ModelArchiveImport templates={items(catalog.data)} />}><AsyncView query={catalog}>{(data) => {
-    // Runtimes are fetched with their model; source descriptors can't be downloaded.
-    const visible = items(data).filter((row) => row.role !== 'runtime' && !row.blocked_reason);
+    // Runtimes are fetched with their model.
+    const visible = items(data).filter((row) => row.role !== 'runtime');
     return visible.length === 0 ? <Empty title="No models yet" /> : <Grid>{visible.map((row) => <ModelCard key={id(row)} entry={row} />)}</Grid>;
   }}</AsyncView></Panel>;
 }
@@ -181,8 +181,10 @@ function ModelDownload({ entry }: { entry: RecordData }) {
 
 function ModelDownloadDialog({ entry }: { entry: RecordData }) {
   const [open, setOpen] = useState(false);
+  const [secretRef, setSecretRef] = useState('');
   const license = object(entry.license);
-  return <Modal open={open} onOpenChange={setOpen} trigger={<button>Download…</button>} title={`Download ${label(entry)}`}><Details value={entry} title="Details" /><p className={styles.preWrap}>{text(license.text ?? entry.license_text)}</p><CommandForm operation="catalog.download" fixed={{ id: id(entry), accepted_license: true, accepted_destination: true }} fields={entry.gating && object(entry.gating).required ? [{ name: 'accepted_terms', label: 'I accepted the upstream access terms', type: 'checkbox', value: false }, { name: 'secret_ref', label: 'Hugging Face credential reference' }] : []} submit="Download" confirm="I accept the license above." onSuccess={() => setOpen(false)} /></Modal>;
+  const gating = object(entry.gating);
+  return <Modal open={open} onOpenChange={setOpen} trigger={<button>Download…</button>} title={`Download ${label(entry)}`}><Details value={entry} title="Details" /><p className={styles.preWrap}>{text(license.text ?? entry.license_text)}</p>{gating.required === true && <><p>Accept the terms at <code>{text(gating.terms_url)}</code> in your browser, then paste a Hugging Face access token.</p><SecretInput label="Hugging Face token" onStored={setSecretRef} /></>}<CommandForm operation="catalog.download" fixed={{ id: id(entry), accepted_license: true, accepted_destination: true, ...(secretRef ? { secret_ref: secretRef } : {}) }} fields={gating.required === true ? [{ name: 'accepted_terms', label: 'I accepted the terms on Hugging Face', type: 'checkbox', value: false }] : []} submit="Download" confirm="I accept the license above." onSuccess={() => setOpen(false)} /></Modal>;
 }
 
 function ModelRow({ entry, current }: { entry: RecordData; current: string }) {
@@ -192,7 +194,7 @@ function ModelRow({ entry, current }: { entry: RecordData; current: string }) {
 
 function ModelList({ role, current }: { role: string; current: string }) {
   const catalog = useCatalog();
-  return <AsyncView query={catalog}>{(data) => items(data).filter((row) => row.role === role && !row.blocked_reason).sort((a, b) => Number(b.installed === true) - Number(a.installed === true)).map((row) => <ModelRow key={id(row)} entry={row} current={current} />)}</AsyncView>;
+  return <AsyncView query={catalog}>{(data) => items(data).filter((row) => row.role === role).sort((a, b) => Number(b.installed === true) - Number(a.installed === true)).map((row) => <ModelRow key={id(row)} entry={row} current={current} />)}</AsyncView>;
 }
 
 const aiRows = [['asr', 'Transcription'], ['diarization', 'Speaker labels'], ['llm', 'Summaries, actions & minutes']] as const;

@@ -5,7 +5,7 @@ import { useInterface } from '../lib/ui-store';
 import { nativeAvailable, nativeRequest } from '../lib/bridge';
 import { array, clock, date, id, item, items, object, revision, text, type RecordData } from '../lib/data';
 import { ActionMenu } from '../components/controls';
-import { accuracyNotice, AsyncView, Badge, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, ErrorNotice, FieldInput, Modal, Notice, Panel, Toolbar, useOpenState, type Field } from '../components/ui';
+import { AsyncView, Badge, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, ErrorNotice, FieldInput, Modal, Notice, Panel, Toolbar, useOpenState, type Field } from '../components/ui';
 import styles from './workspace.module.css';
 
 export const actionFields: Field[] = [
@@ -66,7 +66,7 @@ export function CitedResult({ result }: { result: RecordData }) {
 
 export function AnalysisPanel({ meetingId, task = 'summary' }: { meetingId: string; task?: string }) {
   const query = useResource('analysis.list', { meeting_id: meetingId, task });
-  return <Panel title={task === 'summary' ? 'Summary' : 'Topics & outcomes'} actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task, idempotency_key: crypto.randomUUID() }}>Generate {task}</CommandButton>}><AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title={`No ${task} yet`} /> : <><Notice>{accuracyNotice}</Notice>{items(data).map((result) => <CitedResult key={id(result)} result={result} />)}</>}</AsyncView>{task === 'topics' && <Artifacts meetingId={meetingId} />}</Panel>;
+  return <Panel title={task === 'summary' ? 'Summary' : 'Topics & outcomes'} actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task, idempotency_key: crypto.randomUUID() }}>Generate {task}</CommandButton>}><AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title={`No ${task} yet`} /> : items(data).map((result) => <CitedResult key={id(result)} result={result} />)}</AsyncView>{task === 'topics' && <Artifacts meetingId={meetingId} />}</Panel>;
 }
 
 function Artifacts({ meetingId }: { meetingId: string }) {
