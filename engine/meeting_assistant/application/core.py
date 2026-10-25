@@ -347,6 +347,13 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                 "recording_notice_acknowledged": bool(recording),
                 "recording_consented_at": now_ms() if recording else None,
             }
+            # Drafts may predate model setup or a model switch: use the current choice.
+            for task in ("asr", "diarization"):
+                selected = task_policy(
+                    w, task, {"project_id": item.get("project_id"), "config_snapshot": config}
+                )
+                if selected:
+                    config[task + "_policy"] = selected
             item = w.put(
                 "meetings",
                 meeting_id,
