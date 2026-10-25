@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import json
 import re
@@ -1056,7 +1057,10 @@ class InferenceService:
         await self._authorize(parsed)
         worker = await self._worker(parsed)
         caps = resolve_capabilities(parsed.connection, parsed.profile)
-        async with self.gpu_lock:
+        # The pyannote worker runs on CPU unless the profile picks a device; holding the GPU
+        # lock there would stall live ASR for every diarization window.
+        on_gpu = parsed.profile.options.get("device", "cpu") != "cpu"
+        async with self.gpu_lock if on_gpu else contextlib.nullcontext():
             async with worker.pcm(pcm_float32, sample_rate) as grant:
                 return await worker.request(
                     "diarize_final" if final else "diarize",

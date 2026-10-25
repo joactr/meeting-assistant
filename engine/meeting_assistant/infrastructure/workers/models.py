@@ -53,7 +53,8 @@ class ModelRuntime:
         )
         self.public_key = public_key
         self.developer_registry = launch_registry(install_root.parent)
-        self.lock = asyncio.Lock()
+        # Per profile: a cold speaker-model start (~80s) must not block a running ASR worker.
+        self.locks: dict[str, asyncio.Lock] = {}
         self.grants: dict[str, dict[str, Path | None]] = {}
 
     def _active(
@@ -113,7 +114,7 @@ class ModelRuntime:
         return path, manifest
 
     async def ensure_ready(self, route: _ModelRoute) -> WorkerClient:
-        async with self.lock:
+        async with self.locks.setdefault(route.profile.id, asyncio.Lock()):
             profile, connection = route.profile, route.connection
             family = FAMILIES.get(connection.adapter)
             if family is None:
