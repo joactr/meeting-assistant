@@ -163,8 +163,12 @@ class AudioPipeline:
                 meeting = self.workspace.require_item("meetings", source["meeting_id"])
                 if (
                     key not in self.diarization_disabled
-                    and meeting["config_snapshot"].get("diarization")
                     and meeting["config_snapshot"].get("diarization_policy")
+                    # With both sources the mic is the local user ("Me"); only split the other side.
+                    and not (
+                        source["source_kind"] == "mic"
+                        and meeting["config_snapshot"].get("source") == "both"
+                    )
                     and monotonic >= self.next_diarization_ns.get(key, 0)
                     and (self.diarization_task is None or self.diarization_task.done())
                 ):

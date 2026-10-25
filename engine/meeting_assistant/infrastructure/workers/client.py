@@ -95,6 +95,11 @@ class WorkerClient:
             **flags,
         )
         self._reader = asyncio.create_task(self._read())
+        # Windows: loading a DLL whose static CRT probes the std handles (scipy's OpenBLAS in
+        # the pyannote pack) blocks behind the worker's pending synchronous stdin read until a
+        # frame arrives. Harmless "cancel" frames while initializing keep that read completing.
+        # ponytail: drop once worker packs import heavy modules before starting their reader.
+        nudge = asyncio.create_task(self._nudge())
         try:
             result = await self.request(
                 "initialize",
@@ -123,6 +128,17 @@ class WorkerClient:
         except BaseException:
             await self.terminate()
             raise
+        finally:
+            nudge.cancel()
+
+    async def _nudge(self) -> None:
+        frame = json.dumps({"id": "nudge", "operation": "cancel", "payload": {}}).encode()
+        while self.process is not None and self.process.stdin is not None:
+            await asyncio.sleep(2)
+            try:
+                self.process.stdin.write(struct.pack("<I", len(frame)) + frame)
+            except (ConnectionError, RuntimeError):
+                return
 
     async def _read(self) -> None:
         assert self.process is not None and self.process.stdout is not None

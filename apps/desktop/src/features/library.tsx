@@ -23,7 +23,7 @@ export function NewMeeting({ trigger = 'New meeting' }: { trigger?: ReactNode })
     { name: 'project_id', label: 'Project', type: 'select', options: [{ value: '', label: 'No project' }, ...items(projects.data).map((row) => ({ value: id(row), label: label(row) }))] },
     { name: 'template_id', label: 'Template', type: 'select', value: 'general', options: items(templates.data).map((row) => ({ value: id(row), label: label(row) })) },
     ...(languageSelectable ? [{ name: 'language', label: 'Language', type: 'select' as const, value: '', options: [{ value: '', label: 'Detect automatically' }, ...LANGUAGES.map(([value, name]) => ({ value, label: name }))] }] : []),
-    { name: 'source', label: 'Capture sources', type: 'select', value: 'mic', options: [{ value: 'mic', label: 'Microphone only' }, { value: 'both', label: 'Microphone + system audio' }, { value: 'system', label: 'System audio only' }] },
+    { name: 'source', label: 'Capture sources', type: 'select', value: 'both', options: [{ value: 'both', label: 'Microphone + system audio' }, { value: 'mic', label: 'Microphone only' }, { value: 'system', label: 'System audio only' }] },
     { name: 'pre_briefing', label: 'Human agenda / preparation', type: 'textarea' },
   ]} mapPayload={(payload) => { const { pre_briefing, ...meeting } = payload; return { ...meeting, config: { human_agenda: pre_briefing ?? '' } }; }} submit="Create preparation" onSuccess={(result) => { const meeting = item(result); setOpen(false); void navigate({ to: '/meeting/$meetingId', params: { meetingId: id(meeting) } }); }} /></Modal>;
 }

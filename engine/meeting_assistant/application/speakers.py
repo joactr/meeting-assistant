@@ -103,12 +103,20 @@ class SpeakerEvidence:
                 },
             )
             for label, vector in vectors.items():
-                ranked: list[tuple[float, dict[str, Any]]] = []
+                # Best cluster per speaker: every window stores another cluster for the matched
+                # speaker, so a per-cluster margin would split one voice into new speakers.
+                # ponytail: scan is linear in stored clusters; cap clusters per speaker if long
+                # meetings lag.
+                best_by_speaker: dict[str, tuple[float, dict[str, Any]]] = {}
                 for cluster in existing:
                     if cluster.get("embedding_object_ref"):
                         similarity = cosine(vector, self.vector(cluster["embedding_object_ref"]))
-                        ranked.append((similarity, cluster))
-                ranked.sort(key=lambda value: (-value[0], value[1]["id"]))
+                        prior = best_by_speaker.get(cluster["mapped_speaker_id"])
+                        if prior is None or similarity > prior[0]:
+                            best_by_speaker[cluster["mapped_speaker_id"]] = (similarity, cluster)
+                ranked = sorted(
+                    best_by_speaker.values(), key=lambda value: (-value[0], value[1]["id"])
+                )
                 best = ranked[0] if ranked else None
                 confident = (
                     best is not None
@@ -119,14 +127,26 @@ class SpeakerEvidence:
                     assert best is not None
                     speaker_id = best[1]["mapped_speaker_id"]
                 else:
+                    # Number speakers across the whole meeting, not per window or source.
+                    number = (
+                        len(
+                            {
+                                c["mapped_speaker_id"]
+                                for c in all_items(
+                                    w, "speaker_clusters", {"meeting_id": meeting_id}
+                                )
+                            }
+                        )
+                        + 1
+                    )
                     speaker = w.put(
                         "meeting_speakers",
                         new_id(),
                         {
                             "meeting_id": meeting_id,
                             "source_kind": source_kind,
-                            "display_name": "Unknown",
-                            "color_token": "speaker-" + str(len(existing) + len(mapping) + 1),
+                            "display_name": f"Speaker {number}",
+                            "color_token": f"speaker-{number}",
                         },
                     )
                     speaker_id = speaker["id"]
@@ -260,14 +280,8 @@ class SpeakerEvidence:
         clusters = all_items(w, "speaker_clusters", {"meeting_id": meeting_id})
         representatives: list[tuple[dict[str, Any], list[float]]] = []
         mapping: dict[str, str] = {}
-        if not clusters and not all_items(w, "utterances", {"meeting_id": meeting_id}):
-            return {"state": "skipped", "reason": "No speech evidence"}
-        require(
-            bool(clusters),
-            "voice_evidence_unavailable",
-            "No real diarization embedding evidence was retained. Select a ready diarization model before capture.",
-            status=503,
-        )
+        if not clusters:
+            return {"state": "skipped", "reason": "No speaker evidence"}
         with w.transaction():
             for cluster in clusters:
                 speaker = w.get("meeting_speakers", cluster["mapped_speaker_id"])
@@ -370,6 +384,12 @@ class SpeakerEvidence:
                 source = (
                     w.get("capture_sources", media["source_id"]) if media.get("source_id") else None
                 )
+                if (
+                    source
+                    and source["source_kind"] == "mic"
+                    and meeting["config_snapshot"].get("source") == "both"
+                ):
+                    continue
                 with path.open("rb") as stream:
                     offset = 0
                     while pcm := stream.read(12000 * 16 * 4):

@@ -663,7 +663,7 @@ class Workspace(Store):
                         expected_revision=current["revision"],
                     )
             elif stage == "final_diarization":
-                if meeting["config_snapshot"].get("diarization", False):
+                if meeting["config_snapshot"].get("diarization_policy"):
                     require(
                         self.inference is not None and hasattr(self.inference, "diarize"),
                         "diarization_unavailable",
