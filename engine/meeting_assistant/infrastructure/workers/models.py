@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
@@ -174,15 +175,24 @@ class ModelRuntime:
             if not developer:
 
                 def verify() -> None:
+                    # Lexical check only: resolve() per file cost ~0.5ms (15k files in the speaker
+                    # pack) and, contending for the GIL with a busy capture loop, most of a cold
+                    # start. The hash below is what proves the bytes.
                     for item in manifest.get("files", []):
-                        file = (runtime_dir / item["path"]).resolve()
-                        if not file.is_relative_to(runtime_dir.resolve()) or not file.is_file():
+                        relative = Path(item["path"])
+                        if relative.anchor or ".." in relative.parts:
                             raise ProviderError(
                                 "permission", "Installed runtime file grant is invalid"
                             )
-                        with file.open("rb") as source:
-                            digest = hashlib.file_digest(source, "sha256").hexdigest()
-                        if file.stat().st_size != item["bytes"] or digest != item["sha256"]:
+                        try:
+                            with (runtime_dir / relative).open("rb") as source:
+                                size = os.fstat(source.fileno()).st_size
+                                digest = hashlib.file_digest(source, "sha256").hexdigest()
+                        except OSError:
+                            raise ProviderError(
+                                "permission", "Installed runtime file grant is invalid"
+                            ) from None
+                        if size != item["bytes"] or digest != item["sha256"]:
                             raise ProviderError("permission", "Installed runtime file was modified")
 
                 # Hashing a runtime pack takes seconds to a minute; on the loop it starves the
@@ -212,6 +222,14 @@ class ModelRuntime:
             self.registry.worker_runtimes[profile.id] = worker
             self.grants[profile.id] = {"runtime": runtime_dir, "model": model_dir}
             return worker
+
+    def state(self, profile_id: str) -> str:
+        """Worker state for the UI: ready (running), loading (ensure_ready starting it) or stopped."""
+        worker = self.registry.worker_runtimes.get(profile_id)
+        if worker is not None and worker.process is not None and worker.process.returncode is None:
+            return "ready"
+        lock = self.locks.get(profile_id)
+        return "loading" if lock is not None and lock.locked() else "stopped"
 
     def loaded_artifacts(self) -> set[str]:
         return {

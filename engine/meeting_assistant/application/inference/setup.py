@@ -114,12 +114,18 @@ async def setup_status(w: Workspace, service: InferenceService) -> dict[str, Any
     except Exception:  # noqa: BLE001 - an absent or odd Ollama only means "not available"
         pass
     asr = current_choice(w, ("asr",))
+    diarization = current_choice(w, ("diarization",))
+    runtime = service.model_runtime
     return {
         "asr_ready": task_policy(w, "asr") is not None,
         "llm_ready": task_policy(w, "summary") is not None,
         "ollama": ollama,
         "asr": asr and {**asr, "language_selectable": FAMILIES.get(asr["adapter"]) == "whisper"},
-        "diarization": current_choice(w, ("diarization",)),
+        "diarization": diarization
+        and {
+            **diarization,
+            "state": runtime.state(diarization["profile_id"]) if runtime else "stopped",
+        },
         "llm": current_choice(w, ("summary", "general")),
     }
 
