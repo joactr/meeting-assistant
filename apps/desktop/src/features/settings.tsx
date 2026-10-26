@@ -44,8 +44,7 @@ const groups: { id: string; title: string; notice?: string; fields: Field[] }[] 
   { id: 'speakers', title: 'Speakers', fields: [
     { name: 'diarization_enabled', label: 'Tell speakers apart', type: 'checkbox', value: false },
     { name: 'voice_profiles_enabled', label: 'Recognise returning speakers by voice', type: 'checkbox', value: false },
-    { name: 'match_threshold', label: 'Voice match strictness (0–1)', type: 'number', value: .72, min: 0, max: 1 },
-    { name: 'match_margin', label: 'Required lead over the next-best match (0–1)', type: 'number', value: .08, min: 0, max: 1 },
+    { name: 'match_threshold', label: 'Voice match strictness (0–1)', type: 'number', value: .45, min: 0, max: 1 },
   ] },
   { id: 'retrieval', title: 'Search', fields: [
     { name: 'mode', label: 'Default search', type: 'select', value: 'keyword', options: [{ value: 'keyword', label: 'Exact words' }, { value: 'semantic', label: 'Meaning' }, { value: 'hybrid', label: 'Both' }] },

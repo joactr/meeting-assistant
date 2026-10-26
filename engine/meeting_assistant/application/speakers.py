@@ -14,6 +14,12 @@ if TYPE_CHECKING:
     from meeting_assistant.workspace import Workspace
 
 
+# Default cosine needed to reuse a speaker. Window voiceprints of one voice minutes apart scored
+# ~0.5 against its running mean; different voices stayed under ~0.2. Settings → Speakers
+# overrides it.
+MATCH_THRESHOLD = 0.45
+
+
 def cosine(left: list[float], right: list[float]) -> float:
     require(
         len(left) == len(right) and bool(left),
@@ -86,6 +92,26 @@ class SpeakerEvidence:
         )
         return identity
 
+    def match_threshold(self) -> float:
+        speakers = self.workspace.settings().get("speakers")
+        value = (
+            cast(dict[str, Any], speakers).get("match_threshold")
+            if isinstance(speakers, dict)
+            else None
+        )
+        return float(value) if isinstance(value, (int, float)) else MATCH_THRESHOLD
+
+    def centroid(self, clusters: list[dict[str, Any]]) -> list[float]:
+        """A speaker's voiceprint: the mean of its unit-length window vectors."""
+        total: list[float] = []
+        for cluster in clusters:
+            vector = self.vector(cluster["embedding_object_ref"])
+            norm = math.sqrt(sum(x * x for x in vector))
+            if norm:
+                base = total or [0.0] * len(vector)
+                total = [a + b / norm for a, b in zip(base, vector, strict=True)]
+        return [x / len(clusters) for x in total]
+
     def apply(self, meeting_id: str, source_kind: str, result: dict[str, Any]) -> dict[str, Any]:
         w = self.workspace
         fingerprint = result["model_fingerprint"]
@@ -93,7 +119,10 @@ class SpeakerEvidence:
         mapping: dict[str, str] = {}
         suggestions: list[dict[str, Any]] = []
         with w.transaction():
-            existing = all_items(
+            # ponytail: voiceprints are recomputed from every stored window vector per call; keep a
+            # running sum per speaker if long meetings lag.
+            members: dict[str, list[dict[str, Any]]] = {}
+            for cluster in all_items(
                 w,
                 "speaker_clusters",
                 {
@@ -101,33 +130,29 @@ class SpeakerEvidence:
                     "model_fingerprint": fingerprint,
                     "source_kind": source_kind,
                 },
-            )
+            ):
+                if cluster.get("embedding_object_ref") and cluster.get("mapped_speaker_id"):
+                    members.setdefault(cluster["mapped_speaker_id"], []).append(cluster)
+            centroids = {
+                speaker: centroid
+                for speaker, rows in members.items()
+                if (centroid := self.centroid(rows))
+            }
+            threshold = self.match_threshold()
             for label, vector in vectors.items():
                 if not any(vector):
                     continue  # pyannote zero-pads speakers it counted but could not cluster
-                # Best cluster per speaker: every window stores another cluster for the matched
-                # speaker, so a per-cluster margin would split one voice into new speakers.
-                # ponytail: scan is linear in stored clusters; cap clusters per speaker if long
-                # meetings lag.
-                best_by_speaker: dict[str, tuple[float, dict[str, Any]]] = {}
-                for cluster in existing:
-                    if cluster.get("embedding_object_ref"):
-                        similarity = cosine(vector, self.vector(cluster["embedding_object_ref"]))
-                        prior = best_by_speaker.get(cluster["mapped_speaker_id"])
-                        if prior is None or similarity > prior[0]:
-                            best_by_speaker[cluster["mapped_speaker_id"]] = (similarity, cluster)
+                # Closest voiceprint wins even when another is near: requiring a lead split one
+                # voice into new speakers that it could then never match again.
                 ranked = sorted(
-                    best_by_speaker.values(), key=lambda value: (-value[0], value[1]["id"])
+                    (
+                        (cosine(vector, centroid), speaker)
+                        for speaker, centroid in centroids.items()
+                    ),
+                    reverse=True,
                 )
-                best = ranked[0] if ranked else None
-                confident = (
-                    best is not None
-                    and best[0] >= 0.72
-                    and (len(ranked) == 1 or best[0] - ranked[1][0] >= 0.08)
-                )
-                if confident:
-                    assert best is not None
-                    speaker_id = best[1]["mapped_speaker_id"]
+                if ranked and ranked[0][0] >= threshold:
+                    speaker_id = ranked[0][1]
                 else:
                     # Number speakers across the whole meeting, not per window or source.
                     number = (
@@ -180,7 +205,7 @@ class SpeakerEvidence:
                     if not allowed:
                         continue
                     similarity = cosine(vector, self.vector(profile["vector_object_ref"]))
-                    if similarity >= 0.72:
+                    if similarity >= threshold:
                         suggestion = {
                             "speaker_id": speaker_id,
                             "person_id": profile["person_id"],
@@ -280,44 +305,51 @@ class SpeakerEvidence:
     def finalize(self, meeting_id: str) -> dict[str, Any]:
         w = self.workspace
         clusters = all_items(w, "speaker_clusters", {"meeting_id": meeting_id})
-        representatives: list[tuple[dict[str, Any], list[float]]] = []
-        mapping: dict[str, str] = {}
         if not clusters:
             return {"state": "skipped", "reason": "No speaker evidence"}
+        groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+        for cluster in clusters:
+            if cluster.get("embedding_object_ref") and cluster.get("mapped_speaker_id"):
+                key = (
+                    cluster["model_fingerprint"],
+                    cluster["source_kind"],
+                    cluster["mapped_speaker_id"],
+                )
+                groups.setdefault(key, []).append(cluster)
+        threshold = self.match_threshold()
+        kept: list[tuple[tuple[str, str, str], list[float]]] = []
+        mapping: dict[str, str] = {}
         with w.transaction():
-            for cluster in clusters:
-                speaker = w.get("meeting_speakers", cluster["mapped_speaker_id"])
-                if not speaker or not cluster.get("embedding_object_ref"):
+            # Speakers heard first absorb later ones whose voiceprints match theirs.
+            for key, rows in sorted(
+                groups.items(), key=lambda item: min(c["created_at"] for c in item[1])
+            ):
+                speaker = w.get("meeting_speakers", key[2])
+                centroid = self.centroid(rows)
+                if not speaker or not centroid:
                     continue
-                vector = self.vector(cluster["embedding_object_ref"])
-                ranked: list[tuple[float, dict[str, Any]]] = []
-                if not speaker["manual_name_lock"]:
-                    for previous, previous_vector in representatives:
-                        if previous["model_fingerprint"] == cluster[
-                            "model_fingerprint"
-                        ] and previous.get("source_kind") == cluster.get("source_kind"):
-                            ranked.append((cosine(vector, previous_vector), previous))
-                ranked.sort(key=lambda pair: (-pair[0], pair[1]["id"]))
-                if (
-                    ranked
-                    and ranked[0][0] >= 0.78
-                    and (len(ranked) == 1 or ranked[0][0] - ranked[1][0] >= 0.08)
-                ):
-                    target = ranked[0][1]["mapped_speaker_id"]
-                    mapping[speaker["id"]] = target
-                    w.put(
-                        "speaker_clusters",
-                        cluster["id"],
-                        {"mapped_speaker_id": target, "finalized": True},
-                        expected_revision=cluster["revision"],
+                ranked = (
+                    []
+                    if speaker["manual_name_lock"]
+                    else sorted(
+                        (
+                            (cosine(centroid, other), other_key[2])
+                            for other_key, other in kept
+                            if other_key[:2] == key[:2]
+                        ),
+                        reverse=True,
                     )
+                )
+                if ranked and ranked[0][0] >= threshold:
+                    owner = mapping[speaker["id"]] = ranked[0][1]
                 else:
-                    representatives.append((cluster, vector))
-                    mapping.setdefault(speaker["id"], speaker["id"])
+                    kept.append((key, centroid))
+                    owner = mapping.setdefault(speaker["id"], speaker["id"])
+                for cluster in rows:
                     w.put(
                         "speaker_clusters",
                         cluster["id"],
-                        {"finalized": True},
+                        {"mapped_speaker_id": owner, "finalized": True},
                         expected_revision=cluster["revision"],
                     )
             for assignment in all_items(w, "speaker_assignments"):
@@ -333,16 +365,25 @@ class SpeakerEvidence:
                     {"speaker_id": target, "origin": "final_clustering"},
                     expected_revision=assignment["revision"],
                 )
+            for source, target in mapping.items():
+                speaker = w.get("meeting_speakers", source)
+                if (
+                    source != target
+                    and speaker
+                    and not speaker.get("person_id")
+                    and not w.list("speaker_assignments", {"speaker_id": source})
+                ):
+                    w.delete("meeting_speakers", source, expected_revision=speaker["revision"])
             w.emit(
                 "speakers.finalized",
                 {
                     "mapping": mapping,
-                    "method": "accumulated_real_embeddings_v1",
+                    "method": "speaker_centroids_v2",
                     "full_retained_audio": False,
                 },
                 meeting_id=meeting_id,
             )
-        return {"mapping": mapping, "method": "accumulated_real_embeddings_v1"}
+        return {"mapping": mapping, "method": "speaker_centroids_v2"}
 
     async def diarize_retained(self, meeting_id: str, job_id: str) -> dict[str, Any]:
         w = self.workspace
@@ -451,18 +492,25 @@ def register_speakers(w: Workspace, r: CommandRegistry) -> None:
             "Enable diarization and select sufficient speaker audio first. Enrollment cannot invent a voice vector.",
             status=503,
         )
-        cluster = clusters[-1]
+        fingerprint = clusters[-1]["model_fingerprint"]
         profile_id = new_id()
         with w.transaction():
             object_id = service.store_vector(
-                service.vector(cluster["embedding_object_ref"]), profile_id
+                service.centroid(
+                    [
+                        c
+                        for c in clusters
+                        if c["model_fingerprint"] == fingerprint and c.get("embedding_object_ref")
+                    ]
+                ),
+                profile_id,
             )
             profile = w.put(
                 "voice_profiles",
                 profile_id,
                 {
                     "person_id": person["id"],
-                    "model_fingerprint": cluster["model_fingerprint"],
+                    "model_fingerprint": fingerprint,
                     "vector_object_ref": object_id,
                     "consent_at": now_ms(),
                     "matching_scope": {"scope": scope, "project_id": p.get("project_id")},
