@@ -2,24 +2,24 @@
   "schema_version": 1,
   "id": "runtime-pyannote-windows-x86_64",
   "role": "runtime",
-  "revision": "1.0.0-beta.1",
+  "revision": "1.0.0-beta.6",
   "source": "target-native frozen-lock source build",
   "files": [
     {
-      "path": "pyannote-1.0.0-beta.1-windows-x86_64.zip",
-      "url": "https://github.com/joactr/meeting-assistant/releases/download/v1.0.0-beta.1/pyannote-1.0.0-beta.1-windows-x86_64.zip",
-      "bytes": 285581650,
-      "sha256": "9741ace31d0e60e283068c20efe5b35b21fb235bbb07f4c02875b489801dc6ff"
+      "path": "pyannote-1.0.0-beta.6-windows-x86_64.zip",
+      "url": "https://github.com/joactr/meeting-assistant/releases/download/v1.0.0-beta.6/pyannote-1.0.0-beta.6-windows-x86_64.zip",
+      "bytes": 285584090,
+      "sha256": "75190c1d07866eec0b0b097f05e0b6edf81f31e37bfb6f43868ce72c56cea269"
     }
   ],
   "runtime_manifest": {
     "schema_version": 1,
     "family": "pyannote",
-    "version": "1.0.0-beta.1",
+    "version": "1.0.0-beta.6",
     "platform": "windows-x86_64",
     "protocol_major": 1,
     "executable": "meeting-pyannote.exe",
-    "executable_sha256": "f88ce53e77622c34f2ddfe4662188b34257eee739cd5a594d347fa19181cfb9d",
+    "executable_sha256": "3967b831017260fbcdaf764b5124a5a0b1f8a5348a8d839a03338bc63cf37084",
     "files": [
       {
         "path": "_internal/_asyncio.pyd",
@@ -369,7 +369,7 @@
       {
         "path": "_internal/base_library.zip",
         "bytes": 1333490,
-        "sha256": "086c269d9d3a08d0332207bbba4126a8cb75e05afac8ad0bea2e9dd9d169784c"
+        "sha256": "63263b8f6c4c5f71ce0fff1511b5a9ab9a54a81c3acc9cabafd46c2889da3067"
       },
       {
         "path": "_internal/certifi/cacert.pem",
@@ -74968,8 +74968,8 @@
       },
       {
         "path": "meeting-pyannote.exe",
-        "bytes": 69797128,
-        "sha256": "f88ce53e77622c34f2ddfe4662188b34257eee739cd5a594d347fa19181cfb9d"
+        "bytes": 69797230,
+        "sha256": "3967b831017260fbcdaf764b5124a5a0b1f8a5348a8d839a03338bc63cf37084"
       },
       {
         "path": "third-party-notices.json",
@@ -74983,9 +74983,9 @@
       }
     ],
     "build": {
-      "python": "3.12.15",
+      "python": "3.12.10",
       "worker_lock_sha256": "257d07f686ca64ebd518cf0a8bd523b5fc78f8ffb23beb7455cfcc18a0a397cd",
-      "source_sha256": "b2bd303b8eeb0c3874f7af3970df7bdf537566945f2743fcfdca6db2adb10286",
+      "source_sha256": "18f96f35f4265961a9f806a8433e79109c4489f901ff05d60d28445231ad9a24",
       "protocol_source_sha256": "e3d336c9b82e69865071f18550ef5a1061051776be63ee5c841dec0128bb042a"
     },
     "weights_included": false,
@@ -75000,10 +75000,10 @@
   },
   "license_audit": {
     "approved": true,
-    "artifact_sha256": "9741ace31d0e60e283068c20efe5b35b21fb235bbb07f4c02875b489801dc6ff",
+    "artifact_sha256": "75190c1d07866eec0b0b097f05e0b6edf81f31e37bfb6f43868ce72c56cea269",
     "reviewer": "joactr (release owner)",
     "evidence": [
-      "pyannote-1.0.0-beta.1-windows-x86_64.zip: bundled third-party-notices.json and runtime-manifest.json reviewed"
+      "pyannote-1.0.0-beta.6-windows-x86_64.zip: bundled third-party-notices.json and runtime-manifest.json reviewed"
     ]
   },
   "transformations": [
@@ -75020,13 +75020,13 @@
     "version_range": ">=1.0.0,<2.0.0"
   },
   "minimum_resources": {
-    "free_disk_bytes": 2397734547,
+    "free_disk_bytes": 2397734853,
     "ram_bytes": null
   },
   "capability_profile": {
     "protocol_major": 1,
     "gpu_variant": false
   },
-  "signature": "MBEJOzWErcQ8Hp0NfpuqfA2QCRrRPiEOt4BNKC2mVjCUXf+m97qNVHQ9fka0hFLV8IjP9YSe4dtwIJJCi4IKCQ==",
+  "signature": "M/0uRs38LRfWbMFu1UY8jzQ/TE9aX9WNLu41pGrts9T1xrvMsAOT3N0lb2/8vFUJPjYfDc4fExjS8MQem0hKAQ==",
   "blocked_reason": null
 }

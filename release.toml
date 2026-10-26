@@ -1,4 +1,4 @@
-version = "1.0.0-beta.5"
+version = "1.0.0-beta.6"
 product_name = "Meeting Assistant"
 
 # Developer builds work without a publisher identity. Official release checks
