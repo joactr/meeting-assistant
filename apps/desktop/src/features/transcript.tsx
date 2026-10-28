@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { listen } from '@tauri-apps/api/event';
@@ -10,7 +10,6 @@ import { flushDrafts } from '../lib/drafts';
 import { useInterface } from '../lib/ui-store';
 import { array, clock, id, item, items, number, revision, text, type RecordData } from '../lib/data';
 import { AsyncView, Badge, CommandForm, Empty, ErrorNotice, Modal, Panel, Toolbar } from '../components/ui';
-import { useScrollMargin } from '../components/virtual-list';
 import styles from './workspace.module.css';
 
 export function Transcript({ meetingId, recording }: { meetingId: string; recording: boolean }) {
@@ -72,8 +71,25 @@ function TranscriptRows({ meetingId, rows, recording }: { meetingId: string; row
   const [menu, setMenu] = useState<{ row: RecordData; action: string } | null>(null);
   const [playbackError, setPlaybackError] = useState<unknown>();
   const media = useMeetingMedia(meetingId, !recording);
-  const scrollMargin = useScrollMargin(parent);
-  const virtualizer = useWindowVirtualizer({ count: rows.length, estimateSize: () => 112, getItemKey: (index) => id(rows[index] ?? {}) || index, overscan: 6, scrollMargin });
+  // The transcript scrolls inside a pane that ends at the window's bottom edge, leaving room for
+  // whatever follows it in the tab (replay player, Load more), so the header and controls stay put.
+  const [height, setHeight] = useState<number>();
+  const hasRows = rows.length > 0;
+  useLayoutEffect(() => {
+    const pane = parent.current;
+    const panel = pane?.closest('[role="tabpanel"]') ?? pane;
+    if (!pane || !panel) return;
+    const main = pane.closest('main');
+    const padding = main ? parseFloat(getComputedStyle(main).paddingBottom) : 0;
+    const fit = (): void => { const box = pane.getBoundingClientRect(); setHeight(Math.round(window.innerHeight - box.top - window.scrollY - (panel.getBoundingClientRect().bottom - box.bottom) - padding)); };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(panel);
+    observer.observe(document.body);
+    window.addEventListener('resize', fit);
+    return () => { observer.disconnect(); window.removeEventListener('resize', fit); };
+  }, [hasRows]);
+  const virtualizer = useVirtualizer({ count: rows.length, estimateSize: () => 112, getItemKey: (index) => id(rows[index] ?? {}) || index, overscan: 6, getScrollElement: () => parent.current });
   let lastFinal: RecordData | undefined;
   for (let index = rows.length - 1; index >= 0; index -= 1) { const candidate = rows[index]; if (candidate && candidate.kind !== 'gap' && candidate.is_final !== false && candidate.state !== 'interim') { lastFinal = candidate; break; } }
 
@@ -85,12 +101,6 @@ function TranscriptRows({ meetingId, rows, recording }: { meetingId: string; row
   }, [rows.length, follow, virtualizer]);
 
   useEffect(() => { if (recording) setFollow(true); }, [recording]);
-
-  useEffect(() => {
-    const onScroll = (): void => { const element = parent.current; if (!element) return; const nearEnd = element.getBoundingClientRect().bottom - window.innerHeight < 90; setFollow(nearEnd); if (nearEnd) setUnread(0); };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
 
   useEffect(() => {
     if (!selected) return;
@@ -106,11 +116,11 @@ function TranscriptRows({ meetingId, rows, recording }: { meetingId: string; row
   };
 
   if (!rows.length) return <Empty title={recording ? 'Listening for the first utterance' : 'No transcript yet'} />;
-  return <><div className="sr-only" aria-live="polite" aria-atomic="true">{lastFinal ? `${text(lastFinal.speaker_name ?? lastFinal.source, 'Unknown')}: ${text(lastFinal.text)}` : ''}</div>{Boolean(playbackError) && <ErrorNotice error={playbackError} />}<div ref={parent} className={styles.transcriptScroll} role="region" aria-label="Meeting transcript"><div role="list" aria-label="Transcript utterances" style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>{virtualizer.getVirtualItems().map((virtualRow) => {
+  return <><div className="sr-only" aria-live="polite" aria-atomic="true">{lastFinal ? `${text(lastFinal.speaker_name ?? lastFinal.source, 'Unknown')}: ${text(lastFinal.text)}` : ''}</div>{Boolean(playbackError) && <ErrorNotice error={playbackError} />}<div ref={parent} className={styles.transcriptScroll} style={{ height: height }} onScroll={() => { const element = parent.current; if (!element) return; const nearEnd = element.scrollHeight - element.scrollTop - element.clientHeight < 90; setFollow(nearEnd); if (nearEnd) setUnread(0); }} role="region" aria-label="Meeting transcript" tabIndex={0}><div role="list" aria-label="Transcript utterances" style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>{virtualizer.getVirtualItems().map((virtualRow) => {
     const row = rows[virtualRow.index]; if (!row) return null;
-    if (row.kind === 'gap') return <article role="listitem" key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index} className={styles.utterance} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start - scrollMargin}px)` }}><header><span className={styles.timestamp}>{clock(row.start_ms)}</span><Badge tone="warning">Audio gap</Badge></header></article>;
-    return <article role="listitem" key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index} className={`${styles.utterance} ${selected === id(row) ? styles.selected : ''}`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start - scrollMargin}px)` }}><header><button className={styles.timestamp} aria-label={`Play from ${clock(row.start_ms)}`} disabled={recording || row.media_available === false} title={recording ? 'Paused while recording' : 'Play audio'} onClick={() => play(row)}>{clock(row.start_ms)}</button><DropdownMenu.Root><DropdownMenu.Trigger className={styles.speaker}>{text(row.speaker_name ?? row.speaker_label ?? row.source, 'Unknown speaker')}</DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className={styles.menu} sideOffset={5}>{['Reassign speaker', 'Rename speaker', 'Split utterance', 'Bookmark moment', 'Anchor note'].map((action) => <DropdownMenu.Item className={styles.menuItem} key={action} onSelect={() => setMenu({ row, action })}>{action}</DropdownMenu.Item>)}</DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>{(row.manual_lock === true || row.is_manual === true) && <Badge>Edited</Badge>}{(row.is_final === false || row.state === 'interim') && <Badge tone="warning">Interim</Badge>}{typeof row.confidence === 'number' && row.confidence < 0.6 && <small className={styles.lowConfidence}>Low confidence</small>}{row.timing_estimated === true && <small>Estimated timing</small>}<span className={styles.rowActions}><button className={styles.quietButton} onClick={() => setEditing(row)}>Edit</button><button className={styles.quietButton} onClick={() => { select(id(row)); setMenu({ row, action: 'Bookmark moment' }); }}>Mark important</button></span></header><p tabIndex={0} aria-label="Transcript text; press Enter to edit" onDoubleClick={() => setEditing(row)} onKeyDown={(event) => { if (event.key === 'Enter') setEditing(row); }}>{text(row.text)}</p></article>;
-  })}</div></div>{recording && (!follow || unread > 0) && <div className={styles.jumpLive}><span>{unread ? `${unread} unread utterances` : 'Auto-scroll paused'}</span><button onClick={() => { setFollow(true); setUnread(0); virtualizer.scrollToIndex(rows.length - 1, { align: 'end' }); }}>Jump to live</button></div>}{editing && <TranscriptEditor meetingId={meetingId} row={editing} onClose={() => setEditing(null)} />}{menu && <UtteranceAction meetingId={meetingId} row={menu.row} action={menu.action} onClose={() => setMenu(null)} />}</>;
+    if (row.kind === 'gap') return <article role="listitem" key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index} className={styles.utterance} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start}px)` }}><header><span className={styles.timestamp}>{clock(row.start_ms)}</span><Badge tone="warning">Audio gap</Badge></header></article>;
+    return <article role="listitem" key={virtualRow.key} ref={virtualizer.measureElement} data-index={virtualRow.index} className={`${styles.utterance} ${selected === id(row) ? styles.selected : ''}`} style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start}px)` }}><header><button className={styles.timestamp} aria-label={`Play from ${clock(row.start_ms)}`} disabled={recording || row.media_available === false} title={recording ? 'Paused while recording' : 'Play audio'} onClick={() => play(row)}>{clock(row.start_ms)}</button><DropdownMenu.Root><DropdownMenu.Trigger className={styles.speaker}>{text(row.speaker_name ?? row.speaker_label ?? row.source, 'Unknown speaker')}</DropdownMenu.Trigger><DropdownMenu.Portal><DropdownMenu.Content className={styles.menu} sideOffset={5}>{['Reassign speaker', 'Rename speaker', 'Split utterance', 'Bookmark moment', 'Anchor note'].map((action) => <DropdownMenu.Item className={styles.menuItem} key={action} onSelect={() => setMenu({ row, action })}>{action}</DropdownMenu.Item>)}</DropdownMenu.Content></DropdownMenu.Portal></DropdownMenu.Root>{(row.manual_lock === true || row.is_manual === true) && <Badge>Edited</Badge>}{(row.is_final === false || row.state === 'interim') && <Badge tone="warning">Interim</Badge>}{typeof row.confidence === 'number' && row.confidence < 0.6 && <small className={styles.lowConfidence}>Low confidence</small>}{row.timing_estimated === true && <small>Estimated timing</small>}<span className={styles.rowActions}><button className={styles.quietButton} onClick={() => setEditing(row)}>Edit</button><button className={styles.quietButton} onClick={() => { select(id(row)); setMenu({ row, action: 'Bookmark moment' }); }}>Mark important</button></span></header><p tabIndex={0} aria-label="Transcript text; press Enter to edit" onDoubleClick={() => setEditing(row)} onKeyDown={(event) => { if (event.key === 'Enter') setEditing(row); }}>{text(row.text)}</p></article>;
+  })}</div>{recording && (!follow || unread > 0) && <div className={styles.jumpLive}><span>{unread ? `${unread} unread utterances` : 'Auto-scroll paused'}</span><button onClick={() => { setFollow(true); setUnread(0); virtualizer.scrollToIndex(rows.length - 1, { align: 'end' }); }}>Jump to live</button></div>}</div>{editing && <TranscriptEditor meetingId={meetingId} row={editing} onClose={() => setEditing(null)} />}{menu && <UtteranceAction meetingId={meetingId} row={menu.row} action={menu.action} onClose={() => setMenu(null)} />}</>;
 }
 
 function TranscriptEditor({ meetingId, row, onClose }: { meetingId: string; row: RecordData; onClose: () => void }) {

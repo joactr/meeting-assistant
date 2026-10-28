@@ -61,7 +61,8 @@ it('bounds event-burst reads, catches the final revision and isolates foreign me
     for (let sequence = 2; sequence <= 30; sequence += 1) emit(sequence);
     expect(reads).toHaveLength(1);
     reads[0]?.release();
-    await waitFor(() => expect(reads).toHaveLength(2));
+    // Reloads are throttled to one per second; the trailing one carries the final revision.
+    await waitFor(() => expect(reads).toHaveLength(2), { timeout: 3000 });
     expect(reads[1]?.revision).toBe(30);
     reads[1]?.release();
     await waitFor(() => expect(client.getQueryData(key)).toEqual({ revision: 30 }));

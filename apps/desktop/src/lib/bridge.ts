@@ -82,30 +82,39 @@ export class EventCursor {
   }
 }
 
+// Entity events that only ever change their own meeting's views (transcript, speakers, capture).
+// While recording these arrive several times a second; they must not reload global lists too.
+const MEETING_ONLY = /^(utterances|utterance_revisions|words|transcript|speaker_\w+|meeting_speakers|timeline_gaps|citations|objects|entity_sources|capture_sources|media_segments)\./;
+
 export async function subscribeEngine(client: QueryClient): Promise<() => void> {
   if (!nativeAvailable()) return () => undefined;
   const cursor = new EventCursor();
   let disposed = false;
   let refreshing = false;
-  let pendingScopes = new Set<string | null>();
-  const refresh = async (meetingId: string | null = null): Promise<void> => {
-    pendingScopes.add(meetingId);
+  // Scope (meeting ID, or null for everything) -> whether global queries need reloading too.
+  let pendingScopes = new Map<string | null, boolean>();
+  const refresh = async (meetingId: string | null = null, global = true): Promise<void> => {
+    pendingScopes.set(meetingId, global || pendingScopes.get(meetingId) === true);
     if (refreshing || disposed) return;
     refreshing = true;
     try {
       while (pendingScopes.size && !disposed) {
         const scopes = pendingScopes;
-        pendingScopes = new Set();
+        pendingScopes = new Map();
+        const anyGlobal = [...scopes.values()].some(Boolean);
         // Do not cancel native requests already in flight. Events received while
         // they finish are drained in the next batch, including the final update.
         await client.invalidateQueries({
           predicate: (query) => {
             if (query.queryKey[0] !== 'engine') return false;
-            const args = object(query.queryKey[2]);
-            return !args.meeting_id || scopes.has(null)
-              || (typeof args.meeting_id === 'string' && scopes.has(args.meeting_id));
+            if (scopes.has(null)) return true;
+            const scoped = object(query.queryKey[2]).meeting_id;
+            return typeof scoped === 'string' && scoped ? scopes.has(scoped) : anyGlobal;
           },
         }, { cancelRefetch: false });
+        // At most one reload per second: a live meeting emits several events a second and
+        // each reload is served by the same engine loop that reads the audio.
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     } finally { refreshing = false; }
   };
@@ -126,7 +135,7 @@ export async function subscribeEngine(client: QueryClient): Promise<() => void> 
     }
     if (!cursor.accept(payload)) return;
     // Query keys include meeting IDs. Foreign events never replace another meeting's rows.
-    void refresh(payload.meeting_id ?? null);
+    void refresh(payload.meeting_id ?? null, !payload.meeting_id || !MEETING_ONLY.test(payload.type));
   });
   const onFocus = (): void => { void reconcile().catch(() => undefined); };
   window.addEventListener('focus', onFocus);

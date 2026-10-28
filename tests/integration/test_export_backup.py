@@ -128,12 +128,9 @@ async def test_approved_minutes_keep_current_reviewed_outcomes_and_email_privacy
             "blocks": [{"id": "summary", "heading": "Summary", "body": "Approved human summary"}],
         },
     )["item"]
-    draft = (
-        await workspace.adispatch(
-            "minutes.prepare", {"meeting_id": selected["id"], "note_revision": saved["revision"]}
-        )
-    )["item"]
-    workspace.dispatch("minutes.approve", {"id": draft["id"]})
+    await workspace.adispatch(
+        "minutes.prepare", {"meeting_id": selected["id"], "note_revision": saved["revision"]}
+    )
     workspace.put(
         "actions",
         new_id(),

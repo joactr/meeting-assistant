@@ -247,6 +247,11 @@ class NativeLLM:
             body[options.get("output_cap_field", "max_tokens")] = request.output_limit
             if options.get("supports_stream_usage", False):
                 body["stream_options"] = {"include_usage": True}
+            if adapter == "openrouter":
+                # Reasoning tokens count against max_tokens. At a reasoning model's default
+                # effort, the summary spent the whole budget thinking and returned no text.
+                # Models without reasoning ignore this.
+                body["reasoning"] = {"effort": options.get("reasoning_effort", "low")}
             if schema and self.capabilities.structured_output.strict_schema:
                 body["response_format"] = {
                     "type": "json_schema",

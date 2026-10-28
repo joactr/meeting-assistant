@@ -2,7 +2,6 @@
  * nav: top bar, five destinations and one primary action · signature: the transcript as one square pane a step above the midnight ground; azure only for the primary action, the selection and live state · states: loading, empty, error, full, recording, processing
  * axes: dark/grotesk-sans/cool-azure · posture: restrained · contrast: pass · modes: dark+light · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 · weakest: E, one family at two widths carries every voice; the expanded 300 stays on page and section heads only · waiver: theme posture committed, held restrained for a tool */
-/* Hallmark · dropped onScroll · the transcript pane no longer scrolls on its own; the page is the only scroller, so follow-live listens on window scroll */
 /* Feature pages. Entries are parted by hairline rules on the ground; the transcript is the one pane. */
 
 /* Meeting page: the record on the left, your notes in a ruled margin column on wide windows. */
@@ -97,12 +96,21 @@
   height: 6px;
 }
 
-/* Transcript: one square pane a step above the ground; it grows with the page, which is the
- * only scroller. Time gutter, speaker, then speech. */
+/* Transcript: one square pane a step above the ground. It fills the window below the meeting
+ * header and scrolls on its own, so the header and controls stay put. Time gutter, speaker,
+ * then speech. */
 .transcriptScroll {
   position: relative;
+  min-height: 16rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--color-sheet);
   overflow-anchor: none;
+}
+
+.transcriptScroll:focus-visible {
+  outline: var(--rule-hair) solid var(--color-accent);
+  outline-offset: -1px;
 }
 
 .utterance {
@@ -212,7 +220,7 @@ span.timestamp {
   }
 }
 
-/* Stays in view at the window's bottom edge while the transcript scrolls under it. */
+/* Stays in view at the pane's bottom edge while the transcript scrolls under it. */
 .jumpLive {
   position: sticky;
   bottom: 0;

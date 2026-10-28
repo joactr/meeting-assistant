@@ -13,14 +13,21 @@ def now_ms() -> int:
     return time.time_ns() // 1_000_000
 
 
+_last_id = [0, 0]  # (milliseconds, 12-bit sequence) of the previous id
+
+
 def new_id() -> str:
-    value = (
-        (now_ms() << 80)
-        | (7 << 76)
-        | (secrets.randbits(12) << 64)
-        | (2 << 62)
-        | secrets.randbits(62)
-    )
+    # UUIDv7 with a per-millisecond counter (RFC 9562 method 1): ids made in the same
+    # millisecond still sort in creation order, which every ORDER BY created_at,id relies on.
+    ms = now_ms()
+    if ms <= _last_id[0]:
+        ms, sequence = _last_id[0], _last_id[1] + 1
+        if sequence > 0xFFF:
+            ms, sequence = ms + 1, 0
+    else:
+        sequence = secrets.randbits(11)
+    _last_id[:] = [ms, sequence]
+    value = (ms << 80) | (7 << 76) | (sequence << 64) | (2 << 62) | secrets.randbits(62)
     return str(uuid.UUID(int=value))
 
 

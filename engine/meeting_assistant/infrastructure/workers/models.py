@@ -194,8 +194,33 @@ class ModelRuntime:
             if not executable.is_relative_to(runtime_dir.resolve()):
                 raise ProviderError("permission", "Runtime executable escapes its installed grant")
             if not developer:
+                stamp_path = runtime_dir.parent / "verified.json"
+
+                def tree() -> dict[str, list[int]]:
+                    # scandir carries size/mtime on Windows: no per-file open or stat call.
+                    found: dict[str, list[int]] = {}
+                    pending = [runtime_dir]
+                    while pending:
+                        with os.scandir(pending.pop()) as entries:
+                            for entry in entries:
+                                if entry.is_dir(follow_symlinks=False):
+                                    pending.append(Path(entry.path))
+                                else:
+                                    info = entry.stat(follow_symlinks=False)
+                                    relative = Path(entry.path).relative_to(runtime_dir)
+                                    found[relative.as_posix()] = [info.st_size, info.st_mtime_ns]
+                    return found
 
                 def verify() -> None:
+                    # ponytail: an unchanged pack (same files, sizes and mtimes as the last full
+                    # hash) is trusted without re-hashing ~800 MB. An edit that keeps the size and
+                    # restores the mtime is not caught; any other change re-hashes everything.
+                    seen = {"revision": runtime_dir.name, "files": tree()}
+                    try:
+                        if json.loads(stamp_path.read_text(encoding="utf-8")) == seen:
+                            return
+                    except (OSError, ValueError):
+                        pass
                     # Lexical check only: resolve() per file cost ~0.5ms (15k files in the speaker
                     # pack) and, contending for the GIL with a busy capture loop, most of a cold
                     # start. The hash below is what proves the bytes.
@@ -215,6 +240,9 @@ class ModelRuntime:
                             ) from None
                         if size != item["bytes"] or digest != item["sha256"]:
                             raise ProviderError("permission", "Installed runtime file was modified")
+                    temporary = stamp_path.with_name(f".verified-{os.getpid()}-{id(seen)}.json")
+                    temporary.write_text(json.dumps(seen), encoding="utf-8")
+                    os.replace(temporary, stamp_path)
 
                 # Hashing a runtime pack takes seconds to a minute; on the loop it starves the
                 # engine heartbeat and the native watchdog kills the engine mid-capture.

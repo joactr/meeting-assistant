@@ -322,8 +322,10 @@ impl Capture {
     if matches!(pending_control,Some(Control::Resume(_,_))){if let Some(Control::Resume(new_epoch,ack))=pending_control.take(){ensure!(paused,"source is not paused");ensure!(new_epoch>epoch,"resume requires a new epoch");epoch=new_epoch;need_vad_origin=true;downsample=Resampler::new(48000,16000)?;clock=ClockMap::new(48000);stream=Some(backend.start(&source.device_key,source.kind.clone(),ring.clone())?);paused=false;let _=ack.send(Ok(Boundary{source_index:source.source_index,sequence,capture_epoch:epoch,committed_media:vec![]}));}}
     while let Some(block)=ring.queue.pop(){
      let observed=block.monotonic_ns.saturating_sub(monotonic_origin);let(start,reset)=clock.observe(block.hardware_position,observed);
-     // A clock reset splices unrelated audio: drop the open utterance and re-anchor.
-     if reset{need_vad_origin=true;}
+     // A clock reset splices unrelated audio: drop the open utterance and re-anchor. The partial
+     // packet is sent first: one straddling the jump carries post-jump samples under a pre-jump
+     // time, so speech starting right after the jump fell between packets ("evicted").
+     if reset{need_vad_origin=true;if !packet.is_empty(){sequence+=1;send_packet(&packets,&source,epoch,sequence,packet_ns,&packet)?;packet.clear();}}
      if need_vad_origin{vad.reset(start.saturating_mul(16_000)/1_000_000_000);need_vad_origin=false;}
      vad_clock.observe(start,vad.cursor());
      if reset||block.discontinuity{(events)("native.capture.discontinuity",json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"start_ns":start.to_string(),"reason":"clock_reset"}));}

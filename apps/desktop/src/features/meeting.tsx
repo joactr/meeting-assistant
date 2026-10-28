@@ -1,3 +1,4 @@
+/* Hallmark · dropped onClick={() => setDraft(null)}, onClick={() => setDraft(row)}, onOpenChange={setPrepareOpen}, onSuccess={() => setDraft(null)}, onSuccess={(result) => { setDraft(item(result)); setPrepareOpen(false); }} · minutes are made and saved in one step; no review, candidates or AI policy field */
 import { useEffect, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -6,7 +7,7 @@ import { nativeAvailable, nativeRequest, request } from '../lib/bridge';
 import { flushDrafts } from '../lib/drafts';
 import { useResource } from '../lib/queries';
 import { useInterface } from '../lib/ui-store';
-import { date, humanize, id, item, items, label, object, revision, text, type RecordData } from '../lib/data';
+import { date, id, item, items, label, object, revision, text, type RecordData } from '../lib/data';
 import { ActionMenu } from '../components/controls';
 import { AsyncView, Badge, buttonClass, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, ErrorNotice, FieldInput, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, useOpenState } from '../components/ui';
 import { CaptureControls, LanguageControl, MeetingStatus, SpeakersPanel } from './capture';
@@ -29,10 +30,10 @@ function MeetingWorkspace({ meeting }: { meeting: RecordData }) {
   const setPanel = useInterface((state) => state.setPanel);
   const recording = ['recording', 'starting', 'paused'].includes(text(meeting.state));
   return <><PageHeader title={label(meeting)}><CaptureControls meeting={meeting} /><MeetingActions meeting={meeting} /></PageHeader><MeetingStatus meeting={meeting} /><CaptureAlert meeting={meeting} /><div className={styles.meeting}><div className={styles.record}><TabSet value={panel} onValueChange={setPanel} tabs={[
-    { label: 'Transcript', content: <><Transcript meetingId={meetingId} recording={recording} />{!recording && <ReplayPanel meetingId={meetingId} recording={recording} />}{!recording && <CandidatePanel meetingId={meetingId} />}</> },
+    { label: 'Transcript', content: <><Transcript meetingId={meetingId} recording={recording} />{!recording && <CandidatePanel meetingId={meetingId} />}</> },
     { label: 'Outcomes', content: <><AnalysisPanel meetingId={meetingId} /><ActionsPanel meetingId={meetingId} /><AnalysisPanel meetingId={meetingId} task="topics" /><QuestionsPanel meetingId={meetingId} /><ImportantPanel meetingId={meetingId} /></> },
     { label: 'Minutes', content: <><MinutesPanel meeting={meeting} /><FinalizationPanel meetingId={meetingId} /></> },
-  ]} /></div><aside className={styles.margin} aria-label="Your notes"><HumanNotes meetingId={meetingId} /></aside></div></>;
+  ]} /></div><aside className={styles.margin} aria-label="Your notes"><HumanNotes meetingId={meetingId} />{!recording && <ReplayPanel meetingId={meetingId} recording={recording} />}</aside></div></>;
 }
 
 const CAPTURE_ALERTS: Record<string, string> = {
@@ -104,25 +105,10 @@ function FinalizationPanel({ meetingId }: { meetingId: string }) {
 function MinutesPanel({ meeting }: { meeting: RecordData }) {
   const notes = useResource('notes.get', { meeting_id: id(meeting) });
   const minutes = useResource('minutes.get', { meeting_id: id(meeting) });
-  const [draft, setDraft] = useState<RecordData | null>(null);
-  const [prepareOpen, setPrepareOpen] = useState(false);
-  return <Panel title="Minutes">
-    <Modal open={prepareOpen} onOpenChange={setPrepareOpen} trigger={<button data-testid="prepare-minutes">Prepare minutes</button>} title="Prepare minutes"><CommandForm operation="minutes.prepare" fixed={{ meeting_id: id(meeting), note_revision: item(notes.data).revision ?? 0, transcript_revision: meeting.transcript_revision ?? 0 }} fields={[{ name: 'policy', label: 'AI policy (JSON, optional)', type: 'json', value: {} }]} submit="Prepare" onSuccess={(result) => { setDraft(item(result)); setPrepareOpen(false); }} /></Modal>
-    {draft && <>
-      <h3>Reviewed candidate</h3><CitedResult result={draft} />
-      <Details value={draft} />
-      <CommandForm operation="minutes.approve" fixed={{ id: id(draft), expected_revision: draft.approved_base_revision ?? null }} fields={[]} submit="Approve" confirm="I reviewed this candidate." onSuccess={() => setDraft(null)} />
-      <button onClick={() => setDraft(null)}>Close</button>
-    </>}
+  return <Panel title="Minutes" actions={<span data-testid="prepare-minutes"><CommandButton operation="minutes.prepare" payload={{ meeting_id: id(meeting), note_revision: item(notes.data).revision ?? 0, transcript_revision: meeting.transcript_revision ?? 0 }}>Make minutes</CommandButton></span>}>
     <AsyncView query={minutes}>{(data) => {
-      const approved = object(data.item);
-      const candidates = items({ items: data.candidates ?? [] });
-      return <>
-        <h3>Approved minutes</h3>
-        {id(approved) ? <><CitedResult result={approved} /><EditResource operation="minutes.edit" row={approved} fixed={{ meeting_id: id(meeting) }} label="Edit minutes" fields={[{ name: 'sections', label: 'Sections (JSON)', type: 'json', value: approved.sections ?? [] }]} /></> : <Empty title="No approved minutes" />}
-        <h3>Candidates</h3>
-        {candidates.length === 0 ? <Empty title="No candidates" /> : candidates.map((row) => <article className={styles.actionRow} key={id(row)}><div><Badge>{humanize(row.state)}</Badge>{Boolean(row.stale) && <Badge tone="warning">Out of date. Prepare again before approving.</Badge>}<small>Created {date(row.created_at)}</small></div><button onClick={() => setDraft(row)}>Review</button></article>)}
-      </>;
+      const current = object(data.item);
+      return id(current) ? <><CitedResult result={current} /><EditResource operation="minutes.edit" row={current} fixed={{ meeting_id: id(meeting) }} label="Edit minutes" fields={[{ name: 'sections', label: 'Sections (JSON)', type: 'json', value: current.sections ?? [] }]} /></> : <Empty title="No minutes yet" />;
     }}</AsyncView>
   </Panel>;
 }

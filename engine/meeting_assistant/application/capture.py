@@ -41,6 +41,8 @@ class AudioPipeline:
         self.tasks: set[asyncio.Task[None]] = set()
         self.total_bytes: dict[tuple[int, int], int] = {}
         self.next_diarization_ns: dict[tuple[int, int], int] = {}
+        # End of the last window that diarized successfully; audio after it is not labelled yet.
+        self.diarized_ns: dict[tuple[int, int], int] = {}
         self.diarization_task: asyncio.Task[dict[str, Any]] | None = None
         self.diarization_disabled: set[tuple[int, int]] = set()
         self.pending_ms: dict[tuple[int, int], int] = {}
@@ -48,6 +50,10 @@ class AudioPipeline:
         self.pause_task: asyncio.Task[dict[str, Any]] | None = None
         # Sources whose audio socket is open: their packets can still arrive.
         self.streaming: set[tuple[int, int]] = set()
+        # (epoch, index) -> (workspace.capture_version, source, meeting) for the packet loop.
+        self.lookups: dict[
+            tuple[int, int], tuple[int, dict[str, Any] | None, dict[str, Any] | None]
+        ] = {}
 
     async def start(self) -> int:
         self.server = await asyncio.start_server(self._client, "127.0.0.1", 0, limit=1_048_624)
@@ -147,14 +153,25 @@ class AudioPipeline:
                     "Audio sequence is not monotonic.",
                     status=409,
                 )
-                source = self._source(epoch, index)
+                # 50 packets/s per source: read the source and meeting again only after one of
+                # them was written (pause, resume, retry, stop, settings), not on every packet.
+                cached = self.lookups.get(key)
+                if cached is None or cached[0] != self.workspace.capture_version:
+                    found = self._source(epoch, index)
+                    cached = (
+                        self.workspace.capture_version,
+                        found,
+                        found and self.workspace.require_item("meetings", found["meeting_id"]),
+                    )
+                    self.lookups[key] = cached
+                source, meeting = cached[1], cached[2]
                 require(
                     source is not None,
                     "audio_epoch",
                     "Audio frame does not belong to a current active source.",
                     status=409,
                 )
-                assert source is not None
+                assert source is not None and meeting is not None
                 pcm = await reader.readexactly(length - 44)
                 if last is not None and sequence != last + 1:
                     self._gap(
@@ -175,8 +192,7 @@ class AudioPipeline:
                 queue.append(packet)
                 self.last_sequences[key] = sequence
                 self.total_bytes[key] = self.total_bytes.get(key, 0) + len(pcm)
-                meeting = self.workspace.require_item("meetings", source["meeting_id"])
-                if (
+                diarize = bool(
                     key not in self.diarization_disabled
                     and meeting["config_snapshot"].get("diarization_policy")
                     # With both sources the mic is the local user ("Me"); only split the other side.
@@ -184,6 +200,9 @@ class AudioPipeline:
                         source["source_kind"] == "mic"
                         and meeting["config_snapshot"].get("source") == "both"
                     )
+                )
+                if (
+                    diarize
                     and monotonic >= self.next_diarization_ns.get(key, 0)
                     and (self.diarization_task is None or self.diarization_task.done())
                 ):
@@ -221,7 +240,17 @@ class AudioPipeline:
                             )
 
                     self.diarization_task.add_done_callback(diarization_done)
-                while queue and monotonic - queue[0].monotonic_ns > 30_000_000_000:
+                # Audio not yet diarized stays up to 120s (~23 MB at 48 kHz): a cold speaker
+                # model takes ~60s to start, and the meeting's first words must still be labelled.
+                while (
+                    queue
+                    and monotonic - queue[0].monotonic_ns > 30_000_000_000
+                    and (
+                        not diarize
+                        or queue[0].monotonic_ns < self.diarized_ns.get(key, 0)
+                        or monotonic - queue[0].monotonic_ns > 120_000_000_000
+                    )
+                ):
                     oldest = queue.popleft()
                     self.total_bytes[key] -= len(oldest.pcm)
         except (asyncio.IncompleteReadError, ConnectionError):
@@ -256,7 +285,9 @@ class AudioPipeline:
             "No retained or bounded-window audio is available for diarization.",
             status=503,
         )
-        cutoff = packets[-1].monotonic_ns - 12_000_000_000
+        # From the end of the last labelled window, so audio a failed or cold-start window
+        # missed is diarized late instead of never; at least 12s for speaker context.
+        cutoff = min(packets[-1].monotonic_ns - 12_000_000_000, self.diarized_ns.get(key, 0))
         packets = [packet for packet in packets if packet.monotonic_ns >= cutoff]
         pcm = await asyncio.to_thread(
             pcm16k, b"".join(packet.pcm for packet in packets), packets[0].sample_rate
@@ -271,7 +302,9 @@ class AudioPipeline:
             final=final,
             meeting=meeting,
         )
-        return w.speaker_evidence.apply(meeting["id"], source["source_kind"], result)
+        applied = w.speaker_evidence.apply(meeting["id"], source["source_kind"], result)
+        self.diarized_ns[key] = packets[-1].monotonic_ns
+        return applied
 
     @staticmethod
     def _slice(packets: list[Packet], p: dict[str, Any], start: int, end: int) -> tuple[bytes, int]:

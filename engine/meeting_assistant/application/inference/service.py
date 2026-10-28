@@ -502,10 +502,14 @@ class InferenceService:
             )
             if operation in done:
                 return operation.result()
+            if cancel in done:
+                raise ProviderError(
+                    "cancelled", "Stopped locally; remote processing or billing may continue"
+                )
             raise ProviderError(
-                "cancelled" if cancel in done else "timeout",
-                "Stopped locally; remote processing or billing may continue",
-                retryable=cancel not in done,
+                "timeout",
+                "The model did not finish within the task's time limit; remote processing or billing may continue",
+                retryable=True,
             )
         finally:
             if not operation.done():

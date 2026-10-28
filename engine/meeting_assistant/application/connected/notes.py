@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from meeting_assistant.workspace import Workspace
 
-from meeting_assistant.application.routing import output_language
+from meeting_assistant.application.routing import output_language, task_policy
 
 from .common import all_items, existing, fail, fingerprint, is_json_list, required, save
 
@@ -231,14 +231,20 @@ class NotesService:
             "mode": "deterministic",
             "prompt_version": MINUTES_POLICY["version"],
         }
-        if payload.get("policy"):
+        # Minutes use the workspace's AI model when one is set up; there is no per-call policy.
+        policy = payload.get("policy") or task_policy(
+            self.workspace, "minutes", existing(self.workspace, "meetings", meeting_id)
+        )
+        if policy:
             if self.workspace.inference is None:
                 fail(
                     "inference_not_configured",
                     "Choose a provider before requesting generated minutes",
                 )
+            # The utterance's own source_id names its audio source (shared by every line from
+            # it); the evidence id must be the utterance, so it goes after the spread.
             evidence = [
-                {"id": item["id"], "source_id": item["id"], "type": "transcript", **item}
+                {**item, "id": item["id"], "source_id": item["id"], "type": "transcript"}
                 for item in inputs["transcript"]
             ]
             evidence += [
@@ -255,7 +261,7 @@ class NotesService:
             generated = await self.workspace.inference.generate(
                 "minutes",
                 evidence,
-                payload["policy"],
+                policy,
                 language=inputs["language"],
                 context={
                     "outline": outline,
@@ -391,7 +397,8 @@ class NotesService:
                 ),
             },
         )
-        return {"item": item, "human_notes_unchanged": True}
+        # No review step: the new minutes replace the current ones straight away.
+        return self.approve({"id": item["id"], "expected_revision": item["approved_base_revision"]})
 
     def approve(self, payload: dict[str, Any]) -> dict[str, Any]:
         candidate = existing(self.workspace, "minutes_candidates", required(payload, "id"))

@@ -25,6 +25,7 @@ from meeting_assistant.application.connected.network import ProviderHTTP
 from meeting_assistant.application.connected.notes import MINUTES_OUTLINE, validate_sections
 from meeting_assistant.application.connected.vocabulary import compile_terms
 from meeting_assistant.domain.errors import AppError
+from meeting_assistant.domain.model import new_id
 from meeting_assistant.workspace import Workspace
 
 
@@ -295,7 +296,7 @@ def test_no_change_delta_does_not_claim_new_work():
 
 
 @pytest.mark.asyncio
-async def test_guided_notes_candidates_preserve_approved_and_human_text(workspace):
+async def test_minutes_save_directly_and_preserve_human_text(workspace):
     item = meeting(workspace)
     saved = workspace.dispatch(
         "notes.save",
@@ -310,14 +311,14 @@ async def test_guided_notes_candidates_preserve_approved_and_human_text(workspac
             "minutes.prepare", {"meeting_id": item["id"], "note_revision": saved["revision"]}
         )
     )["item"]
-    approved = workspace.dispatch("minutes.approve", {"id": first["id"]})["item"]
     second = (
         await workspace.adispatch(
             "minutes.prepare", {"meeting_id": item["id"], "note_revision": saved["revision"]}
         )
     )["item"]
-    assert second["id"] != first["id"]
-    assert workspace.get("minutes_approved", item["id"])["revision"] == approved["revision"]
+    assert first["id"] == second["id"] == item["id"]
+    assert workspace.get("minutes_approved", item["id"])["revision"] == second["revision"]
+    assert second["revision"] > first["revision"]
     assert (
         workspace.get("human_notes", item["id"])["blocks"][0]["body"] == "A human-only observation"
     )
@@ -329,11 +330,43 @@ async def test_guided_notes_candidates_preserve_approved_and_human_text(workspac
 async def test_minutes_use_fixed_outline_without_template(workspace):
     item = meeting(workspace)
     assert "template_version_id" not in item and "template_snapshot" not in item
+    # Every line from one audio source shares its source_id; the evidence id is the utterance.
+    run = workspace.list("transcript_runs", {"meeting_id": item["id"]})[0]
+    source = workspace.put(
+        "capture_sources",
+        new_id(),
+        {
+            "meeting_id": item["id"],
+            "source_kind": "mic",
+            "device_key": "synthetic",
+            "display_name": "Mic",
+            "epoch": 1,
+            "state": "stopped",
+            "source_index": 0,
+        },
+    )
+    lines = [
+        workspace.put(
+            "utterances",
+            new_id(),
+            {
+                "meeting_id": item["id"],
+                "run_id": run["id"],
+                "source_id": source["id"],
+                "provider_result_id": f"r{start}",
+                "start_ms": start,
+                "end_ms": start + 500,
+                "text": f"Line {start}",
+                "is_final": True,
+            },
+        )
+        for start in (0, 1000)
+    ]
     seen = {}
 
     class Inference:
         async def generate(self, task, evidence, policy, *, language, context):
-            seen.update(context)
+            seen.update(context, evidence=evidence)
             return {"result": {"sections": []}}
 
     workspace.inference = Inference()
@@ -343,6 +376,7 @@ async def test_minutes_use_fixed_outline_without_template(workspace):
     assert [block["id"] for block in seen["outline"]] == [s["id"] for s in MINUTES_OUTLINE]
     assert seen["outline_guidance"] == MINUTES_OUTLINE
     assert "template" not in seen
+    assert [e["source_id"] for e in seen["evidence"]] == [line["id"] for line in lines]
 
 
 def test_notes_cas_conflict_does_not_overwrite(workspace):

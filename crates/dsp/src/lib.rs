@@ -123,7 +123,12 @@ impl Segmenter {
             } else {
                 self.silence += window.len();
             }
+            // A long turn closes at its first short pause (40% of post-roll, ~160 ms) once it
+            // passes half the limit: continuous speech then reaches the transcript every few
+            // seconds, cut between words, instead of only at the hard limit.
+            let long = self.active.len() >= self.config.maximum_utterance_ms as usize * 8;
             if self.silence >= self.config.post_roll_ms as usize * 16
+                || (long && self.silence >= self.config.post_roll_ms as usize * 16 * 2 / 5)
                 || self.active.len() >= self.config.maximum_utterance_ms as usize * 16
             {
                 if let Some(u) = self.finish() {
@@ -242,5 +247,31 @@ mod tests {
         out.extend(s.flush());
         let flattened: Vec<_> = out.into_iter().flat_map(|u| u.samples).collect();
         assert_eq!(flattened, samples);
+    }
+    #[test]
+    fn long_turn_closes_at_first_short_pause() {
+        let c = VadConfig {
+            minimum_speech_ms: 1,
+            ..Default::default()
+        };
+        let mut s = Segmenter::new(c, Box::new(EnergyGate)).unwrap();
+        let talk = |ms: usize| vec![0.05f32; ms * 16];
+        // A 200 ms pause 2 s in is too short to close the turn; the one 7 s in closes it.
+        let samples = [
+            talk(2000),
+            vec![0.; 3200],
+            talk(5000),
+            vec![0.; 3200],
+            talk(2000),
+        ]
+        .concat();
+        let mut out = s.push(&samples);
+        let first = out.first().map(|u| u.samples.len()).unwrap_or(0);
+        out.extend(s.flush());
+        assert_eq!(out.len(), 2);
+        assert!(
+            (7000 * 16..7400 * 16).contains(&first),
+            "first utterance {first} samples"
+        );
     }
 }

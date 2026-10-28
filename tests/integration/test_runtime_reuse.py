@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -92,11 +93,21 @@ async def test_ensure_ready_never_downloads_and_ignores_exe_hash(tmp_path, monke
     await runtime.ensure_ready(route)
     assert started == ["whisper"] and not runtime.damaged
 
-    (folder / "w.exe").write_bytes(b"corrupted!!!")
+    # Unchanged since the last full check: trusted without re-hashing.
+    runtime.registry.worker_runtimes.clear()
+    with monkeypatch.context() as patched:
+        patched.setattr(hashlib, "file_digest", lambda *_: pytest.fail("re-hashed unchanged pack"))
+        await runtime.ensure_ready(route)
+    assert started == ["whisper", "whisper"]
+
+    exe = folder / "w.exe"
+    before = exe.stat().st_mtime_ns
+    exe.write_bytes(b"corrupted!!!")  # same size: only the mtime tells
+    os.utime(exe, ns=(before + 2_000_000_000, before + 2_000_000_000))  # a later write
     runtime.registry.worker_runtimes.clear()
     with pytest.raises(ProviderError, match="modified"):
         await runtime.ensure_ready(route)
-    assert started == ["whisper"] and runtime.damaged == {RUNTIME}
+    assert started == ["whisper", "whisper"] and runtime.damaged == {RUNTIME}
 
 
 @pytest.fixture

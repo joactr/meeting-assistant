@@ -49,6 +49,8 @@ class Workspace(Store):
         self.registry: CommandRegistry = {}
         self.run_id = new_id()
         self.shutdown_reservation: dict[str, Any] | None = None
+        # Bumped on every meetings/capture_sources write; the audio loop caches lookups by it.
+        self.capture_version = 0
         self._tasks: list[asyncio.Task[None]] = []
         self._stopping = False
         self.shutdown_requested = asyncio.Event()
@@ -161,6 +163,8 @@ class Workspace(Store):
         expected_revision: int | None = None,
     ) -> dict[str, Any]:
         with self.transaction():
+            if collection in ("meetings", "capture_sources"):
+                self.capture_version += 1
             item = super().put(collection, entity_id, data, expected_revision=expected_revision)
             if (
                 collection in ("actions", "artifacts", "questions", "important_moments")
@@ -172,6 +176,8 @@ class Workspace(Store):
 
     def delete(self, collection: str, entity_id: str, *, expected_revision: int) -> dict[str, Any]:
         with self.transaction():
+            if collection in ("meetings", "capture_sources"):
+                self.capture_version += 1
             before = self.get(collection, entity_id)
             result = super().delete(collection, entity_id, expected_revision=expected_revision)
             if (

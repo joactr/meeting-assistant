@@ -437,23 +437,37 @@ def register_transcripts(w: Workspace, r: CommandRegistry) -> None:
             clauses.append("(start_ms>? OR (start_ms=? AND id>?))")
             parameters.extend((last[0], last[0], last[1]))
         parameters.append(int(p.get("limit", 50)) + 1)
-        selected = w.connection.execute(
-            "SELECT id FROM utterances WHERE "
-            + " AND ".join(clauses)
-            + " ORDER BY start_ms,id LIMIT ?",
-            parameters,
-        ).fetchall()
-        rows = [w.require_item("utterances", row["id"]) for row in selected]
-        for item in rows:
-            item["words"] = [
-                dict(row)
-                for row in w.connection.execute(
-                    "SELECT * FROM words WHERE utterance_id=? ORDER BY ordinal", (item["id"],)
-                ).fetchall()
-            ]
-            item["speaker_assignments"] = w.list(
-                "speaker_assignments", {"utterance_id": item["id"]}
+        rows = [
+            item
+            for item in map(
+                w.decode,
+                w.connection.execute(
+                    "SELECT * FROM utterances WHERE "
+                    + " AND ".join(clauses)
+                    + " ORDER BY start_ms,id LIMIT ?",
+                    parameters,
+                ).fetchall(),
             )
+            if item is not None
+        ]
+        # Words and speaker assignments for the whole page in two queries, not two per row.
+        by_id = {item["id"]: item for item in rows}
+        for item in rows:
+            item["words"], item["speaker_assignments"] = [], []
+        marks = ",".join("?" * len(by_id))
+        for row in w.connection.execute(
+            f"SELECT * FROM words WHERE utterance_id IN ({marks}) ORDER BY utterance_id,ordinal",
+            list(by_id),
+        ).fetchall():
+            by_id[row["utterance_id"]]["words"].append(dict(row))
+        for row in w.connection.execute(
+            f"SELECT * FROM speaker_assignments WHERE utterance_id IN ({marks})"
+            " ORDER BY created_at,id",
+            list(by_id),
+        ).fetchall():
+            assignment = w.decode(row)
+            assert assignment is not None
+            by_id[row["utterance_id"]]["speaker_assignments"].append(assignment)
         return paginate(rows, p, sort_key=lambda u: (u["start_ms"], u["id"]))
 
     r["transcript.list"] = transcript_list

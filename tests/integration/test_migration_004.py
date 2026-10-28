@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+from meeting_assistant.infrastructure.sqlite.store import CURRENT_SCHEMA_VERSION
 from meeting_assistant.workspace import Workspace
 
 MIGRATIONS = Path(__file__).resolve().parents[2] / "engine" / "migrations"
@@ -34,7 +35,7 @@ def test_drop_templates_keeps_meetings_and_projects(tmp_path: Path) -> None:
     workspace = Workspace(path)
     try:
         connection = workspace.connection
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == CURRENT_SCHEMA_VERSION
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         tables = {r[0] for r in connection.execute("SELECT name FROM sqlite_master")}

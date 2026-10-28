@@ -17,7 +17,7 @@ from meeting_assistant.domain.model import canonical, fingerprint, new_id, now_m
 from meeting_assistant.domain.ports import JSONDocument
 
 T = TypeVar("T")
-CURRENT_SCHEMA_VERSION = 4
+CURRENT_SCHEMA_VERSION = 5
 ALIASES = {
     "vocabulary": "vocabulary_terms",
     "moments": "important_moments",
@@ -115,7 +115,8 @@ class Store:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys=ON")
         self.connection.execute("PRAGMA journal_mode=WAL")
-        self.connection.execute("PRAGMA synchronous=FULL")
+        # WAL + NORMAL cannot corrupt the file; a power cut may lose the last commits only.
+        self.connection.execute("PRAGMA synchronous=NORMAL")
         self.connection.execute("PRAGMA busy_timeout=5000")
         self._mutex = threading.RLock()
         self._depth = 0
@@ -231,7 +232,7 @@ class Store:
         )
         return table
 
-    def _decode(self, row: sqlite3.Row | None) -> JSONDocument | None:
+    def decode(self, row: sqlite3.Row | None) -> JSONDocument | None:
         if row is None:
             return None
         item: JSONDocument = dict(row)
@@ -258,7 +259,7 @@ class Store:
                     {key: row[key] for key in ("id", "revision", "created_at", "updated_at")}
                 )
                 return result
-            return self._decode(
+            return self.decode(
                 self.connection.execute(
                     f'SELECT * FROM "{table}" WHERE id=?', (entity_id,)
                 ).fetchone()
@@ -310,7 +311,7 @@ class Store:
             if not extra_filters:
                 sql += " LIMIT ? OFFSET ?"
                 params += [limit, offset]
-            items = [self._decode(row) for row in self.connection.execute(sql, params).fetchall()]
+            items = [self.decode(row) for row in self.connection.execute(sql, params).fetchall()]
             if extra_filters:
                 items = [
                     item
@@ -545,7 +546,7 @@ class Store:
                 collection + ".updated" if before else collection + ".created",
                 {"changed_fields": sorted(data)},
                 entity_id=entity_id,
-                meeting_id=item.get("meeting_id"),
+                meeting_id=self._event_meeting(collection, entity_id, item),
                 revision=item["revision"],
             )
             return self.get(collection, entity_id) or item
@@ -589,10 +590,30 @@ class Store:
                 collection + ".deleted",
                 {},
                 entity_id=entity_id,
-                meeting_id=before.get("meeting_id"),
+                # A deleted meeting can't own its own event (outbox FK); every view drops it anyway.
+                meeting_id=None
+                if table == "meetings"
+                else self._event_meeting(collection, entity_id, before),
                 revision=expected_revision + 1,
             )
             return {"id": entity_id, "deleted": True}
+
+    def _event_meeting(self, collection: str, entity_id: str, item: JSONDocument) -> str | None:
+        """The meeting an entity event belongs to, so clients refresh only that meeting's views."""
+        if item.get("meeting_id"):
+            return str(item["meeting_id"])
+        if collection == "meetings":
+            return entity_id
+        if item.get("utterance_id"):
+            sql, key = "SELECT meeting_id FROM utterances WHERE id=?", item["utterance_id"]
+        elif item.get("run_id") and collection == "analysis_results":
+            sql, key = "SELECT meeting_id FROM analysis_runs WHERE id=?", item["run_id"]
+        elif item.get("owning_entity_id"):
+            sql, key = "SELECT id FROM meetings WHERE id=?", item["owning_entity_id"]
+        else:
+            return None
+        row = self.connection.execute(sql, (key,)).fetchone()
+        return row[0] if row else None
 
     def emit(
         self,
@@ -670,7 +691,7 @@ class Store:
                 self.connection.row_factory = sqlite3.Row
                 self.connection.execute("PRAGMA foreign_keys=ON")
                 self.connection.execute("PRAGMA journal_mode=WAL")
-                self.connection.execute("PRAGMA synchronous=FULL")
+                self.connection.execute("PRAGMA synchronous=NORMAL")
                 version = self.connection.execute("PRAGMA user_version").fetchone()[0]
                 migrations = (
                     Path(cast(str, vars(sys)["_MEIPASS"])) / "meeting_assistant" / "migrations"
