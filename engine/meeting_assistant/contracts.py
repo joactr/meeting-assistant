@@ -137,6 +137,7 @@ CORE_REQUIRED = {
     "speakers.analytics": ("meeting_id",),
     "analysis.generate": ("meeting_id",),
     "analysis.list": ("meeting_id",),
+    "analysis.status": ("meeting_id",),
     "analysis.read": ("id",),
     "analysis.promote": ("id", "expected_revision"),
     "language.set": ("meeting_id", "language", "expected_revision"),

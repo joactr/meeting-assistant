@@ -58,7 +58,7 @@ def test_partial_native_tail_reaches_drain_without_sample_loss(tmp_path: Path, r
                 )
                 writer.write(pcm)
             await writer.drain()
-            await pipeline.drain({"0": 2})
+            await pipeline.drain("unused", {"0": 2})
             packets = list(pipeline.buffers[(1, 0)])
             received = b"".join(packet.pcm for packet in packets)
             assert struct.unpack(f"<{len(values)}f", received) == tuple(values)

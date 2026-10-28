@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { listen } from '@tauri-apps/api/event';
 import { nativeAvailable, nativeRequest, request } from '../lib/bridge';
 import { flushDrafts } from '../lib/drafts';
 import { useResource } from '../lib/queries';
@@ -27,7 +28,7 @@ function MeetingWorkspace({ meeting }: { meeting: RecordData }) {
   const panel = useInterface((state) => state.panel);
   const setPanel = useInterface((state) => state.setPanel);
   const recording = ['recording', 'starting', 'paused'].includes(text(meeting.state));
-  return <><PageHeader title={label(meeting)}><MeetingActions meeting={meeting} /></PageHeader><CaptureStatus meeting={meeting}><div className={styles.captureActions}><CaptureControls meeting={meeting} /></div></CaptureStatus>{meeting.health === 'degraded' && <Notice danger>A source is missing. Retry it, pause, or continue with the remaining audio.</Notice>}<TabSet value={panel} onValueChange={setPanel} tabs={[
+  return <><PageHeader title={label(meeting)}><MeetingActions meeting={meeting} /></PageHeader><CaptureStatus meeting={meeting}><div className={styles.captureActions}><CaptureControls meeting={meeting} /></div></CaptureStatus><CaptureAlert meeting={meeting} /><TabSet value={panel} onValueChange={setPanel} tabs={[
     { label: 'Transcript', content: <><Transcript meetingId={meetingId} recording={recording} />{!recording && <ReplayPanel meetingId={meetingId} recording={recording} />}{!recording && <CandidatePanel meetingId={meetingId} />}</> },
     { label: 'Notes', content: <HumanNotes meetingId={meetingId} /> },
     { label: 'Summary', content: <><AnalysisPanel meetingId={meetingId} /><AnalysisPanel meetingId={meetingId} task="topics" /></> },
@@ -36,6 +37,40 @@ function MeetingWorkspace({ meeting }: { meeting: RecordData }) {
     { label: 'Speakers', content: <SpeakersPanel meetingId={meetingId} /> },
     { label: 'Minutes', content: <><MinutesPanel meeting={meeting} /><FinalizationPanel meetingId={meetingId} /></> },
   ]} /></>;
+}
+
+const CAPTURE_ALERTS: Record<string, string> = {
+  'capture.attention': 'Transcription needs attention',
+  'capture.backpressure': 'Transcription fell behind, so capture paused',
+  'native.capture.error': 'Capture problem',
+  'native.capture.source_lost': 'An audio source was lost',
+  'native.engine.interrupted': 'The engine stopped, so capture stopped',
+};
+
+/** Problems reported while capturing, with the way out: restart capture (new stream, fresh speech timing) or reload. */
+function CaptureAlert({ meeting }: { meeting: RecordData }) {
+  const meetingId = id(meeting);
+  const client = useQueryClient();
+  const sources = useResource('entity.list', { collection: 'capture_sources', filters: { meeting_id: meetingId } });
+  const [alert, setAlert] = useState<{ type: string; message: string } | null>(null);
+  useEffect(() => {
+    if (!nativeAvailable()) return;
+    let disposed = false; let cleanup: (() => void) | undefined;
+    void listen<RecordData>('engine-event', ({ payload }) => {
+      const type = text(payload.type);
+      if (!(type in CAPTURE_ALERTS)) return;
+      const data = object(payload.data);
+      const target = text(payload.meeting_id ?? data.meeting_id);
+      if (target && target !== meetingId) return;
+      setAlert({ type, message: text(data.message) });
+    }).then((unlisten) => { if (disposed) unlisten(); else cleanup = unlisten; });
+    return () => { disposed = true; cleanup?.(); };
+  }, [meetingId]);
+  const live = ['recording', 'paused'].includes(text(meeting.state));
+  const source = items(sources.data)[0];
+  if (!alert && !(live && meeting.health === 'degraded')) return null;
+  const interrupted = alert?.type === 'native.engine.interrupted';
+  return <Notice danger>{alert ? `${CAPTURE_ALERTS[alert.type]}${alert.message ? `: ${alert.message}` : ''}` : 'Some audio was not transcribed.'}<Toolbar>{live && source && !interrupted && <CommandButton operation="meetings.source_retry" payload={{ source_id: id(source) }} onSuccess={() => setAlert(null)}>Restart capture</CommandButton>}{interrupted && <button type="button" onClick={() => { setAlert(null); void client.invalidateQueries({ queryKey: ['engine'] }); }}>Reopen meeting</button>}{alert && <button type="button" onClick={() => setAlert(null)}>Dismiss</button>}</Toolbar></Notice>;
 }
 
 type MeetingDialog = 'export' | 'edit' | 'language' | 'delete' | null;

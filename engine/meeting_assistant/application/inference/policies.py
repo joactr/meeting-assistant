@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ...infrastructure.providers.contracts import ProviderError
+from ...infrastructure.providers.contracts import ProviderError, normalize_endpoint
 
 if TYPE_CHECKING:
     from ...workspace import Workspace
@@ -14,17 +14,18 @@ def connection_value(item: dict[str, Any]) -> dict[str, Any]:
     if "adapter" in item:
         return item
     settings = item.get("nonsecret_settings", {})
+    endpoint = normalize_endpoint(item["endpoint"])
     return {
         "id": item["id"],
         "adapter": item["adapter_id"],
-        "endpoint": item["endpoint"],
+        "endpoint": endpoint,
         "secret_ref": item.get("secret_ref"),
         "auth_scheme": item.get("auth_kind", "none"),
         "execution": item.get("declared_execution", "unknown"),
         "region": item.get("region"),
         "api_version": settings.get("api_version"),
         "destination": settings.get(
-            "destination_fingerprint", item.get("destination_fingerprint", item["endpoint"])
+            "destination_fingerprint", item.get("destination_fingerprint", endpoint)
         ),
     }
 

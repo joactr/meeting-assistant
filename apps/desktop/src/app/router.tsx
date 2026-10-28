@@ -7,7 +7,7 @@ import { nativeAvailable, nativeRequest, subscribeEngine } from '../lib/bridge';
 import { flushDrafts } from '../lib/drafts';
 import { useNativeResource, useResource } from '../lib/queries';
 import { useInterface } from '../lib/ui-store';
-import { item, object, text, type RecordData } from '../lib/data';
+import { item, number, object, text, type RecordData } from '../lib/data';
 import { Details, ErrorNotice, Modal, Notice, Toolbar } from '../components/ui';
 import { LibraryPage, NewMeeting } from '../features/library';
 import { MeetingPage } from '../features/meeting';
@@ -55,32 +55,44 @@ function UpdatePrompt() {
   const [offer, setOffer] = useState<RecordData | null>(null);
   const [dismissed, setDismissed] = useState('');
   const [state, setState] = useState<{ phase: 'working' } | { phase: 'blocked'; result: RecordData } | { phase: 'error'; error: unknown } | null>(null);
+  const [progress, setProgress] = useState({ received: 0, total: 0 });
   useEffect(() => {
     if (!nativeAvailable()) return undefined;
     let disposed = false; let cleanup: (() => void) | undefined;
-    void listen<{ type?: string; data?: RecordData }>('engine-event', ({ payload }) => { if (payload.type === 'native.update' && payload.data?.state === 'available') setOffer(payload.data); })
-      .then((unlisten) => { if (disposed) unlisten(); else cleanup = unlisten; });
+    void listen<{ type?: string; data?: RecordData }>('engine-event', ({ payload }) => {
+      if (payload.type === 'native.update' && payload.data?.state === 'available') setOffer(payload.data);
+      if (payload.type === 'native.update.progress') setProgress((current) => ({ received: current.received + number(payload.data?.chunk_bytes), total: number(payload.data?.total_bytes, current.total) }));
+    }).then((unlisten) => { if (disposed) unlisten(); else cleanup = unlisten; });
     return () => { disposed = true; cleanup?.(); };
   }, []);
   const version = text(offer?.version);
   const later = (): void => { setDismissed(version); setState(null); };
   const install = async (): Promise<void> => {
+    setProgress({ received: 0, total: 0 });
     setState({ phase: 'working' });
     try {
       await flushDrafts();
-      // On success the installer replaces and restarts the app; a returned value means something blocks it.
+      // On success the installer replaces and restarts the app; any other returned value means it did not.
       const result = await nativeRequest<RecordData>('update_install');
       if (result.state === 'blocked') setState({ phase: 'blocked', result });
+      else if (result.state !== 'installing') setState({ phase: 'error', error: new Error('The update did not install.') });
     } catch (error) { setState({ phase: 'error', error }); }
   };
   const busy = state?.phase === 'working';
+  // Installing… never outlives a minute without progress.
+  useEffect(() => {
+    if (!busy) return undefined;
+    const timer = window.setTimeout(() => setState({ phase: 'error', error: new Error('The update stopped making progress.') }), 60_000);
+    return () => window.clearTimeout(timer);
+  }, [busy, progress.received]);
+  const percent = progress.total ? Math.round(progress.received / progress.total * 100) : 0;
   return <Modal open={!!offer && version !== dismissed} onOpenChange={(open) => { if (!open && !busy) later(); }} title={`Update available: ${version}`}>
-    {busy && <Notice>Installing…</Notice>}
+    {busy && <Notice>{percent > 0 && percent < 100 ? `Downloading… ${percent}%` : 'Installing…'}</Notice>}
     {state?.phase === 'blocked' && <><Notice danger>Stop the active meeting first.</Notice><Details value={state.result} title="Blockers" /></>}
     {state?.phase === 'error' && <ErrorNotice error={state.error} />}
     <Toolbar>
       <button disabled={busy} onClick={later}>Later</button>
-      <button disabled={busy} onClick={() => { void install(); }}>Install and restart</button>
+      <button disabled={busy} onClick={() => { void install(); }}>{state?.phase === 'error' ? 'Retry' : 'Install and restart'}</button>
     </Toolbar>
   </Modal>;
 }

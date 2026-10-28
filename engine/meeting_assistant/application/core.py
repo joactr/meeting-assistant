@@ -11,6 +11,7 @@ from meeting_assistant.application.routing import task_policy
 from meeting_assistant.domain.errors import AppError, require
 from meeting_assistant.domain.model import canonical, fingerprint, new_id, now_ms
 from meeting_assistant.domain.ports import CommandRegistry
+from meeting_assistant.infrastructure.providers.contracts import normalize_endpoint
 
 if TYPE_CHECKING:
     from meeting_assistant.workspace import Workspace
@@ -26,7 +27,6 @@ EDITABLE = frozenset(
         "model_profiles",
         "task_policies",
         "consents",
-        "templates",
         "vocabulary_terms",
         "integration_connections",
         "notes",
@@ -46,6 +46,7 @@ READABLE = EDITABLE | {
     "topics",
     "artifacts",
     "capture_sources",
+    "timeline_gaps",
     "voice_profiles",
     "installed_artifacts",
 }
@@ -137,15 +138,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             "Select mic, system, both, file or text.",
             status=422,
         )
-        template_version = p.get("template_version_id")
-        if p.get("template_id"):
-            template_version = w.require_item("templates", p["template_id"])["current_version_id"]
         with w.transaction():
-            template_snapshot = (
-                w.require_item("template_versions", template_version).get("snapshot")
-                if template_version
-                else None
-            )
             item = w.put(
                 "meetings",
                 new_id(),
@@ -153,8 +146,6 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                     "title": title,
                     "state": "draft",
                     "project_id": project,
-                    "template_version_id": template_version,
-                    "template_snapshot": template_snapshot,
                     "calendar_event_id": p.get("calendar_event_id"),
                     "calendar_series_id": p.get("calendar_series_id"),
                     "attendees": p.get("attendees", []),
@@ -201,11 +192,11 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             "changes",
             p.get(
                 "data",
-                {k: v for k, v in p.items() if k in ("title", "project_id", "template_version_id")},
+                {k: v for k, v in p.items() if k in ("title", "project_id")},
             ),
         )
         require(
-            set(data) <= {"title", "project_id", "template_version_id"},
+            set(data) <= {"title", "project_id"},
             "invalid_edit",
             "Lifecycle and revision fields cannot be patched.",
             status=422,
@@ -565,7 +556,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                 status=503,
             )
             if w.audio_pipeline is not None:
-                await w.audio_pipeline.drain(ack.get("boundary_sequences"))
+                await w.audio_pipeline.drain(meeting_id, ack.get("boundary_sequences"))
             for boundary in ack.get("boundaries", []):
                 for media in boundary.get("committed_media", []):
                     await w.adispatch("media.commit", media)
@@ -659,7 +650,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                 retryable=True,
             )
             if w.audio_pipeline is not None:
-                await w.audio_pipeline.drain(ack.get("boundary_sequences"))
+                await w.audio_pipeline.drain(meeting_id, ack.get("boundary_sequences"))
             for boundary in ack.get("boundaries", []):
                 for media in boundary.get("committed_media", []):
                     await w.adispatch("media.commit", media)
@@ -795,6 +786,8 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
     }
 
     async def source_retry(p: dict[str, Any]) -> dict[str, Any]:
+        # Restarting capture gives every source a new epoch and stream, and re-anchors speech
+        # detection; the pause gap and any recorded loss gap stay on the timeline.
         source = w.require_item("capture_sources", p["source_id"])
         meeting = w.require_item("meetings", source["meeting_id"])
         require(
@@ -802,23 +795,16 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             "invalid_state",
             "Source retry requires active capture.",
         )
-        ack = await w.native(
-            "native.capture.source_retry",
-            {
-                "meeting_id": meeting["id"],
-                "source_id": source["id"],
-                "device_key": source["device_key"],
-                "epoch": meeting["capture_epoch"],
-            },
-        )
-        return {
-            "item": w.put(
-                "capture_sources",
-                source["id"],
-                {"state": "active" if ack.get("acknowledged") else "lost"},
-                expected_revision=p.get("expected_revision", source["revision"]),
+        if meeting["state"] == "recording":
+            await w.adispatch(
+                "meetings.pause",
+                {"meeting_id": meeting["id"], "idempotency_key": "source_retry:" + new_id()},
             )
-        }
+        await w.adispatch(
+            "meetings.resume",
+            {"meeting_id": meeting["id"], "idempotency_key": "source_retry:" + new_id()},
+        )
+        return {"item": w.require_item("capture_sources", source["id"])}
 
     r["meetings.source_retry"] = source_retry
 
@@ -925,6 +911,8 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
         )
         entity_id = p.get("id") or new_id()
         data = p.get("changes", p.get("data", {}))
+        if collection == "provider_connections" and isinstance(data.get("endpoint"), str):
+            data = {**data, "endpoint": normalize_endpoint(data["endpoint"])}
         if collection == "actions":
             if op == "create":
                 data = {"stable_origin_key": "manual:" + entity_id, **data}
@@ -958,12 +946,6 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                 )
                 w.purge_objects([v[1] for v in profiles], *(v[0] for v in profiles))
                 return result
-        if collection == "templates" and op == "update":
-            require(
-                not w.require_item(collection, entity_id).get("built_in_key"),
-                "builtin_immutable",
-                "Clone a built-in template before editing.",
-            )
         with w.transaction():
             result = w.put(
                 collection, entity_id, data, expected_revision=p.get("expected_revision")
@@ -1247,6 +1229,37 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
         return {"items": [i for i in w.list("analysis_results") if i["run_id"] in ids]}
 
     r["analysis.list"] = analysis_list
+
+    def analysis_status(p: dict[str, Any]) -> dict[str, Any]:
+        # Latest job per task; the finalize stages run analysis inline, so they report too.
+        latest: dict[str, dict[str, Any]] = {}
+        for job in sorted(
+            w.list("jobs", {"meeting_id": p["meeting_id"]}), key=lambda j: j["created_at"]
+        ):
+            if job["kind"] == "analysis":
+                tasks = [job["payload"]["task"]]
+            elif job["kind"] == "finalize" and job["stage"] in (
+                "final_analysis",
+                "minutes",
+                "memory",
+            ):
+                tasks = (
+                    ["summary", "actions", "topics", "artifacts"]
+                    if job["stage"] == "final_analysis"
+                    else [job["stage"]]
+                )
+            else:
+                continue
+            for task in tasks:
+                latest[task] = {
+                    "task": task,
+                    "status": job["status"],
+                    "error": job.get("error"),
+                    "job_id": job["id"],
+                }
+        return {"items": list(latest.values())}
+
+    r["analysis.status"] = analysis_status
     r["analysis.read"] = lambda p: {"item": w.require_item("analysis_results", p["id"])}
     r["analysis.promote"] = lambda p: promote_result(w, p["id"], p.get("expected_revision"))
 
@@ -1374,7 +1387,6 @@ async def execute_analysis(w: Workspace, job: dict[str, Any]) -> None:
                 ],
                 "note_revision": run["note_revision"],
                 "important_moments": w.list("important_moments", {"meeting_id": meeting["id"]}),
-                "template_version_id": meeting.get("template_version_id"),
             },
         )
         result = output.get("result", output)

@@ -111,6 +111,7 @@ class SetupLlm(Value):
     secret_ref: str | None = Field(default=None, min_length=1, max_length=200)
     model: str = Field(min_length=1, max_length=200)
     context_window: int | None = Field(default=None, gt=0)
+    accepted_destination: bool = Field(default=False, strict=True)
 
 
 class SetupModels(Value):

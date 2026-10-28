@@ -61,7 +61,6 @@ FIELD_TYPES: dict[str, Any] = {
     "note_revision": int,
     "transcript_revision": int,
     "flow_id": str,
-    "template_id": str,
     "run_id": str,
     "delivery_id": str,
     "transport": str,
@@ -77,8 +76,8 @@ FIELD_TYPES: dict[str, Any] = {
     "calendars": list[str],
 }
 
-# Required payload fields form the generated public command schema. Unknown template
-# fields remain inert JSON data rather than an executable extension mechanism.
+# Required payload fields form the generated public command schema. Unknown fields
+# remain inert JSON data rather than an executable extension mechanism.
 REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "connected.capabilities": (),
     "vocabulary.list": (),
@@ -108,10 +107,6 @@ REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "github.connection.disconnect": ("id", "expected_revision"),
     "notes.get": ("meeting_id",),
     "notes.save": ("meeting_id", "blocks"),
-    "templates.list": (),
-    "templates.save": ("name", "sections"),
-    "templates.clone": ("id",),
-    "templates.select": ("meeting_id", "template_id", "expected_revision"),
     "minutes.get": ("meeting_id",),
     "minutes.prepare": ("meeting_id", "note_revision"),
     "minutes.approve": ("id",),
@@ -160,7 +155,6 @@ class ConnectedWorkflows:
         self.calendar = CalendarService(workspace, http)
         self.issues = IssueService(workspace, http)
         self.notes = NotesService(workspace)
-        self.notes.seed_templates()
         self.delivery = DeliveryService(workspace)
         self.digest = DigestService(workspace, self.delivery)
         self._task: asyncio.Task[None] | None = None
@@ -288,10 +282,6 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
         "github.connection.disconnect": connected.issues.disconnect,
         "notes.get": connected.notes.get,
         "notes.save": connected.notes.save,
-        "templates.list": connected.notes.templates,
-        "templates.save": connected.notes.template_save,
-        "templates.clone": connected.notes.template_clone,
-        "templates.select": connected.notes.template_select,
         "minutes.get": connected.notes.minutes,
         "minutes.prepare": connected.notes.prepare,
         "minutes.approve": connected.notes.approve,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import random
 import time
@@ -21,6 +22,7 @@ from .contracts import (
     ModelProfile,
     ProviderError,
     check_deadline,
+    is_loopback,
 )
 
 
@@ -28,6 +30,13 @@ class _RequestOptions(TypedDict, total=False):
     headers: Mapping[str, str]
     json: Any
     content: bytes
+
+
+def _private_ip(host: str) -> bool:
+    try:
+        return ipaddress.ip_address(host).is_private
+    except ValueError:
+        return False
 
 
 def safe_endpoint(endpoint: str) -> str:
@@ -44,7 +53,7 @@ def safe_endpoint(endpoint: str) -> str:
             "invalid_input",
             "Endpoint must be an HTTP(S) origin/path without embedded credentials, query or fragment",
         )
-    if url.scheme == "http" and url.hostname not in {"localhost", "127.0.0.1", "::1"}:
+    if url.scheme == "http" and not is_loopback(endpoint) and not _private_ip(url.hostname):
         raise ProviderError("permission", "Remote inference endpoints require HTTPS")
     return endpoint.rstrip("/")
 

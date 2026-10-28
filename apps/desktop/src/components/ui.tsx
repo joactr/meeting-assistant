@@ -1,9 +1,9 @@
-import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Tabs from '@radix-ui/react-tabs';
 import { X } from 'lucide-react';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { ApplicationError, nativeAvailable } from '../lib/bridge';
+import { ApplicationError, engineStarting, nativeAvailable } from '../lib/bridge';
 import { useCommand, useNativeResource } from '../lib/queries';
 import { updatePreferences } from '../lib/preferences';
 import { object, pretty, safeParse, text, type Json, type Payload, type RecordData } from '../lib/data';
@@ -30,9 +30,23 @@ export function ErrorNotice({ error, retry, children }: { error: unknown; retry?
   return <div role="alert" className={`${styles.notice} ${styles.danger}`}><strong>{conflict ? 'A newer revision exists. Your changes have not been discarded.' : 'Operation failed'}</strong><p>{failure.message}</p>{details.map(([key, value]) => <small key={key}>{key.replaceAll('_', ' ')}: {typeof value === 'string' ? value : JSON.stringify(value)}</small>)}{failure.traceId && <small>Trace: {failure.traceId}</small>}{children}{retry && <button type="button" onClick={retry}>{conflict ? 'Reload saved version' : 'Try again'}</button>}</div>;
 }
 
-export function AsyncView({ query, children, empty, isEmpty = false }: { query: Pick<UseQueryResult<RecordData>, 'isPending' | 'isError' | 'error' | 'data' | 'isFetching'> & { refetch: () => unknown }; children: (data: RecordData) => ReactNode; empty?: ReactNode; isEmpty?: boolean }) {
+/** While the engine is still starting, refetches with backoff (1s, 2s, 4s, 8s…) for up to a minute. */
+function useStartupRetry(query: { isError: boolean; error: unknown; errorUpdatedAt: number; refetch: () => unknown }): boolean {
+  const since = useRef(Date.now());
+  const waiting = query.isError && engineStarting(query.error) && Date.now() - since.current < 60_000;
+  const attempts = useRef(0);
+  useEffect(() => {
+    if (!waiting) { attempts.current = 0; return undefined; }
+    const timer = window.setTimeout(() => { attempts.current += 1; void query.refetch(); }, Math.min(1000 * 2 ** attempts.current, 8000));
+    return () => window.clearTimeout(timer);
+  }, [waiting, query.errorUpdatedAt]);
+  return waiting;
+}
+
+export function AsyncView({ query, children, empty, isEmpty = false }: { query: Pick<UseQueryResult<RecordData>, 'isPending' | 'isError' | 'error' | 'errorUpdatedAt' | 'data' | 'isFetching'> & { refetch: () => unknown }; children: (data: RecordData) => ReactNode; empty?: ReactNode; isEmpty?: boolean }) {
+  const starting = useStartupRetry(query);
   if (!nativeAvailable()) return <Empty title="Desktop connection unavailable" />;
-  if (query.isPending) return <div className={styles.loading} role="status">Loading…</div>;
+  if (query.isPending || starting) return <div className={styles.loading} role="status">{starting ? 'Starting…' : 'Loading…'}</div>;
   if (query.isError) return <ErrorNotice error={query.error} retry={() => { void query.refetch(); }} />;
   if (isEmpty) return <>{empty ?? <Empty />}</>;
   return <div>{children(query.data ?? {})}</div>;

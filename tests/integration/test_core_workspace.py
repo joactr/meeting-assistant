@@ -110,6 +110,37 @@ def test_p27_outbox_and_jobs_survive_restart(tmp_path: Path) -> None:
         reopened.close()
 
 
+def test_analysis_status_reports_latest_job_per_task(workspace: Workspace) -> None:
+    meeting = create_text_meeting(workspace)
+    first = workspace.queue_job(
+        "analysis", {"task": "summary"}, meeting_id=meeting["id"], idempotency_key="a1"
+    )
+    workspace.put(
+        "jobs",
+        first["id"],
+        {"status": "failed", "error": "old"},
+        expected_revision=first["revision"],
+    )
+    workspace.queue_job(
+        "analysis", {"task": "summary"}, meeting_id=meeting["id"], idempotency_key="a2"
+    )
+    failed = workspace.queue_job(
+        "analysis", {"task": "topics"}, meeting_id=meeting["id"], idempotency_key="a3"
+    )
+    workspace.put(
+        "jobs",
+        failed["id"],
+        {"status": "failed", "error": "no provider"},
+        expected_revision=failed["revision"],
+    )
+    rows = {
+        r["task"]: r
+        for r in workspace.dispatch("analysis.status", {"meeting_id": meeting["id"]})["items"]
+    }
+    assert rows["summary"]["status"] == "queued" and rows["summary"]["error"] is None
+    assert rows["topics"]["status"] == "failed" and rows["topics"]["error"] == "no provider"
+
+
 def test_p28_auth_scope_host_origin_and_cas(workspace: Workspace) -> None:
     auth = Authorization(TOKEN)
     read_token = "cd" * 32

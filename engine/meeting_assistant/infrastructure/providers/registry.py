@@ -17,6 +17,7 @@ from .contracts import (
     ModelProfile,
     ProviderError,
     fingerprint,
+    is_loopback,
 )
 from .llm import NativeLLM, json_request
 
@@ -165,10 +166,15 @@ def resolve_capabilities(connection: Connection, profile: ModelProfile) -> Capab
             "embedding_tokens": 512 if adapter == "e5-onnx" else options.get("embedding_tokens"),
         },
     }
-    if adapter not in {"openai-compatible", "ollama"} and not local:
+    if adapter in {"openai-compatible", "ollama"}:
+        # A URL proves "this device" only for loopback hosts; any other host is a remote destination.
+        values["execution"] = "local" if is_loopback(connection.endpoint) else "remote"
+        if adapter == "ollama" and values["execution"] == "local":
+            # A loopback Ollama can still route to cloud models, so it must be confirmed.
+            if not options.get("execution_confirmed", False):
+                values["execution"] = "unknown"
+    elif not local:
         values["execution"] = "remote"
-    if adapter == "ollama" and not options.get("execution_confirmed", False):
-        values["execution"] = "unknown"
     if adapter in {
         "openai",
         "openai-compatible",

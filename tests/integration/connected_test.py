@@ -22,7 +22,7 @@ from meeting_assistant.application.connected.digest import (
 )
 from meeting_assistant.application.connected.issues import IssueService, marker
 from meeting_assistant.application.connected.network import ProviderHTTP
-from meeting_assistant.application.connected.notes import validate_sections
+from meeting_assistant.application.connected.notes import MINUTES_OUTLINE, validate_sections
 from meeting_assistant.application.connected.vocabulary import compile_terms
 from meeting_assistant.domain.errors import AppError
 from meeting_assistant.workspace import Workspace
@@ -323,6 +323,26 @@ async def test_guided_notes_candidates_preserve_approved_and_human_text(workspac
     )
     assert first["sections"][0]["source"] == "Human note"
     assert first["sections"][0]["citations"] == []
+
+
+@pytest.mark.asyncio
+async def test_minutes_use_fixed_outline_without_template(workspace):
+    item = meeting(workspace)
+    assert "template_version_id" not in item and "template_snapshot" not in item
+    seen = {}
+
+    class Inference:
+        async def generate(self, task, evidence, policy, *, language, context):
+            seen.update(context)
+            return {"result": {"sections": []}}
+
+    workspace.inference = Inference()
+    await workspace.adispatch(
+        "minutes.prepare", {"meeting_id": item["id"], "note_revision": 0, "policy": {"x": 1}}
+    )
+    assert [block["id"] for block in seen["outline"]] == [s["id"] for s in MINUTES_OUTLINE]
+    assert seen["outline_guidance"] == MINUTES_OUTLINE
+    assert "template" not in seen
 
 
 def test_notes_cas_conflict_does_not_overwrite(workspace):

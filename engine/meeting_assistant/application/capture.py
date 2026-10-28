@@ -44,6 +44,7 @@ class AudioPipeline:
         self.diarization_task: asyncio.Task[dict[str, Any]] | None = None
         self.diarization_disabled: set[tuple[int, int]] = set()
         self.pending_ms: dict[tuple[int, int], int] = {}
+        self.misses: dict[tuple[int, int], int] = {}
         self.pause_task: asyncio.Task[dict[str, Any]] | None = None
 
     async def start(self) -> int:
@@ -61,28 +62,37 @@ class AudioPipeline:
         self.buffers.clear()
         self.total_bytes.clear()
 
-    async def drain(self, boundaries: dict[str, Any] | None = None) -> None:
+    async def drain(self, meeting_id: str, boundaries: dict[str, Any] | None = None) -> None:
+        """Wait for native boundaries and in-flight ASR. A boundary that never arrives becomes a
+        recorded gap: pause/stop must still transition, otherwise native and engine disagree."""
+        missing: list[int] = []
         if boundaries:
             deadline = asyncio.get_running_loop().time() + 5
-            while not all(
-                any(
-                    key[1] == int(index) and seen >= int(sequence)
-                    for key, seen in self.last_sequences.items()
-                )
-                for index, sequence in boundaries.items()
-            ):
-                require(
-                    asyncio.get_running_loop().time() < deadline,
-                    "audio_boundary_missing",
-                    "Engine has not received the native drain boundary.",
-                    status=503,
-                    retryable=True,
-                )
+            while True:
+                missing = [
+                    int(index)
+                    for index, sequence in boundaries.items()
+                    if not any(
+                        key[1] == int(index) and seen >= int(sequence)
+                        for key, seen in self.last_sequences.items()
+                    )
+                ]
+                if not missing or asyncio.get_running_loop().time() >= deadline:
+                    break
                 await asyncio.sleep(0.01)
         if self.tasks:
-            await asyncio.gather(*list(self.tasks))
+            # Failed ASR tasks already recorded their own gaps.
+            await asyncio.gather(*list(self.tasks), return_exceptions=True)
         if self.diarization_task:
             await asyncio.gather(self.diarization_task, return_exceptions=True)
+        for source in self.workspace.list("capture_sources", {"meeting_id": meeting_id}):
+            if source.get("source_index") in missing:
+                last = [
+                    q[-1].monotonic_ns
+                    for k, q in self.buffers.items()
+                    if k[1] == source["source_index"] and q
+                ]
+                self._gap(source, "drain_incomplete", last[0] // 1_000_000 if last else 0, {})
 
     async def _client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         try:
@@ -257,6 +267,53 @@ class AudioPipeline:
         )
         return w.speaker_evidence.apply(meeting["id"], source["source_kind"], result)
 
+    @staticmethod
+    def _slice(packets: list[Packet], p: dict[str, Any], start: int, end: int) -> tuple[bytes, int]:
+        """Cut an utterance's PCM out of the bounded packet window, never fabricating audio."""
+        require(
+            bool(packets),
+            "audio_unavailable",
+            "Utterance audio is no longer in the bounded memory window.",
+            status=503,
+        )
+        packets = [
+            packet
+            for packet in packets
+            if packet.monotonic_ns + packet.frame_count * 1_000_000_000 // packet.sample_rate
+            > start * 1_000_000
+            and packet.monotonic_ns < end * 1_000_000
+        ]
+        require(
+            bool(packets)
+            and all(
+                right.sequence == left.sequence + 1
+                for left, right in zip(packets, packets[1:], strict=False)
+            ),
+            "audio_range_missing",
+            "Speech overlaps a captured audio gap; no fabricated contiguous audio is submitted.",
+            status=503,
+        )
+        rate = packets[0].sample_rate
+        # Native positions are absolute meeting-timeline counters, including pauses.
+        start_frame = int(p.get("start_sample", start * 16)) * (rate // 16000)
+        first_frame = packets[0].monotonic_ns * rate // 1_000_000_000
+        require(
+            start_frame >= first_frame - 3,
+            "audio_range_missing",
+            "Speech start was evicted from the bounded memory window.",
+            status=503,
+        )
+        offset = max(0, start_frame - first_frame)
+        count = (end - start) * (rate // 1000)
+        pcm = b"".join(packet.pcm for packet in packets)[offset * 4 : (offset + count) * 4]
+        require(
+            len(pcm) >= max(4, count * 4 - 3840),
+            "audio_range_missing",
+            "Utterance audio range is incomplete; a gap is recorded instead of fabricated speech.",
+            status=503,
+        )
+        return pcm, rate
+
     def _gap(
         self, source: dict[str, Any], reason: str, start_ms: int, details: dict[str, Any]
     ) -> None:
@@ -298,13 +355,6 @@ class AudioPipeline:
             "Utterance has less than 250 ms true speech.",
             status=422,
         )
-        packets = list(self.buffers.get((epoch, index), []))
-        require(
-            bool(packets),
-            "audio_unavailable",
-            "Utterance audio is no longer in the bounded memory window.",
-            status=503,
-        )
         start = int(p["start_ms"])
         end = int(p["end_ms"])
         require(
@@ -313,24 +363,21 @@ class AudioPipeline:
             "Utterance duration is invalid.",
             status=422,
         )
-        packets = [
-            packet
-            for packet in packets
-            if packet.monotonic_ns + packet.frame_count * 1_000_000_000 // packet.sample_rate
-            > start * 1_000_000
-            and packet.monotonic_ns < end * 1_000_000
-        ]
-        require(
-            bool(packets)
-            and all(
-                right.sequence == left.sequence + 1
-                for left, right in zip(packets, packets[1:], strict=False)
-            ),
-            "audio_range_missing",
-            "Speech overlaps a captured audio gap; no fabricated contiguous audio is submitted.",
-            status=503,
-        )
         key = (epoch, index)
+        try:
+            pcm, rate = self._slice(list(self.buffers.get(key, [])), p, start, end)
+        except AppError as exc:
+            # Dropped speech is a visible gap; repeated drops mean transcription has stalled.
+            self._gap(source, exc.code, start, {"end_ms": end})
+            self.misses[key] = self.misses.get(key, 0) + 1
+            if self.misses[key] == 3:
+                self.workspace.emit(
+                    "capture.attention",
+                    {"source_id": source["id"], "code": "asr_stalled", "message": exc.message},
+                    meeting_id=source["meeting_id"],
+                )
+            raise
+        self.misses.pop(key, None)
         if self.pending_ms.get(key, 0) + (end - start) > 30000:
             self.workspace.emit(
                 "capture.backpressure",
@@ -353,26 +400,6 @@ class AudioPipeline:
                 )
             while self.pending_ms.get(key, 0) + (end - start) > 30000 and self.tasks:
                 await asyncio.wait(self.tasks, return_when=asyncio.FIRST_COMPLETED)
-        # Native positions are absolute meeting-timeline counters, including pauses.
-        start_sample = int(p.get("start_sample", start * 16))
-        start_frame = start_sample * (packets[0].sample_rate // 16000)
-        first_frame = packets[0].monotonic_ns * packets[0].sample_rate // 1_000_000_000
-        require(
-            start_frame >= first_frame - 3,
-            "audio_range_missing",
-            "Speech start was evicted from the bounded memory window.",
-            status=503,
-        )
-        offset = max(0, start_frame - first_frame)
-        count = (end - start) * (packets[0].sample_rate // 1000)
-        pcm = b"".join(packet.pcm for packet in packets)
-        pcm = pcm[offset * 4 : (offset + count) * 4]
-        require(
-            len(pcm) >= max(4, count * 4 - 3840),
-            "audio_range_missing",
-            "Utterance audio range is incomplete; a gap is recorded instead of fabricated speech.",
-            status=503,
-        )
 
         async def run() -> None:
             w = self.workspace
@@ -386,7 +413,7 @@ class AudioPipeline:
             )
             assert w.inference is not None
             assert policy is not None
-            converted = await asyncio.to_thread(pcm16k, pcm, packets[0].sample_rate)
+            converted = await asyncio.to_thread(pcm16k, pcm, rate)
             compiled: dict[str, Any] = meeting["config_snapshot"].get("vocabulary", {})
             terms: list[dict[str, Any] | str] = compiled.get("terms", [])
             vocabulary: list[str] = (

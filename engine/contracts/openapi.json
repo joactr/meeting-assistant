@@ -2635,6 +2635,271 @@
         ]
       }
     },
+    "/api/v1/commands/analysis.status": {
+      "post": {
+        "operationId": "analysis.status",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "properties": {
+                  "confirm": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Confirm"
+                  },
+                  "cursor": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Cursor"
+                  },
+                  "file_grant": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "File Grant"
+                  },
+                  "grant_id": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Grant Id"
+                  },
+                  "include_media": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Include Media"
+                  },
+                  "include_transcript": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Include Transcript"
+                  },
+                  "limit": {
+                    "anyOf": [
+                      {
+                        "maximum": 200,
+                        "minimum": 1,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Limit"
+                  },
+                  "meeting_id": {
+                    "title": "Meeting Id",
+                    "type": "string"
+                  },
+                  "meeting_ids": {
+                    "anyOf": [
+                      {
+                        "items": {
+                          "type": "string"
+                        },
+                        "maxItems": 200,
+                        "type": "array"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Meeting Ids"
+                  },
+                  "passphrase_secret_ref": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Passphrase Secret Ref"
+                  },
+                  "plain_warning_accepted": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Plain Warning Accepted"
+                  },
+                  "policy": {
+                    "anyOf": [
+                      {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Policy"
+                  },
+                  "recording_enabled": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Recording Enabled"
+                  },
+                  "recording_notice_acknowledged": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Recording Notice Acknowledged"
+                  },
+                  "retain_audio": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Retain Audio"
+                  },
+                  "temporary_decode_consent": {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null,
+                    "title": "Temporary Decode Consent"
+                  }
+                },
+                "required": [
+                  "meeting_id"
+                ],
+                "title": "AnalysisStatusPayload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Committed application response"
+          },
+          "202": {
+            "description": "Durable job accepted"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "title": "Code",
+                      "type": "string"
+                    },
+                    "details": {
+                      "default": null,
+                      "title": "Details"
+                    },
+                    "message": {
+                      "title": "Message",
+                      "type": "string"
+                    },
+                    "retryable": {
+                      "title": "Retryable",
+                      "type": "boolean"
+                    },
+                    "trace_id": {
+                      "title": "Trace Id",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "retryable",
+                    "trace_id"
+                  ],
+                  "title": "ErrorEnvelope",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "State, revision or idempotency conflict"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/commands/ask.query": {
       "post": {
         "operationId": "ask.query",
@@ -32544,6 +32809,11 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
+                  "accepted_destination": {
+                    "default": false,
+                    "title": "Accepted Destination",
+                    "type": "boolean"
+                  },
                   "adapter": {
                     "maxLength": 100,
                     "minLength": 1,
@@ -34914,866 +35184,6 @@
                   "expected_revision"
                 ],
                 "title": "SpeakersSplitPayload",
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Committed application response"
-          },
-          "202": {
-            "description": "Durable job accepted"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "title": "Code",
-                      "type": "string"
-                    },
-                    "details": {
-                      "default": null,
-                      "title": "Details"
-                    },
-                    "message": {
-                      "title": "Message",
-                      "type": "string"
-                    },
-                    "retryable": {
-                      "title": "Retryable",
-                      "type": "boolean"
-                    },
-                    "trace_id": {
-                      "title": "Trace Id",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "retryable",
-                    "trace_id"
-                  ],
-                  "title": "ErrorEnvelope",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "State, revision or idempotency conflict"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/commands/templates.clone": {
-      "post": {
-        "operationId": "templates.clone",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": true,
-                "properties": {
-                  "aliases": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Aliases",
-                    "type": "array"
-                  },
-                  "apply": {
-                    "default": false,
-                    "title": "Apply",
-                    "type": "boolean"
-                  },
-                  "assignees": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Assignees",
-                    "type": "array"
-                  },
-                  "authorize_duplicate_risk": {
-                    "default": false,
-                    "title": "Authorize Duplicate Risk",
-                    "type": "boolean"
-                  },
-                  "automatic": {
-                    "default": false,
-                    "title": "Automatic",
-                    "type": "boolean"
-                  },
-                  "calendar_ids": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Calendar Ids",
-                    "type": "array"
-                  },
-                  "create_distinct": {
-                    "default": false,
-                    "title": "Create Distinct",
-                    "type": "boolean"
-                  },
-                  "enabled": {
-                    "default": false,
-                    "title": "Enabled",
-                    "type": "boolean"
-                  },
-                  "expected_revision": {
-                    "anyOf": [
-                      {
-                        "type": "integer"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "default": null,
-                    "title": "Expected Revision"
-                  },
-                  "id": {
-                    "title": "Id",
-                    "type": "string"
-                  },
-                  "labels": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Labels",
-                    "type": "array"
-                  },
-                  "priority": {
-                    "default": 0,
-                    "title": "Priority",
-                    "type": "integer"
-                  },
-                  "profile_id": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "default": null,
-                    "title": "Profile Id"
-                  },
-                  "project_mapping": {
-                    "additionalProperties": {
-                      "type": "string"
-                    },
-                    "title": "Project Mapping",
-                    "type": "object"
-                  },
-                  "read": {
-                    "default": false,
-                    "title": "Read",
-                    "type": "boolean"
-                  },
-                  "recipients": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Recipients",
-                    "type": "array"
-                  },
-                  "reminder_minutes": {
-                    "default": 5,
-                    "maximum": 1440,
-                    "minimum": 0,
-                    "title": "Reminder Minutes",
-                    "type": "integer"
-                  },
-                  "reminders_enabled": {
-                    "default": false,
-                    "title": "Reminders Enabled",
-                    "type": "boolean"
-                  },
-                  "repositories": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Repositories",
-                    "type": "array"
-                  },
-                  "retry": {
-                    "default": false,
-                    "title": "Retry",
-                    "type": "boolean"
-                  },
-                  "reviewed": {
-                    "default": false,
-                    "title": "Reviewed",
-                    "type": "boolean"
-                  },
-                  "weekday": {
-                    "default": 4,
-                    "maximum": 6,
-                    "minimum": 0,
-                    "title": "Weekday",
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "id"
-                ],
-                "title": "TemplatesClonePayload",
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Committed application response"
-          },
-          "202": {
-            "description": "Durable job accepted"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "title": "Code",
-                      "type": "string"
-                    },
-                    "details": {
-                      "default": null,
-                      "title": "Details"
-                    },
-                    "message": {
-                      "title": "Message",
-                      "type": "string"
-                    },
-                    "retryable": {
-                      "title": "Retryable",
-                      "type": "boolean"
-                    },
-                    "trace_id": {
-                      "title": "Trace Id",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "retryable",
-                    "trace_id"
-                  ],
-                  "title": "ErrorEnvelope",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "State, revision or idempotency conflict"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/commands/templates.list": {
-      "post": {
-        "operationId": "templates.list",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": true,
-                "properties": {
-                  "aliases": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Aliases",
-                    "type": "array"
-                  },
-                  "apply": {
-                    "default": false,
-                    "title": "Apply",
-                    "type": "boolean"
-                  },
-                  "assignees": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Assignees",
-                    "type": "array"
-                  },
-                  "authorize_duplicate_risk": {
-                    "default": false,
-                    "title": "Authorize Duplicate Risk",
-                    "type": "boolean"
-                  },
-                  "automatic": {
-                    "default": false,
-                    "title": "Automatic",
-                    "type": "boolean"
-                  },
-                  "calendar_ids": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Calendar Ids",
-                    "type": "array"
-                  },
-                  "create_distinct": {
-                    "default": false,
-                    "title": "Create Distinct",
-                    "type": "boolean"
-                  },
-                  "enabled": {
-                    "default": false,
-                    "title": "Enabled",
-                    "type": "boolean"
-                  },
-                  "expected_revision": {
-                    "anyOf": [
-                      {
-                        "type": "integer"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "default": null,
-                    "title": "Expected Revision"
-                  },
-                  "labels": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Labels",
-                    "type": "array"
-                  },
-                  "priority": {
-                    "default": 0,
-                    "title": "Priority",
-                    "type": "integer"
-                  },
-                  "profile_id": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "default": null,
-                    "title": "Profile Id"
-                  },
-                  "project_mapping": {
-                    "additionalProperties": {
-                      "type": "string"
-                    },
-                    "title": "Project Mapping",
-                    "type": "object"
-                  },
-                  "read": {
-                    "default": false,
-                    "title": "Read",
-                    "type": "boolean"
-                  },
-                  "recipients": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Recipients",
-                    "type": "array"
-                  },
-                  "reminder_minutes": {
-                    "default": 5,
-                    "maximum": 1440,
-                    "minimum": 0,
-                    "title": "Reminder Minutes",
-                    "type": "integer"
-                  },
-                  "reminders_enabled": {
-                    "default": false,
-                    "title": "Reminders Enabled",
-                    "type": "boolean"
-                  },
-                  "repositories": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Repositories",
-                    "type": "array"
-                  },
-                  "retry": {
-                    "default": false,
-                    "title": "Retry",
-                    "type": "boolean"
-                  },
-                  "reviewed": {
-                    "default": false,
-                    "title": "Reviewed",
-                    "type": "boolean"
-                  },
-                  "weekday": {
-                    "default": 4,
-                    "maximum": 6,
-                    "minimum": 0,
-                    "title": "Weekday",
-                    "type": "integer"
-                  }
-                },
-                "title": "TemplatesListPayload",
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Committed application response"
-          },
-          "202": {
-            "description": "Durable job accepted"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "title": "Code",
-                      "type": "string"
-                    },
-                    "details": {
-                      "default": null,
-                      "title": "Details"
-                    },
-                    "message": {
-                      "title": "Message",
-                      "type": "string"
-                    },
-                    "retryable": {
-                      "title": "Retryable",
-                      "type": "boolean"
-                    },
-                    "trace_id": {
-                      "title": "Trace Id",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "retryable",
-                    "trace_id"
-                  ],
-                  "title": "ErrorEnvelope",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "State, revision or idempotency conflict"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/commands/templates.save": {
-      "post": {
-        "operationId": "templates.save",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": true,
-                "properties": {
-                  "aliases": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Aliases",
-                    "type": "array"
-                  },
-                  "apply": {
-                    "default": false,
-                    "title": "Apply",
-                    "type": "boolean"
-                  },
-                  "assignees": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Assignees",
-                    "type": "array"
-                  },
-                  "authorize_duplicate_risk": {
-                    "default": false,
-                    "title": "Authorize Duplicate Risk",
-                    "type": "boolean"
-                  },
-                  "automatic": {
-                    "default": false,
-                    "title": "Automatic",
-                    "type": "boolean"
-                  },
-                  "calendar_ids": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Calendar Ids",
-                    "type": "array"
-                  },
-                  "create_distinct": {
-                    "default": false,
-                    "title": "Create Distinct",
-                    "type": "boolean"
-                  },
-                  "enabled": {
-                    "default": false,
-                    "title": "Enabled",
-                    "type": "boolean"
-                  },
-                  "expected_revision": {
-                    "anyOf": [
-                      {
-                        "type": "integer"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "default": null,
-                    "title": "Expected Revision"
-                  },
-                  "labels": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Labels",
-                    "type": "array"
-                  },
-                  "name": {
-                    "title": "Name",
-                    "type": "string"
-                  },
-                  "priority": {
-                    "default": 0,
-                    "title": "Priority",
-                    "type": "integer"
-                  },
-                  "profile_id": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "default": null,
-                    "title": "Profile Id"
-                  },
-                  "project_mapping": {
-                    "additionalProperties": {
-                      "type": "string"
-                    },
-                    "title": "Project Mapping",
-                    "type": "object"
-                  },
-                  "read": {
-                    "default": false,
-                    "title": "Read",
-                    "type": "boolean"
-                  },
-                  "recipients": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Recipients",
-                    "type": "array"
-                  },
-                  "reminder_minutes": {
-                    "default": 5,
-                    "maximum": 1440,
-                    "minimum": 0,
-                    "title": "Reminder Minutes",
-                    "type": "integer"
-                  },
-                  "reminders_enabled": {
-                    "default": false,
-                    "title": "Reminders Enabled",
-                    "type": "boolean"
-                  },
-                  "repositories": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Repositories",
-                    "type": "array"
-                  },
-                  "retry": {
-                    "default": false,
-                    "title": "Retry",
-                    "type": "boolean"
-                  },
-                  "reviewed": {
-                    "default": false,
-                    "title": "Reviewed",
-                    "type": "boolean"
-                  },
-                  "sections": {
-                    "items": {
-                      "additionalProperties": true,
-                      "type": "object"
-                    },
-                    "title": "Sections",
-                    "type": "array"
-                  },
-                  "weekday": {
-                    "default": 4,
-                    "maximum": 6,
-                    "minimum": 0,
-                    "title": "Weekday",
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "name",
-                  "sections"
-                ],
-                "title": "TemplatesSavePayload",
-                "type": "object"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Committed application response"
-          },
-          "202": {
-            "description": "Durable job accepted"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "code": {
-                      "title": "Code",
-                      "type": "string"
-                    },
-                    "details": {
-                      "default": null,
-                      "title": "Details"
-                    },
-                    "message": {
-                      "title": "Message",
-                      "type": "string"
-                    },
-                    "retryable": {
-                      "title": "Retryable",
-                      "type": "boolean"
-                    },
-                    "trace_id": {
-                      "title": "Trace Id",
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "code",
-                    "message",
-                    "retryable",
-                    "trace_id"
-                  ],
-                  "title": "ErrorEnvelope",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "State, revision or idempotency conflict"
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/commands/templates.select": {
-      "post": {
-        "operationId": "templates.select",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": true,
-                "properties": {
-                  "aliases": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Aliases",
-                    "type": "array"
-                  },
-                  "apply": {
-                    "default": false,
-                    "title": "Apply",
-                    "type": "boolean"
-                  },
-                  "assignees": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Assignees",
-                    "type": "array"
-                  },
-                  "authorize_duplicate_risk": {
-                    "default": false,
-                    "title": "Authorize Duplicate Risk",
-                    "type": "boolean"
-                  },
-                  "automatic": {
-                    "default": false,
-                    "title": "Automatic",
-                    "type": "boolean"
-                  },
-                  "calendar_ids": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Calendar Ids",
-                    "type": "array"
-                  },
-                  "create_distinct": {
-                    "default": false,
-                    "title": "Create Distinct",
-                    "type": "boolean"
-                  },
-                  "enabled": {
-                    "default": false,
-                    "title": "Enabled",
-                    "type": "boolean"
-                  },
-                  "expected_revision": {
-                    "title": "Expected Revision",
-                    "type": "integer"
-                  },
-                  "labels": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Labels",
-                    "type": "array"
-                  },
-                  "meeting_id": {
-                    "title": "Meeting Id",
-                    "type": "string"
-                  },
-                  "priority": {
-                    "default": 0,
-                    "title": "Priority",
-                    "type": "integer"
-                  },
-                  "profile_id": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "default": null,
-                    "title": "Profile Id"
-                  },
-                  "project_mapping": {
-                    "additionalProperties": {
-                      "type": "string"
-                    },
-                    "title": "Project Mapping",
-                    "type": "object"
-                  },
-                  "read": {
-                    "default": false,
-                    "title": "Read",
-                    "type": "boolean"
-                  },
-                  "recipients": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Recipients",
-                    "type": "array"
-                  },
-                  "reminder_minutes": {
-                    "default": 5,
-                    "maximum": 1440,
-                    "minimum": 0,
-                    "title": "Reminder Minutes",
-                    "type": "integer"
-                  },
-                  "reminders_enabled": {
-                    "default": false,
-                    "title": "Reminders Enabled",
-                    "type": "boolean"
-                  },
-                  "repositories": {
-                    "items": {
-                      "type": "string"
-                    },
-                    "title": "Repositories",
-                    "type": "array"
-                  },
-                  "retry": {
-                    "default": false,
-                    "title": "Retry",
-                    "type": "boolean"
-                  },
-                  "reviewed": {
-                    "default": false,
-                    "title": "Reviewed",
-                    "type": "boolean"
-                  },
-                  "template_id": {
-                    "title": "Template Id",
-                    "type": "string"
-                  },
-                  "weekday": {
-                    "default": 4,
-                    "maximum": 6,
-                    "minimum": 0,
-                    "title": "Weekday",
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "expected_revision",
-                  "meeting_id",
-                  "template_id"
-                ],
-                "title": "TemplatesSelectPayload",
                 "type": "object"
               }
             }

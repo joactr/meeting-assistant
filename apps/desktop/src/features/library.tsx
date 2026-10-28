@@ -15,13 +15,11 @@ export function NewMeeting({ trigger = 'New meeting' }: { trigger?: ReactNode })
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const projects = useResource('projects.list');
-  const templates = useResource('templates.list');
   const setup = useResource('setup.status');
   const languageSelectable = object(setup.data?.asr).language_selectable === true;
   return <Modal open={open} onOpenChange={setOpen} trigger={<button data-testid="new-meeting">{trigger}</button>} title="Prepare a meeting"><CommandForm operation="meetings.create" fields={[
     { name: 'title', label: 'Meeting name', required: true },
     { name: 'project_id', label: 'Project', type: 'select', options: [{ value: '', label: 'No project' }, ...items(projects.data).map((row) => ({ value: id(row), label: label(row) }))] },
-    { name: 'template_id', label: 'Template', type: 'select', value: 'general', options: items(templates.data).map((row) => ({ value: id(row), label: label(row) })) },
     ...(languageSelectable ? [{ name: 'language', label: 'Language', type: 'select' as const, value: '', options: [{ value: '', label: 'Detect automatically' }, ...LANGUAGES.map(([value, name]) => ({ value, label: name }))] }] : []),
     { name: 'source', label: 'Capture sources', type: 'select', value: 'both', options: [{ value: 'both', label: 'Microphone + system audio' }, { value: 'mic', label: 'Microphone only' }, { value: 'system', label: 'System audio only' }] },
     { name: 'pre_briefing', label: 'Human agenda / preparation', type: 'textarea' },

@@ -64,21 +64,34 @@ export function CitedResult({ result }: { result: RecordData }) {
   </div>;
 }
 
+const running = (row: RecordData) => row.status === 'queued' || row.status === 'running';
+
+/** Per-task job state under a generate button; nothing once the task is done. */
+function TaskStatus({ status, task }: { status: RecordData | undefined; task: string }) {
+  const row = items(status).find((entry) => entry.task === task);
+  if (!row) return null;
+  if (running(row)) return <small role="status">Generating…</small>;
+  if (row.status !== 'failed') return null;
+  return <Toolbar><small role="alert">Failed: {text(row.error, 'unknown error')}</small><CommandButton operation="jobs.retry" payload={{ job_id: text(row.job_id) }}>Retry</CommandButton></Toolbar>;
+}
+
 export function AnalysisPanel({ meetingId, task = 'summary' }: { meetingId: string; task?: string }) {
   const query = useResource('analysis.list', { meeting_id: meetingId, task });
-  return <Panel title={task === 'summary' ? 'Summary' : 'Topics & outcomes'} actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task, idempotency_key: crypto.randomUUID() }}>Generate {task}</CommandButton>}><AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title={`No ${task} yet`} /> : items(data).map((result) => <CitedResult key={id(result)} result={result} />)}</AsyncView>{task === 'topics' && <Artifacts meetingId={meetingId} />}</Panel>;
+  const status = useResource('analysis.status', { meeting_id: meetingId }, true, (data) => items(data).some(running));
+  const generating = items(status.data).some((row) => row.task === task && running(row));
+  return <Panel title={task === 'summary' ? 'Summary' : 'Topics & outcomes'} actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task }}>Generate {task}</CommandButton>}><TaskStatus status={status.data} task={task} /><AsyncView query={query}>{(data) => items(data).length === 0 ? (generating ? null : <Empty title={`No ${task} yet`} />) : items(data).map((result) => <CitedResult key={id(result)} result={result} />)}</AsyncView>{task === 'topics' && <Artifacts meetingId={meetingId} />}</Panel>;
 }
 
 function Artifacts({ meetingId }: { meetingId: string }) {
   const query = useResource('analysis.list', { meeting_id: meetingId, task: 'artifacts' });
-  return <><hr /><Toolbar><h3>Outcomes</h3><CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task: 'artifacts', idempotency_key: crypto.randomUUID() }}>Generate outcomes</CommandButton></Toolbar><AsyncView query={query}>{(data) => items(data).map((row) => <CitedResult key={id(row)} result={row} />)}</AsyncView></>;
+  return <><hr /><Toolbar><h3>Outcomes</h3><CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task: 'artifacts' }}>Generate outcomes</CommandButton></Toolbar><AsyncView query={query}>{(data) => items(data).map((row) => <CitedResult key={id(row)} result={row} />)}</AsyncView></>;
 }
 
 export function ActionsPanel({ meetingId }: { meetingId: string }) {
   const query = useResource('actions.list', { meeting_id: meetingId });
   const [open, setOpen] = useState(false);
   const [undo, setUndo] = useState<RecordData | null>(null);
-  return <Panel title="Actions" actions={<><Modal open={open} onOpenChange={setOpen} trigger={<button>Add action</button>} title="Add action"><CommandForm operation="actions.create" fixed={{ meeting_id: meetingId }} fields={actionFields} onSuccess={() => setOpen(false)} /></Modal><CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task: 'actions', idempotency_key: crypto.randomUUID() }}>Extract actions</CommandButton></>}><AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title="No actions" /> : items(data).map((row) => <ActionRow key={id(row)} row={row} />)}</AsyncView><Toolbar><ConfirmCommand trigger="Clear actions" title="Clear actions?" message="Removes all actions for this meeting. You can undo for ten minutes." operation="actions.clear" payload={{ meeting_id: meetingId }} onSuccess={(result) => setUndo(result)} />{undo && <CommandButton operation="undo.apply" payload={{ id: text(undo.undo_id ?? item(undo).id) }}>Undo clear</CommandButton>}</Toolbar></Panel>;
+  return <Panel title="Actions" actions={<><Modal open={open} onOpenChange={setOpen} trigger={<button>Add action</button>} title="Add action"><CommandForm operation="actions.create" fixed={{ meeting_id: meetingId }} fields={actionFields} onSuccess={() => setOpen(false)} /></Modal><CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task: 'actions' }}>Extract actions</CommandButton></>}><AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title="No actions" /> : items(data).map((row) => <ActionRow key={id(row)} row={row} />)}</AsyncView><Toolbar><ConfirmCommand trigger="Clear actions" title="Clear actions?" message="Removes all actions for this meeting. You can undo for ten minutes." operation="actions.clear" payload={{ meeting_id: meetingId }} onSuccess={(result) => setUndo(result)} />{undo && <CommandButton operation="undo.apply" payload={{ id: text(undo.undo_id ?? item(undo).id) }}>Undo clear</CommandButton>}</Toolbar></Panel>;
 }
 
 export function ActionRow({ row }: { row: RecordData }) {
@@ -120,7 +133,7 @@ export function ActionRow({ row }: { row: RecordData }) {
 export function QuestionsPanel({ meetingId }: { meetingId: string }) {
   const questions = useResource('questions.list', { meeting_id: meetingId });
   const cues = useResource('analysis.list', { meeting_id: meetingId, task: 'cues' });
-  return <Panel title="Cues & questions" actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task: 'cues', idempotency_key: crypto.randomUUID() }}>Generate cues</CommandButton>}><AsyncView query={cues}>{(data) => items(data).map((row) => <CitedResult key={id(row)} result={row} />)}</AsyncView><h3>Questions</h3><AsyncView query={questions}>{(data) => items(data).length === 0 ? <Empty title="No open questions" /> : items(data).map((row) => <article className={styles.actionRow} key={id(row)}><div><p>{text(row.text ?? row.question)}</p><Badge>{text(row.status, 'open')}</Badge>{array(row.source_refs).map((source, index) => <Citation key={index} source={source} />)}</div><Toolbar><CommandButton operation="questions.update" payload={{ id: id(row), expected_revision: revision(row), status: 'answered' }}>Mark answered</CommandButton><CommandButton operation="questions.update" payload={{ id: id(row), expected_revision: revision(row), status: 'dismissed' }}>Dismiss</CommandButton><CommandButton operation="questions.update" payload={{ id: id(row), expected_revision: revision(row), status: 'open' }}>Reopen</CommandButton></Toolbar></article>)}</AsyncView></Panel>;
+  return <Panel title="Cues & questions" actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task: 'cues' }}>Generate cues</CommandButton>}><AsyncView query={cues}>{(data) => items(data).map((row) => <CitedResult key={id(row)} result={row} />)}</AsyncView><h3>Questions</h3><AsyncView query={questions}>{(data) => items(data).length === 0 ? <Empty title="No open questions" /> : items(data).map((row) => <article className={styles.actionRow} key={id(row)}><div><p>{text(row.text ?? row.question)}</p><Badge>{text(row.status, 'open')}</Badge>{array(row.source_refs).map((source, index) => <Citation key={index} source={source} />)}</div><Toolbar><CommandButton operation="questions.update" payload={{ id: id(row), expected_revision: revision(row), status: 'answered' }}>Mark answered</CommandButton><CommandButton operation="questions.update" payload={{ id: id(row), expected_revision: revision(row), status: 'dismissed' }}>Dismiss</CommandButton><CommandButton operation="questions.update" payload={{ id: id(row), expected_revision: revision(row), status: 'open' }}>Reopen</CommandButton></Toolbar></article>)}</AsyncView></Panel>;
 }
 
 export function ImportantPanel({ meetingId }: { meetingId: string }) {

@@ -57,6 +57,23 @@ class ModelRuntime:
         # Per profile: a cold speaker-model start (~80s) must not block a running ASR worker.
         self.locks: dict[str, asyncio.Lock] = {}
         self.grants: dict[str, dict[str, Path | None]] = {}
+        # Runtime ids whose installed pack failed signature/integrity checks; only an explicit
+        # user download replaces them (never ensure_ready).
+        self.damaged: set[str] = set()
+
+    def installed_manifest(self, identity: str) -> tuple[str, dict[str, Any]] | None:
+        """(revision, runtime manifest) of the active pack, whatever its revision; no hashing."""
+        try:
+            folder = self.install_root / identity
+            revision: str = json.loads((folder / "active.json").read_text(encoding="utf-8"))[
+                "revision"
+            ]
+            manifest: dict[str, Any] = json.loads(
+                (folder / revision / "runtime-manifest.json").read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+        return revision, manifest
 
     def _active(
         self, identity: str | None, *, runtime: bool = False
@@ -137,6 +154,7 @@ class ModelRuntime:
                     await current.close()
                 else:
                     return current
+            runtime_id = profile.options.get("runtime_id")
             if developer:
                 if "runtime_id" in profile.options:
                     raise ProviderError(
@@ -162,9 +180,12 @@ class ModelRuntime:
                         "permission", "Developer worker grant is unavailable or invalid"
                     ) from None
             else:
-                runtime_dir, manifest = self._active(
-                    profile.options.get("runtime_id"), runtime=True
-                )
+                try:
+                    runtime_dir, manifest = self._active(runtime_id, runtime=True)
+                except ProviderError as error:
+                    if error.code == "permission":
+                        self.damaged.add(str(runtime_id))
+                    raise
             if manifest.get("family") != family or manifest.get("protocol_major") != 1:
                 raise ProviderError(
                     "unsupported", "Installed runtime family/protocol does not match this profile"
@@ -197,7 +218,12 @@ class ModelRuntime:
 
                 # Hashing a runtime pack takes seconds to a minute; on the loop it starves the
                 # engine heartbeat and the native watchdog kills the engine mid-capture.
-                await asyncio.to_thread(verify)
+                try:
+                    await asyncio.to_thread(verify)
+                except ProviderError:
+                    self.damaged.add(str(runtime_id))
+                    raise
+                self.damaged.discard(runtime_id)
             model_dir = developer_model
             if family != "azure-speech" and not developer:
                 model_dir, model = self._active(profile.options.get("catalog_id"))

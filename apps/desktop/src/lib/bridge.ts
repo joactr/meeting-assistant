@@ -29,6 +29,11 @@ export function nativeAvailable(): boolean {
   return '__TAURI_INTERNALS__' in window;
 }
 
+/** The native host's answer to requests that arrive before the engine process has finished starting. */
+export function engineStarting(error: unknown): boolean {
+  return error instanceof ApplicationError && error.message === 'engine is not ready';
+}
+
 export async function nativeRequest<T = RecordData>(command: string, args: Payload = {}): Promise<T> {
   if (!nativeAvailable()) {
     throw new ApplicationError({
@@ -115,7 +120,7 @@ export async function subscribeEngine(client: QueryClient): Promise<() => void> 
     } finally { reconciling = false; }
   };
   const unlisten = await listen<EngineEvent>('engine-event', ({ payload }) => {
-    if (payload.type === 'resync_required' || payload.type === 'engine.reconnected') {
+    if (payload.type === 'resync_required' || payload.type === 'engine.reconnected' || payload.type === 'native.engine.ready') {
       void reconcile().catch(() => refresh());
       return;
     }

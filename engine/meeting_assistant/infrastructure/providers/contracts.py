@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import ipaddress
 import json
 import time
 import uuid
 from typing import Any, Literal, Self
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from ...domain.errors import AppError
 
 
 class Value(BaseModel):
@@ -123,6 +127,36 @@ class Capabilities(Value):
     limits: Limits = Field(default_factory=Limits)
 
 
+def normalize_endpoint(endpoint: str) -> str:
+    """Prefix a bare host[:port] with http://; reject anything that has no host."""
+    value = endpoint.strip()
+    if "://" not in value:
+        value = "http://" + value
+    try:
+        parts = urlsplit(value)
+        host, _ = parts.hostname, parts.port
+    except ValueError:
+        host = None
+    if not host:
+        raise AppError(
+            "invalid_endpoint",
+            "Endpoint must be a URL such as http://192.168.1.9:8080.",
+            status=422,
+        )
+    return value
+
+
+def is_loopback(endpoint: str) -> bool:
+    """True only for localhost, 127.0.0.0/8 and ::1: the one case where a URL proves the host is this device."""
+    host = urlsplit(normalize_endpoint(endpoint)).hostname or ""
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
 class Connection(Value):
     id: str
     adapter: str
@@ -133,6 +167,11 @@ class Connection(Value):
     region: str | None = None
     api_version: str | None = None
     destination: str
+
+    @field_validator("endpoint")
+    @classmethod
+    def _normalized(cls, value: str) -> str:
+        return normalize_endpoint(value)
 
 
 class ModelProfile(Value):

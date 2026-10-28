@@ -7,10 +7,12 @@ import { useNativeResource, useResource } from '../lib/queries';
 import { array, clock, id, items, label, number, object, revision, text, type RecordData } from '../lib/data';
 import { AsyncView, Badge, CommandButton, CommandForm, Details, EditResource, Empty, ErrorNotice, FieldInput, Modal, Notice, Panel, Toolbar, useOpenState } from '../components/ui';
 import { SetupLink } from './providers';
+import { useInterface } from '../lib/ui-store';
 import styles from './workspace.module.css';
 
 export function CaptureControls({ meeting }: { meeting: RecordData }) {
   const client = useQueryClient();
+  const setPanel = useInterface((state) => state.setPanel);
   const [startOpen, setStartOpen] = useState(false);
   const [stopOpen, setStopOpen] = useState(false);
   const [mic, setMic] = useState('');
@@ -34,7 +36,7 @@ export function CaptureControls({ meeting }: { meeting: RecordData }) {
       if (!intent.current || intent.current.operation !== operation) intent.current = { operation, payload: { meeting_id: id(meeting), expected_revision: revision(meeting), idempotency_key: crypto.randomUUID(), ...(operation === 'start' ? { sources, participant_notice_acknowledged: true, recording_enabled: recordAudio, recording_notice_acknowledged: recordAudio, ...(vocabularyReviewed && acknowledgementKey ? { vocabulary_acknowledgement: acknowledgementKey } : {}) } : {}) } };
       return request(`meetings.${operation}`, intent.current.payload);
     },
-    onSuccess: async () => { intent.current = null; setStartOpen(false); setStopOpen(false); await client.invalidateQueries({ queryKey: ['engine'] }); },
+    onSuccess: async (_result, operation) => { intent.current = null; setStartOpen(false); setStopOpen(false); if (operation === 'stop') setPanel('Summary'); await client.invalidateQueries({ queryKey: ['engine'] }); },
   });
   const deviceRows = items(devices.data).length ? items(devices.data) : array(devices.data?.devices);
   const micKey = mic || text(deviceRows.find((row) => row.kind === 'mic' && row.is_default)?.key);
@@ -73,11 +75,7 @@ export function CaptureStatus({ meeting, children }: { meeting: RecordData; chil
   const elapsed = recording && meeting.started_at ? now - number(meeting.started_at) : number(meeting.elapsed_ms);
   const sources = useResource('entity.list', { collection: 'capture_sources', filters: { meeting_id: id(meeting) } });
   const done = meeting.state === 'complete';
-  const live = ['starting', 'recording', 'paused'].includes(text(meeting.state));
-  // Polls only while a selected speaker model is not running yet.
-  const setup = useResource('setup.status', {}, live, (data) => ['loading', 'stopped'].includes(text(object(data?.diarization).state)));
-  const speakerModel = live ? text(object(setup.data?.diarization).state) : '';
-  return <div className={styles.captureStrip}><div>{!done && <Badge tone={recording ? 'success' : meeting.health === 'degraded' ? 'warning' : 'neutral'}>{text(meeting.state, 'draft').replaceAll('_', ' ')}</Badge>}<strong className={styles.elapsed}>{clock(elapsed)}</strong>{speakerModel === 'loading' && <Badge>Loading speaker model…</Badge>}</div><AudioMeters /><div>{items(sources.data).filter((source) => !done || source.state === 'lost').map((source) => <span key={id(source)} className={styles.sourceState}><Badge tone={source.state === 'lost' ? 'danger' : 'neutral'}>{text(source.display_name) || text(source.source_kind)}: {text(source.state)}</Badge>{source.state === 'lost' && <CommandButton operation="meetings.source_retry" payload={{ source_id: id(source), expected_revision: revision(source) }}>Retry this source</CommandButton>}</span>)}</div>{children}{meeting.interrupted_reason && <Notice danger>{text(meeting.interrupted_reason)}</Notice>}</div>;
+  return <div className={styles.captureStrip}><div>{!done && <Badge tone={recording ? 'success' : meeting.health === 'degraded' ? 'warning' : 'neutral'}>{text(meeting.state, 'draft').replaceAll('_', ' ')}</Badge>}<strong className={styles.elapsed}>{clock(elapsed)}</strong></div><AudioMeters /><div>{items(sources.data).filter((source) => !done || source.state === 'lost').map((source) => <span key={id(source)} className={styles.sourceState}><Badge tone={source.state === 'lost' ? 'danger' : 'neutral'}>{text(source.display_name) || text(source.source_kind)}: {text(source.state)}</Badge>{source.state === 'lost' && <CommandButton operation="meetings.source_retry" payload={{ source_id: id(source), expected_revision: revision(source) }}>Retry this source</CommandButton>}</span>)}</div>{children}{meeting.interrupted_reason && <Notice danger>{text(meeting.interrupted_reason)}</Notice>}</div>;
 }
 
 export function AudioMeters() {

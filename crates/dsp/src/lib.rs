@@ -170,6 +170,10 @@ impl Segmenter {
         self.detector.reset();
         out
     }
+    /// Next input sample index: every pushed sample, including those not yet windowed.
+    pub fn cursor(&self) -> u64 {
+        self.position + self.accumulator.len() as u64
+    }
     pub fn reset(&mut self, start_sample: u64) {
         self.accumulator.clear();
         self.pre.clear();

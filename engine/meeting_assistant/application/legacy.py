@@ -43,7 +43,6 @@ SUPPORTED = frozenset(
         "memory_segments",
         "briefings",
         "meeting_briefings",
-        "templates",
         "settings",
         "workspace_settings",
         "voice_profiles",
@@ -130,7 +129,7 @@ def report_preview(source: sqlite3.Connection, source_fingerprint: str) -> JSOND
         "source_schema": columns,
         "counts": counts,
         "missing_optional_tables": sorted(
-            {"words", "speaker_profiles", "questions", "topics", "templates"} - tables
+            {"words", "speaker_profiles", "questions", "topics"} - tables
         ),
         "requires_source_stopped_for_final_cutover": True,
         "secrets_imported": False,
@@ -295,36 +294,6 @@ def import_legacy(w: Workspace, path: Path, p: JSONDocument) -> JSONDocument:
                         mapping.setdefault("taxonomy", {})[old_id(row)] = item["id"]
                         mapping.setdefault("taxonomy_project", {})[old_id(row)] = root_project
                     pending.remove(row)
-            for row in rows("templates"):
-                template = save(
-                    "templates",
-                    row,
-                    {
-                        "name": row.get("name", "Imported template"),
-                        "sections": decode_json(
-                            row.get("section_schema_json", row.get("sections_json")), []
-                        ),
-                        "legacy_fields": {k: v for k, v in row.items() if k not in ("id", "name")},
-                    },
-                )
-                if template:
-                    version = w.put(
-                        "template_versions",
-                        new_id(),
-                        {
-                            "template_id": template["id"],
-                            "version": 1,
-                            "section_schema": {"sections": template.get("sections", [])},
-                            "extraction_policy": decode_json(row.get("extraction_policy_json"), {}),
-                            "content_hash": fingerprint(template.get("sections", [])),
-                        },
-                    )
-                    w.put(
-                        "templates",
-                        template["id"],
-                        {"current_version_id": version["id"]},
-                        expected_revision=template["revision"],
-                    )
             meeting_table = "meetings" if "meetings" in tables else "sessions"
             for row in rows(meeting_table):
                 ended = milliseconds(row.get("ended_at_ms", row.get("ended_at")))
@@ -375,7 +344,6 @@ def import_legacy(w: Workspace, path: Path, p: JSONDocument) -> JSONDocument:
                         if state == "interrupted"
                         else None,
                         "legacy_source_id": old_id(row),
-                        "legacy_template": row.get("template"),
                     },
                 )
                 if item:

@@ -297,11 +297,6 @@ impl Broker {
             ),
             "native.capture.stop" => self.capture.lock().await.stop(),
             "native.capture.devices" => Ok(json!({"items":self.capture.lock().await.devices()?})),
-            "native.capture.source_retry" => self.capture.lock().await.resume(
-                payload["capture_epoch"]
-                    .as_u64()
-                    .ok_or_else(|| anyhow::anyhow!("retry capture epoch required"))?,
-            ),
             "native.media.reconcile" => {
                 Ok(json!({"items":native_media::reconcile(&self.media_root)?}))
             }

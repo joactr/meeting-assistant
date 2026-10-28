@@ -196,10 +196,33 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
     background: set[asyncio.Task[None]] = set()  # strong refs so tasks aren't collected mid-run
 
     def installed(entry: dict[str, Any]) -> bool:
+        if entry.get("role") == "runtime":
+            # A pack is usable by what it contains (same family + protocol), not by which release
+            # shipped it or the hash of its executable; newer revisions never force a re-download.
+            found = runtime.installed_manifest(entry["id"])
+            want = entry.get("runtime_manifest", {})
+            return (
+                found is not None
+                and entry["id"] not in runtime.damaged
+                and found[1].get("family") == want.get("family")
+                and found[1].get("protocol_major") == want.get("protocol_major")
+            )
         return (
             bool(entry.get("revision"))
             and (catalog.install_root / entry["id"] / entry["revision"]).is_dir()
         )
+
+    async def drop_damaged(identity: str) -> None:
+        """An explicit download replaces a pack that failed its integrity check."""
+        found = runtime.installed_manifest(identity)
+        if identity in runtime.damaged and found:
+            await catalog.delete(
+                identity,
+                confirmed=True,
+                revision=found[0],
+                release_artifact=runtime.release_artifact,
+            )
+            runtime.damaged.discard(identity)
 
     def gpu_requirement(entry: dict[str, Any], by_id: dict[str, Any]) -> dict[str, Any] | None:
         # Signed platform runtimes inherit the GPU requirement of their source descriptor.
@@ -292,6 +315,7 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
                         if state["done"] >= state["total"]:
                             state["state"] = "extracting"
 
+                    await drop_damaged(wanted["id"])
                     item = await catalog.download(wanted["id"], progress=progress, **consent)
                     offset += sum(f["bytes"] for f in wanted["files"])
                     workspace.emit(
@@ -299,8 +323,11 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
                     )
                 if runtime:
                     provision_local(workspace, entry, runtime["id"], entry["gpu"])
-            except (AppError, ProviderError) as error:
-                state.update(state="failed", error=error.message)
+            except Exception as error:  # noqa: BLE001 - any failure must end in `failed`, or the id stays stuck and blocks retry
+                state.update(
+                    state="failed",
+                    error=getattr(error, "message", None) or str(error) or type(error).__name__,
+                )
             else:
                 for i in ids:
                     downloads.pop(i, None)

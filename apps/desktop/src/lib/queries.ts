@@ -19,7 +19,8 @@ export function useCommand(operationId: string) {
   return useMutation({
     mutationFn: (payload: Payload) => request(operationId, payload),
     // Not awaited: a refetch of a just-deleted record would unmount the caller before its onSuccess (e.g. navigate) runs.
-    onSuccess: () => { void client.invalidateQueries({ queryKey: ['engine'] }); },
+    // Also after failures: a rejected or already-running command usually means engine state moved on.
+    onSettled: () => { void client.invalidateQueries({ queryKey: ['engine'] }); },
     retry: false,
   });
 }

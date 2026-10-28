@@ -17,7 +17,7 @@ from meeting_assistant.domain.model import canonical, fingerprint, new_id, now_m
 from meeting_assistant.domain.ports import JSONDocument
 
 T = TypeVar("T")
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 ALIASES = {
     "vocabulary": "vocabulary_terms",
     "moments": "important_moments",
@@ -450,7 +450,7 @@ class Store:
                     details={"latest": before},
                 )
                 require(
-                    table not in {"template_versions", "note_revisions", "utterance_revisions"},
+                    table not in {"note_revisions", "utterance_revisions"},
                     "immutable_resource",
                     "Historical revisions are immutable.",
                 )

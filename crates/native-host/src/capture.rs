@@ -224,16 +224,18 @@ impl Capture {
         socket.set_nodelay(true)?;
         socket.write_all(&hex::decode(engine.token())?).await?;
         let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<u8>>(1500 * config.sources.len());
-        let events = self.events.clone();
+        let (events, meeting_id) = (self.events.clone(), config.meeting_id.clone());
         self.network = Some(tokio::spawn(async move {
             while let Some(frame) = rx.recv().await {
-                match tokio::time::timeout(Duration::from_secs(2), socket.write_all(&frame)).await {
+                // The engine watchdog kills a loop stalled for 10 s; shorter stalls only queue audio.
+                match tokio::time::timeout(Duration::from_secs(10), socket.write_all(&frame)).await
+                {
                     Ok(Ok(())) => {}
                     Ok(Err(error)) => return Err(error.into()),
                     Err(error) => {
                         (events)(
                             "native.capture.error",
-                            json!({"code":"audio_transport_timeout","message":"Audio transport stalled; capture stopped with a visible gap"}),
+                            json!({"meeting_id":meeting_id,"code":"audio_transport_timeout","message":"Audio transport stalled; capture stopped with a visible gap"}),
                         );
                         return Err(error.into());
                     }
@@ -307,15 +309,23 @@ impl Capture {
         } else {
             None
         };
-        let join=thread::Builder::new().name(format!("audio-dsp-{}",source.source_index)).spawn(move||{
-   let model=resources.join("dsp/silero_vad.onnx");let detector:Box<dyn dsp::Probability>=match dsp::silero::Silero::load(&model){Ok(s)=>Box::new(s),Err(e)=>{(events)("native.dsp.mode",json!({"source_index":source.source_index,"mode":"energy_fallback_rms_0.01","reason":e.to_string()}));Box::new(dsp::EnergyGate)}};let mut vad=dsp::Segmenter::new(config.vad.clone(),detector)?;let mut downsample=Resampler::new(48000,16000)?;let mut speech=Vec::with_capacity(512);let mut clock=ClockMap::new(48000);let mut epoch=config.capture_epoch;let mut sequence=0u64;let mut packet=Vec::<f32>::with_capacity(960);let mut packet_ns=0;let mut commits=vec![];let mut writer=if config.recording{let mut writer=native_media::SegmentWriter::new(media_root,config.meeting_id.clone(),source.source_id.clone(),0,config.media_cap_bytes)?;writer.source_kind=Some(if source.kind==SourceKind::Mic{"mic"}else{"system"}.into());Some(writer)}else{None};let mut meter_count=0;let mut paused=false;let mut pending_control=None;let mut need_vad_origin=true;let mut media_cap_notified=false;
+        let (failed, failed_meeting, source_index) = (
+            events.clone(),
+            config.meeting_id.clone(),
+            source.source_index,
+        );
+        let join=thread::Builder::new().name(format!("audio-dsp-{}",source.source_index)).spawn(move||{let result=(move||->Result<Boundary>{
+   let model=resources.join("dsp/silero_vad.onnx");let detector:Box<dyn dsp::Probability>=match dsp::silero::Silero::load(&model){Ok(s)=>Box::new(s),Err(e)=>{(events)("native.dsp.mode",json!({"source_index":source.source_index,"mode":"energy_fallback_rms_0.01","reason":e.to_string()}));Box::new(dsp::EnergyGate)}};let mut vad=dsp::Segmenter::new(config.vad.clone(),detector)?;let mut downsample=Resampler::new(48000,16000)?;let mut speech=Vec::with_capacity(512);let mut clock=ClockMap::new(48000);let mut epoch=config.capture_epoch;let mut sequence=0u64;let mut packet=Vec::<f32>::with_capacity(960);let mut packet_ns=0;let mut commits=vec![];let mut writer=if config.recording{let mut writer=native_media::SegmentWriter::new(media_root,config.meeting_id.clone(),source.source_id.clone(),0,config.media_cap_bytes)?;writer.source_kind=Some(if source.kind==SourceKind::Mic{"mic"}else{"system"}.into());Some(writer)}else{None};let mut meter_count=0;let mut paused=false;let mut pending_control=None;let mut need_vad_origin=true;let mut vad_clock=VadClock::default();let mut media_cap_notified=false;
    let ring=Ring::new();let mut stream=match backend.start(&source.device_key,source.kind.clone(),ring.clone()){Ok(s)=>{let _=ready_tx.send(Ok(()));Some(s)},Err(e)=>{let _=ready_tx.send(Err(e.to_string()));return Err(e)}};
    loop {
     if pending_control.is_none(){pending_control=rx.try_recv().ok();if matches!(pending_control,Some(Control::Pause(_))|Some(Control::Stop(_))){if let Some(mut s)=stream.take(){s.stop()?;}}}
     if matches!(pending_control,Some(Control::Resume(_,_))){if let Some(Control::Resume(new_epoch,ack))=pending_control.take(){ensure!(paused,"source is not paused");ensure!(new_epoch>epoch,"resume requires a new epoch");epoch=new_epoch;need_vad_origin=true;downsample=Resampler::new(48000,16000)?;clock=ClockMap::new(48000);stream=Some(backend.start(&source.device_key,source.kind.clone(),ring.clone())?);paused=false;let _=ack.send(Ok(Boundary{source_index:source.source_index,sequence,capture_epoch:epoch,committed_media:vec![]}));}}
     while let Some(block)=ring.queue.pop(){
      let observed=block.monotonic_ns.saturating_sub(monotonic_origin);let(start,reset)=clock.observe(block.hardware_position,observed);
-     if need_vad_origin{vad.reset(start*16000/1_000_000_000);need_vad_origin=false;}
+     // A clock reset splices unrelated audio: drop the open utterance and re-anchor.
+     if reset{need_vad_origin=true;}
+     if need_vad_origin{vad.reset(start.saturating_mul(16_000)/1_000_000_000);need_vad_origin=false;}
+     vad_clock.observe(start,vad.cursor());
      if reset||block.discontinuity{(events)("native.capture.discontinuity",json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"start_ns":start.to_string(),"reason":"clock_reset"}));}
      if source.kind==SourceKind::System&&block.frames==480{let mut reference=references.lock().map_err(|_|anyhow::anyhow!("reference queue poisoned"))?;if reference.len()==200{reference.pop_front();}reference.push_back((start,block.samples));}
      let raw=&block.samples[..block.frames];if let Some(writer)=writer.as_mut(){writer.position(start);for commit in writer.push(raw)?{let metadata=serde_json::to_value(&commit)?;let e=engine.clone();let notify=events.clone();runtime.spawn(async move{if let Err(error)=e.internal("media.commit",&metadata).await{notify("native.media.catalog_error",json!({"message":error.to_string(),"recoverable_sidecar":true}));}});commits.push(commit);}if writer.capped&&!media_cap_notified{media_cap_notified=true;(events)("native.media.cap",json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"message":"Media cap reached; new audio no longer retained"}));}}
@@ -326,20 +336,22 @@ impl Capture {
       let reference=if config.aec{let reference=references.lock().map_err(|_|anyhow::anyhow!("reference queue poisoned"))?;reference.iter().min_by_key(|(time,_)|time.abs_diff(target)).filter(|(time,_)|time.abs_diff(target)<15_000_000).map(|(_,samples)|*samples)}else{None};
       if let Err(error)=processor.process(&mut processed,reference.as_ref(),((clock.ratio-1.)*1_000_000.)as f32){processor.calibration=None;(events)("native.dsp.warning",json!({"source_index":source.source_index,"aec_enabled":false,"reason":error.to_string()}));processor.process(&mut processed,None,0.)?;}
      }}
-     let samples=&processed[..block.frames];speech.clear();downsample.process(samples,&mut speech);for utterance in vad.push(&speech){let metadata=json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"capture_epoch":epoch,"start_sample":utterance.start_sample,"start_ms":utterance.start_sample/16,"end_ms":(utterance.start_sample+utterance.samples.len()as u64)/16,"true_speech_samples":utterance.true_speech_samples,"flush_reason":"vad"});let e=engine.clone();runtime.spawn(async move{let _=e.internal("capture.utterance",&metadata).await;});}
+     let samples=&processed[..block.frames];
+     // Packets first: the engine slices utterances out of packets it has already received.
      for(i,&sample)in samples.iter().enumerate(){if packet.is_empty(){packet_ns=start+i as u64*1_000_000_000/48000;}packet.push(sample);if packet.len()==960{sequence+=1;send_packet(&packets,&source,epoch,sequence,packet_ns,&packet)?;packet.clear();}}
+     speech.clear();downsample.process(samples,&mut speech);for utterance in vad.push(&speech){let start_sample=vad_clock.map(utterance.start_sample);let metadata=json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"capture_epoch":epoch,"start_sample":start_sample,"start_ms":start_sample/16,"end_ms":(start_sample+utterance.samples.len()as u64)/16,"true_speech_samples":utterance.true_speech_samples,"flush_reason":"vad"});let e=engine.clone();let notify=events.clone();let meeting_id=config.meeting_id.clone();let source_index=source.source_index;runtime.spawn(async move{if let Err(error)=e.internal("capture.utterance",&metadata).await{notify("native.capture.error",json!({"meeting_id":meeting_id,"source_index":source_index,"code":"utterance_rejected","message":error.to_string(),"retryable":true}));}});}
      meter_count+=1;if meter_count%5==0{(events)("native.audio.level",json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"source_kind":source.kind,"rms":dsp::rms(raw),"peak":raw.iter().fold(0f32,|a,x|a.max(x.abs()))}));}
     }
-    if ring.overflow.swap(false,Ordering::AcqRel){if let Some(mut s)=stream.take(){s.stop()?;}(events)("native.capture.source_lost",json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"state":"lost","reason":"endpoint_changed_or_bounded_ring_overflow","dropped_frames":ring.dropped_frames.load(Ordering::Relaxed).to_string()}));paused=true;}
+    if ring.overflow.swap(false,Ordering::AcqRel){if let Some(mut s)=stream.take(){s.stop()?;}let lost=json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"state":"lost","start_ms":packet_ns/1_000_000,"reason":"source_lost"});(events)("native.capture.source_lost",json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"state":"lost","reason":"endpoint_changed_or_bounded_ring_overflow","dropped_frames":ring.dropped_frames.load(Ordering::Relaxed).to_string()}));let e=engine.clone();runtime.spawn(async move{let _=e.internal("capture.source_event",&lost).await;});paused=true;}
     if let Some(control)=pending_control.take(){let(stop,ack)=match control{Control::Pause(ack)=>(false,ack),Control::Stop(ack)=>(true,ack),Control::Resume(_,_)=>unreachable!()};
-     if !packet.is_empty(){sequence+=1;send_packet(&packets,&source,epoch,sequence,packet_ns,&packet)?;packet.clear();}speech.clear();downsample.finish(&mut speech);for utterance in vad.push(&speech).into_iter().chain(vad.flush()){let data=json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"capture_epoch":epoch,"start_sample":utterance.start_sample,"start_ms":utterance.start_sample/16,"end_ms":(utterance.start_sample+utterance.samples.len()as u64)/16,"true_speech_samples":utterance.true_speech_samples,"flush_reason":if stop{"stop"}else{"pause"}});let e=engine.clone();let notify=events.clone();runtime.spawn(async move{if let Err(error)=e.internal("capture.utterance",&data).await{notify("native.capture.error",json!({"message":error.to_string(),"retryable":true}));}});}
+     if !packet.is_empty(){sequence+=1;send_packet(&packets,&source,epoch,sequence,packet_ns,&packet)?;packet.clear();}speech.clear();downsample.finish(&mut speech);for utterance in vad.push(&speech).into_iter().chain(vad.flush()){let start_sample=vad_clock.map(utterance.start_sample);let data=json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"capture_epoch":epoch,"start_sample":start_sample,"start_ms":start_sample/16,"end_ms":(start_sample+utterance.samples.len()as u64)/16,"true_speech_samples":utterance.true_speech_samples,"flush_reason":if stop{"stop"}else{"pause"}});let e=engine.clone();let notify=events.clone();let meeting_id=config.meeting_id.clone();runtime.spawn(async move{if let Err(error)=e.internal("capture.utterance",&data).await{notify("native.capture.error",json!({"meeting_id":meeting_id,"message":error.to_string(),"retryable":true}));}});}
      if let Some(writer)=writer.as_mut(){if let Some(commit)=writer.flush()?{let c=commit.clone();let e=engine.clone();runtime.spawn(async move{let _=e.internal("media.commit",&serde_json::to_value(c).unwrap_or(Value::Null)).await;});commits.push(commit);}}
      let boundary=Boundary{source_index:source.source_index,sequence,capture_epoch:epoch,committed_media:commits.clone()};let _=ack.send(Ok(boundary.clone()));paused=true;if stop{return Ok(boundary)}
     }
     if packets.is_closed(){if let Some(mut s)=stream.take(){s.stop()?;}bail!("engine audio transport closed; source stopped with visible interruption")}
     thread::sleep(Duration::from_millis(if paused{10}else{2}));
    }
-  })?;
+  })();if let Err(error)=&result{failed("native.capture.error",json!({"meeting_id":failed_meeting,"source_index":source_index,"code":"source_stopped","message":error.to_string()}));}result})?;
         match ready_rx.recv_timeout(Duration::from_secs(15)) {
             Ok(Ok(())) => Ok(Runner {
                 tx,
@@ -359,14 +371,24 @@ impl Capture {
         let mut boundaries = vec![];
         for runner in self.runners.values() {
             let (tx, rx) = mpsc::channel();
-            runner.tx.send(if stop {
+            let control = if stop {
                 Control::Stop(tx)
             } else if let Some(epoch) = epoch {
                 Control::Resume(epoch, tx)
             } else {
                 Control::Pause(tx)
-            })?;
-            boundaries.push(rx.recv_timeout(Duration::from_secs(15))??);
+            };
+            let reply = match runner.tx.send(control) {
+                Ok(()) => rx.recv_timeout(Duration::from_secs(15)),
+                Err(_) => Err(mpsc::RecvTimeoutError::Disconnected),
+            };
+            match reply {
+                Ok(boundary) => boundaries.push(boundary?),
+                // A source whose thread already ended (reported as native.capture.error) has
+                // nothing left to drain; it must not block pausing or stopping the others.
+                Err(mpsc::RecvTimeoutError::Disconnected) if epoch.is_none() => {}
+                Err(error) => return Err(error.into()),
+            }
         }
         Ok(
             json!({"state":if stop{"stopped"}else if epoch.is_some(){"active"}else{"paused"},"boundaries":boundaries,"boundary_sequences":boundaries.iter().map(|b|(b.source_index.to_string(),json!(b.sequence))).collect::<serde_json::Map<String,Value>>()}),
@@ -375,7 +397,7 @@ impl Capture {
     pub fn stop(&mut self) -> Result<Value> {
         if self.runners.is_empty() {
             self.active = false;
-            return Ok(json!({"state":"stopped","boundaries":[]}));
+            return Ok(json!({"state":"stopped","boundaries":[],"boundary_sequences":{}}));
         }
         let result = self.control(true, None);
         for (_, mut runner) in self.runners.drain() {
@@ -386,6 +408,22 @@ impl Capture {
         self.active = false;
         self.meeting_id = None;
         result
+    }
+}
+/// The VAD counts samples while packets carry PLL-mapped clock time, which drifts away from the
+/// sample count (up to 0.1 %). The engine slices utterances by packet time, so map VAD positions
+/// onto the packet clock at every block.
+#[derive(Default)]
+struct VadClock {
+    drift: i64,
+}
+impl VadClock {
+    /// `start_ns`: packet clock time of the block about to be pushed; `cursor`: the VAD's next sample.
+    fn observe(&mut self, start_ns: u64, cursor: u64) {
+        self.drift = (start_ns.saturating_mul(16_000) / 1_000_000_000) as i64 - cursor as i64;
+    }
+    fn map(&self, vad_sample: u64) -> u64 {
+        vad_sample.saturating_add_signed(self.drift)
     }
 }
 fn send_packet(
@@ -413,4 +451,63 @@ fn send_packet(
         )
     })?;
     Ok(())
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A device clock 500 ppm fast plus a device position restart: every utterance must end where
+    /// the packet clock is, otherwise the engine rejects it as `audio_range_missing`.
+    #[test]
+    fn utterances_stay_on_the_packet_clock_under_drift_and_clock_reset() {
+        let mut clock = ClockMap::new(48000);
+        let mut vad =
+            dsp::Segmenter::new(dsp::VadConfig::default(), Box::new(dsp::EnergyGate)).unwrap();
+        let mut downsample = Resampler::new(48000, 16000).unwrap();
+        let mut vad_clock = VadClock::default();
+        let mut need_origin = true;
+        let (mut frame, mut utterances) = (0u64, 0);
+        let mut speech = Vec::new();
+        for block in 0..12_000u64 {
+            if block == 6_000 {
+                frame = 0; // device restarted its position counter
+            }
+            let ns = 10_000_000 + block * 480 * 1_000_000_000 / 48_024; // 500 ppm fast device
+            let (start, reset) = clock.observe(frame, ns);
+            if reset {
+                need_origin = true;
+            }
+            if need_origin {
+                vad.reset(start * 16_000 / 1_000_000_000);
+                need_origin = false;
+            }
+            vad_clock.observe(start, vad.cursor());
+            let tone = (block / 100) % 5 == 0; // 1 s of speech every 5 s
+            let samples: Vec<f32> = (0..480)
+                .map(|i| {
+                    if tone {
+                        0.5 * ((i as f32) * 0.3).sin()
+                    } else {
+                        0.
+                    }
+                })
+                .collect();
+            let block_end_ns = start + (480. * 1e9 / 48000. * clock.ratio) as u64;
+            speech.clear();
+            downsample.process(&samples, &mut speech);
+            for utterance in vad.push(&speech) {
+                let end_ns = (vad_clock.map(utterance.start_sample)
+                    + utterance.samples.len() as u64)
+                    * 1_000_000_000
+                    / 16_000;
+                assert!(
+                    end_ns <= block_end_ns + 1_000_000 && end_ns + 40_000_000 >= block_end_ns,
+                    "block {block}: utterance ends {end_ns} vs packet clock {block_end_ns}"
+                );
+                utterances += 1;
+            }
+            frame += 480;
+        }
+        assert!(utterances >= 20);
+    }
 }

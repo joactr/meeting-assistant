@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useResource } from '../lib/queries';
 import { array, date, id, item, items, label, object, revision, text, type RecordData } from '../lib/data';
-import { AsyncView, Badge, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, FieldInput, Grid, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, type Field } from '../components/ui';
+import { AsyncView, Badge, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, FieldInput, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, type Field } from '../components/ui';
 import { Citation, CitedResult } from './outcomes';
 import styles from './workspace.module.css';
 
@@ -23,7 +23,6 @@ export function ProjectsPage() {
     { label: 'Vocabulary', content: <Vocabulary projectId={projectId} /> },
     { label: 'Briefings', content: projectId ? <ContextPanel projectId={projectId} /> : <Empty title="Select a project" /> },
     { label: 'Digests', content: projectId ? <Digests projectId={projectId} /> : <Empty title="Select a project" /> },
-    { label: 'Templates', content: <Templates /> },
   ]} /></>;
 }
 
@@ -46,11 +45,6 @@ function ContextPanel({ projectId }: { projectId: string }) {
   const memory = useResource('entity.list', { collection: 'memory_segments', filters: { project_id: projectId } });
   const briefings = useResource('entity.list', { collection: 'briefings', filters: { project_id: projectId } });
   return <Panel title="Context"><AsyncView query={memory}>{(data) => items(data).length === 0 ? <Empty title="No context yet" /> : items(data).map((row) => <article className={styles.actionRow} key={id(row)}><div><p>{text(row.text ?? row.body ?? row.content)}</p>{row.stale === true && <Badge tone="warning">Out of date</Badge>}<Citation source={row} /><Details value={row} /></div></article>)}</AsyncView><Modal trigger={<button>Generate briefing…</button>} title="Generate briefing"><CommandForm operation="analysis.generate" fixed={{ task: 'briefings', project_id: projectId, idempotency_key: crypto.randomUUID() }} fields={[{ name: 'meeting_id', label: 'Meeting', required: true }, { name: 'briefing_kind', label: 'Briefing', type: 'select', value: 'pre', options: [{ value: 'pre', label: 'Before: recent related meetings' }, { value: 'post', label: 'After: what changed' }] }, { name: 'human_agenda', label: 'Agenda', type: 'textarea' }]} submit="Generate" /></Modal><AsyncView query={briefings}>{(data) => items(data).map((row) => <CitedResult key={id(row)} result={row} />)}</AsyncView></Panel>;
-}
-
-function Templates() {
-  const query = useResource('templates.list');
-  return <Panel title="Meeting templates" actions={<Modal trigger={<button>Create template</button>} title="Create template"><CommandForm operation="templates.save" fields={[{ name: 'name', label: 'Name', required: true }, { name: 'sections', label: 'Sections (JSON)', type: 'json', value: [{ id: 'summary', title: 'Summary', instructions: 'Summarize decisions with citations.' }], required: true }, { name: 'custom_fields', label: 'Custom fields (JSON)', type: 'json', value: {} }]} /></Modal>}><AsyncView query={query}>{(data) => <Grid>{items(data).map((row) => <Panel key={id(row)} title={label(row)} actions={<Badge>v{text(row.version, '1')}</Badge>}><p>{text(row.description)}</p><ul>{array(row.sections).map((section) => <li key={id(section)}>{text(section.title ?? section.heading)}</li>)}</ul><Toolbar><CommandButton operation="templates.clone" payload={{ id: id(row), name: `${label(row)} copy` }}>Clone template</CommandButton>{row.builtin !== true && <EditResource operation="templates.save" row={row} label="Edit template" fields={[{ name: 'name', label: 'Name', required: true }, { name: 'sections', label: 'Sections (JSON)', type: 'json', required: true }, { name: 'custom_fields', label: 'Custom fields (JSON)', type: 'json' }]} />}</Toolbar><Details value={row} /></Panel>)}</Grid>}</AsyncView></Panel>;
 }
 
 function Digests({ projectId }: { projectId: string }) {

@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlparse
 
 import httpx
 
+from ...domain.errors import require
 from ...domain.model import new_id, now_ms
-from ...infrastructure.providers.contracts import Connection, ModelProfile, ProviderError
+from ...infrastructure.providers.contracts import (
+    Connection,
+    ModelProfile,
+    ProviderError,
+    is_loopback,
+    normalize_endpoint,
+)
 from ...infrastructure.providers.registry import DESCRIPTORS, resolve_capabilities
 from ...infrastructure.workers.models import FAMILIES
 from ..routing import task_policy
@@ -144,6 +150,7 @@ async def setup_models(
     )
     if not base:
         raise ProviderError("invalid_input", "This provider needs an endpoint")
+    base = normalize_endpoint(base)
     headers: dict[str, str] = {}
     if adapter != "ollama":
         if not p.get("secret_ref"):
@@ -186,7 +193,8 @@ def setup_llm(w: Workspace, p: dict[str, Any]) -> dict[str, Any]:
     endpoint = endpoint or p.get("endpoint") or FIXED_ENDPOINTS.get(adapter)
     if not endpoint:
         raise ProviderError("invalid_input", "This provider needs an endpoint")
-    loopback = urlparse(endpoint).hostname in ("127.0.0.1", "localhost", "::1")
+    endpoint = normalize_endpoint(endpoint)
+    loopback = is_loopback(endpoint)
     ollama_local = adapter == "ollama" and loopback
     with w.transaction():
         connection = ensure(
@@ -197,7 +205,7 @@ def setup_llm(w: Workspace, p: dict[str, Any]) -> dict[str, Any]:
                 "display_name": adapter,
                 "auth_kind": "bearer" if p.get("secret_ref") else "none",
                 "secret_ref": p.get("secret_ref"),
-                "declared_execution": "local" if ollama_local else "remote",
+                "declared_execution": "local" if loopback else "remote",
             },
         )
         profile = ensure(
@@ -233,6 +241,17 @@ def setup_llm(w: Workspace, p: dict[str, Any]) -> dict[str, Any]:
                 and set(classes) <= set(c["data_classes"])
                 for c in w.list("consents")
             ):
+                require(
+                    p.get("accepted_destination") is True,
+                    "consent_required",
+                    "Explicit destination, data-class and scope consent is required.",
+                    status=403,
+                    details={
+                        "destination_fingerprint": destination,
+                        "data_classes": classes,
+                        "scope": scope,
+                    },
+                )
                 w.put(
                     "consents",
                     new_id(),
