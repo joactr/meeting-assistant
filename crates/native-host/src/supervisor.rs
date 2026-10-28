@@ -204,22 +204,25 @@ impl Engine {
                 .all(|c| c.is_ascii_alphanumeric() || "._".contains(c)),
             "invalid operation identifier"
         );
-        let response = self
+        let mut request = self
             .client
             .post(format!(
                 "http://127.0.0.1:{}/api/v1/commands/{operation}",
                 self.ready.http_port
             ))
             .bearer_auth(self.token.as_str())
-            .json(payload)
-            .send()
-            .await?;
+            .json(payload);
+        if operation == "meetings.start" {
+            // Start may cold-load the local transcription worker (startup limit 120s plus the
+            // runtime check); the client-wide 30s cut it off and the UI saw a transport error.
+            request = request.timeout(Duration::from_secs(180));
+        }
+        let mut response = request.send().await?;
         let status = response.status();
         ensure!(
             response.content_length().unwrap_or(0) <= 16 * 1024 * 1024,
             "engine response too large"
         );
-        let mut response = response;
         let mut bytes = Vec::new();
         while let Some(chunk) = response.chunk().await? {
             ensure!(

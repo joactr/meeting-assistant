@@ -467,19 +467,21 @@ class Workspace(Store):
         self._tasks = [
             asyncio.create_task(self._job_loop()),
             asyncio.create_task(self._heartbeat()),
-            asyncio.create_task(self._warm_speaker_model()),
+            asyncio.create_task(self._warm_models()),
         ]
 
-    async def _warm_speaker_model(self) -> None:
-        # Start the speaker model while the app is idle: on the first capture packet it took
-        # ~100s under capture load, so the first meeting got no labels for minutes. The worker
-        # stays up for later meetings either way; a failure here resurfaces on first use.
+    async def _warm_models(self) -> None:
+        # Start the local models while the app is idle. A cold transcription worker made
+        # meetings.start outlast the native host's request timeout, and the speaker model took
+        # ~100s under capture load. Workers stay up for later meetings; a failure here
+        # resurfaces on first use. Transcription first: Start waits on it.
         from meeting_assistant.application.routing import task_policy
 
-        policy = task_policy(self, "diarization")
-        if self.inference is not None and policy:
-            with contextlib.suppress(Exception):
-                await self.inference.prepare_runtime(policy)
+        for task in ("asr", "diarization"):
+            policy = task_policy(self, task)
+            if self.inference is not None and policy:
+                with contextlib.suppress(Exception):
+                    await self.inference.prepare_runtime(policy)
 
     async def stop(self) -> None:
         self._stopping = True

@@ -202,6 +202,14 @@
   color: var(--color-muted);
 }
 
+/* A dialog's own closing action sits at the trailing edge, also when a loaded view wraps it. */
+.modal > button:not(.close),
+.modal > .view > button:last-child {
+  display: flex;
+  width: fit-content;
+  margin-left: auto;
+}
+
 .close {
   position: absolute;
   top: var(--space-md);
