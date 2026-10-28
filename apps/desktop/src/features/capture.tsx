@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { listen } from '@tauri-apps/api/event';
 import { ApplicationError, nativeAvailable, nativeRequest, request } from '../lib/bridge';
 import { flushDrafts } from '../lib/drafts';
 import { useNativeResource, useResource } from '../lib/queries';
 import { array, clock, id, items, label, number, object, revision, text, type RecordData } from '../lib/data';
-import { AsyncView, Badge, CommandButton, CommandForm, Details, EditResource, Empty, ErrorNotice, FieldInput, Modal, Notice, Panel, Toolbar, useOpenState } from '../components/ui';
+import { AsyncView, Badge, buttonClass, CommandButton, CommandForm, Details, EditResource, Empty, ErrorNotice, FieldInput, Modal, Notice, Panel, Toolbar, useOpenState } from '../components/ui';
 import { SetupLink } from './providers';
 import { useInterface } from '../lib/ui-store';
 import styles from './workspace.module.css';
@@ -36,7 +36,7 @@ export function CaptureControls({ meeting }: { meeting: RecordData }) {
       if (!intent.current || intent.current.operation !== operation) intent.current = { operation, payload: { meeting_id: id(meeting), expected_revision: revision(meeting), idempotency_key: crypto.randomUUID(), ...(operation === 'start' ? { sources, participant_notice_acknowledged: true, recording_enabled: recordAudio, recording_notice_acknowledged: recordAudio, ...(vocabularyReviewed && acknowledgementKey ? { vocabulary_acknowledgement: acknowledgementKey } : {}) } : {}) } };
       return request(`meetings.${operation}`, intent.current.payload);
     },
-    onSuccess: async (_result, operation) => { intent.current = null; setStartOpen(false); setStopOpen(false); if (operation === 'stop') setPanel('Summary'); await client.invalidateQueries({ queryKey: ['engine'] }); },
+    onSuccess: async (_result, operation) => { intent.current = null; setStartOpen(false); setStopOpen(false); if (operation === 'stop') setPanel('Outcomes'); await client.invalidateQueries({ queryKey: ['engine'] }); },
   });
   const deviceRows = items(devices.data).length ? items(devices.data) : array(devices.data?.devices);
   const micKey = mic || text(deviceRows.find((row) => row.kind === 'mic' && row.is_default)?.key);
@@ -46,36 +46,62 @@ export function CaptureControls({ meeting }: { meeting: RecordData }) {
   const omitted = Array.isArray(omittedTerms) ? omittedTerms.map((term) => typeof term === 'string' ? term : label(object(term))) : [];
   const failure = command.error ? <ErrorNotice error={command.error}>{command.error instanceof ApplicationError && command.error.code === 'asr_unavailable' && <SetupLink />}</ErrorNotice> : null;
   return <>
+    {/* Only states that can act get a control: processing, stopping, starting and complete show none. */}
     <Toolbar>
-      {state === 'draft' && <button data-testid="start-meeting" onClick={() => setStartOpen(true)} disabled={!nativeAvailable()}>Start meeting</button>}
-      {state === 'recording' && <button disabled={command.isPending} onClick={() => command.mutate('pause')}>Pause capture</button>}
-      {state === 'paused' && <button disabled={command.isPending} onClick={() => command.mutate('resume')}>Resume capture</button>}
-      {['recording', 'paused', 'interrupted', 'attention_required'].includes(state) && <button data-testid="stop-meeting" disabled={command.isPending} onClick={() => setStopOpen(true)}>{state === 'interrupted' ? 'Finish meeting' : 'Stop meeting'}</button>}
-      {state === 'starting' && <Badge tone="warning">Starting…</Badge>}
-      {state === 'stopping' && <Badge tone="warning">Saving…</Badge>}
+      {state === 'draft' && <button data-testid="start-meeting" className={buttonClass.primary} onClick={() => setStartOpen(true)} disabled={!nativeAvailable()}>Start meeting</button>}
+      {state === 'recording' && <button disabled={command.isPending} onClick={() => command.mutate('pause')}>Pause</button>}
+      {state === 'paused' && <button disabled={command.isPending} onClick={() => command.mutate('resume')}>Resume</button>}
+      {(state === 'recording' || state === 'paused') && <button data-testid="stop-meeting" className={buttonClass.primary} disabled={command.isPending} onClick={() => setStopOpen(true)}>Stop meeting</button>}
+      {(state === 'interrupted' || state === 'attention_required') && <button data-testid="stop-meeting" className={buttonClass.primary} disabled={command.isPending} onClick={() => command.mutate('stop')}>{state === 'interrupted' ? 'Finish and process' : 'Try again'}</button>}
     </Toolbar>
     {failure}
     <Modal open={startOpen} onOpenChange={setStartOpen} title="Ready to capture?"><AsyncView query={devices}>{() => <>
       {sourceMode !== 'system' && <FieldInput field={{ name: 'mic', label: 'Microphone', type: 'select', options: options('mic') }} value={micKey} onChange={(value) => { setMic(text(value)); intent.current = null; }} />}
       {sourceMode !== 'mic' && <FieldInput field={{ name: 'system', label: 'System audio', type: 'select', options: options('system') }} value={systemKey} onChange={(value) => { setSystem(text(value)); intent.current = null; }} />}
       <label className={styles.check}><input type="checkbox" checked={recordAudio} onChange={(event) => { setRecordAudio(event.target.checked); intent.current = null; }} />Keep the audio recording</label>
-      {omitted.length > 0 && <><Notice>Some vocabulary terms will not be used for this meeting: {omitted.join(', ')}</Notice><label className={styles.check}><input type="checkbox" checked={vocabularyReviewed} onChange={(event) => { setVocabularyReviewed(event.target.checked); intent.current = null; }} />I've reviewed the omitted terms</label></>}
-      <button disabled={command.isPending || (sourceMode !== 'system' && !micKey) || (sourceMode !== 'mic' && !systemKey) || (omitted.length > 0 && !vocabularyReviewed)} onClick={() => command.mutate('start')}>{command.isPending ? 'Starting…' : 'Start'}</button>
+      {omitted.length > 0 && <><Notice>Some vocabulary terms will not be used for this meeting: {omitted.join(', ')}</Notice><label className={styles.check}><input type="checkbox" checked={vocabularyReviewed} onChange={(event) => { setVocabularyReviewed(event.target.checked); intent.current = null; }} />I’ve reviewed the omitted terms</label></>}
+      <button className={buttonClass.primary} disabled={command.isPending || (sourceMode !== 'system' && !micKey) || (sourceMode !== 'mic' && !systemKey) || (omitted.length > 0 && !vocabularyReviewed)} onClick={() => command.mutate('start')}>{command.isPending ? 'Starting…' : 'Start'}</button>
     </>}</AsyncView>
     {failure}</Modal>
-    <Modal open={stopOpen} onOpenChange={setStopOpen} title="Stop this meeting?"><Toolbar><button disabled={command.isPending} onClick={() => command.mutate('stop')}>{command.isPending ? 'Stopping…' : 'Stop'}</button><button onClick={() => setStopOpen(false)}>Keep going</button></Toolbar>
+    <Modal open={stopOpen} onOpenChange={setStopOpen} title="Stop this meeting?"><Toolbar><button className={buttonClass.primary} disabled={command.isPending} onClick={() => command.mutate('stop')}>{command.isPending ? 'Stopping…' : 'Stop'}</button><button onClick={() => setStopOpen(false)}>Keep going</button></Toolbar>
     {command.error && <ErrorNotice error={command.error} />}</Modal>
   </>;
 }
 
-export function CaptureStatus({ meeting, children }: { meeting: RecordData; children?: ReactNode }) {
+const STATUS: Record<string, string> = {
+  draft: 'Not started',
+  starting: 'Starting',
+  recording: 'Recording',
+  paused: 'Paused',
+  stopping: 'Saving the audio',
+  processing: 'Writing the summary and minutes',
+  attention_required: 'Needs attention',
+  interrupted: 'Capture stopped',
+};
+
+/** One line under the title: what the meeting is doing now. The clock ticks only while recording. */
+export function MeetingStatus({ meeting }: { meeting: RecordData }) {
+  const state = text(meeting.state, 'draft');
+  const live = state === 'recording' || state === 'paused';
   const [now, setNow] = useState(Date.now());
-  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
-  const recording = meeting.state === 'recording';
-  const elapsed = recording && meeting.started_at ? now - number(meeting.started_at) : number(meeting.elapsed_ms);
-  const sources = useResource('entity.list', { collection: 'capture_sources', filters: { meeting_id: id(meeting) } });
-  const done = meeting.state === 'complete';
-  return <div className={styles.captureStrip}><div>{!done && <Badge tone={recording ? 'success' : meeting.health === 'degraded' ? 'warning' : 'neutral'}>{text(meeting.state, 'draft').replaceAll('_', ' ')}</Badge>}<strong className={styles.elapsed}>{clock(elapsed)}</strong></div><AudioMeters /><div>{items(sources.data).filter((source) => !done || source.state === 'lost').map((source) => <span key={id(source)} className={styles.sourceState}><Badge tone={source.state === 'lost' ? 'danger' : 'neutral'}>{text(source.display_name) || text(source.source_kind)}: {text(source.state)}</Badge>{source.state === 'lost' && <CommandButton operation="meetings.source_retry" payload={{ source_id: id(source), expected_revision: revision(source) }}>Retry this source</CommandButton>}</span>)}</div>{children}{meeting.interrupted_reason && <Notice danger>{text(meeting.interrupted_reason)}</Notice>}</div>;
+  useEffect(() => { if (state !== 'recording') return; const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, [state]);
+  const elapsed = state === 'recording' && meeting.started_at ? now - number(meeting.started_at) : number(meeting.elapsed_ms);
+  const sources = useResource('entity.list', { collection: 'capture_sources', filters: { meeting_id: id(meeting) } }, live);
+  const degraded = state === 'complete' && meeting.health === 'degraded';
+  const word = degraded ? 'Some AI results failed' : STATUS[state];
+  const tone = state === 'recording' ? styles.live : state === 'attention_required' || state === 'interrupted' || degraded ? styles.attention : '';
+  const hint = state === 'attention_required' ? 'Processing stopped on a step. Try again, or open Minutes for details.' : state === 'interrupted' ? 'The audio so far is kept.' : degraded ? 'Retry them under Outcomes.' : '';
+  if (!word) return null;
+  return <>
+    <div className={styles.status} role="status">
+      <span className={`${styles.statusWord} ${tone}`}>{word}</span>
+      {live && <span className={styles.elapsed}>{clock(elapsed)}</span>}
+      {hint && <span>{hint}</span>}
+      {state === 'recording' && <AudioMeters />}
+      {live && items(sources.data).filter((source) => source.state === 'lost').map((source) => <span key={id(source)} className={styles.sourceState}><Badge tone="danger">{text(source.display_name) || text(source.source_kind)} lost</Badge><CommandButton operation="meetings.source_retry" payload={{ source_id: id(source), expected_revision: revision(source) }}>Retry this source</CommandButton></span>)}
+    </div>
+    {Boolean(meeting.interrupted_reason) && state !== 'complete' && <Notice danger>{text(meeting.interrupted_reason)}</Notice>}
+  </>;
 }
 
 export function AudioMeters() {
@@ -91,7 +117,7 @@ export function AudioMeters() {
     }).then((unlisten) => { if (disposed) unlisten(); else cleanup = unlisten; });
     return () => { disposed = true; cleanup?.(); };
   }, []);
-  return <div className={styles.meters}>{levels.length ? levels.map((level) => <label key={level.source}>{level.source}<meter min={0} max={1} value={level.rms} aria-label={`${level.source} audio level`} />{level.peak >= .98 && <small>Clipping — lower the input gain</small>}</label>) : null}</div>;
+  return <div className={styles.meters}>{levels.length ? levels.map((level) => <label key={level.source}>{level.source}<meter min={0} max={1} value={level.rms} aria-label={`${level.source} audio level`} />{level.peak >= .98 && <small>Clipping. Lower the input gain.</small>}</label>) : null}</div>;
 }
 
 export function SpeakersPanel({ meetingId }: { meetingId: string }) {
@@ -100,7 +126,7 @@ export function SpeakersPanel({ meetingId }: { meetingId: string }) {
   const people = useResource('people.list');
   const [profilesOpen, setProfilesOpen] = useState(false);
   const personOptions = [{ value: '', label: 'Choose person' }, ...items(people.data).map((person) => ({ value: id(person), label: label(person) }))];
-  return <Panel title="Speakers">
+  return <Panel>
     <AsyncView query={speakers}>{(data) => items(data).length === 0 ? <Empty title="No speakers yet" /> : items(data).map((row) => <article key={id(row)} className={styles.actionRow}>
       <div><strong>{text(row.display_name, 'Unknown speaker')}</strong><Badge>{text(row.source_kind, 'Meeting-scoped')}</Badge></div>
       <Toolbar>
@@ -118,6 +144,6 @@ export function SpeakersPanel({ meetingId }: { meetingId: string }) {
 
 export function LanguageControl({ meeting, open: controlledOpen, onOpenChange }: { meeting: RecordData; open?: boolean; onOpenChange?: (open: boolean) => void }) {
   const { open, setOpen, controlled } = useOpenState(controlledOpen, onOpenChange);
-  return <Modal open={open} onOpenChange={setOpen} trigger={controlled ? undefined : <button>Output language</button>} title="Generated output language"><CommandForm operation="language.set" fixed={{ meeting_id: id(meeting), expected_revision: revision(meeting) }} fields={[{ name: 'language', label: 'Language (BCP-47)', value: text(object(meeting.config_snapshot).output_language, 'auto'), required: true }]} /></Modal>;
+  return <Modal open={open} onOpenChange={setOpen} trigger={controlled ? undefined : <button>Summary language</button>} title="Summary language"><CommandForm operation="language.set" fixed={{ meeting_id: id(meeting), expected_revision: revision(meeting) }} fields={[{ name: 'language', label: 'Language code, or auto', value: text(object(meeting.config_snapshot).output_language, 'auto'), required: true }]} /></Modal>;
 }
 

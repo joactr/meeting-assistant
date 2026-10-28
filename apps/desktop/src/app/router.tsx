@@ -2,13 +2,13 @@ import { useCallback, useEffect, useState, type MouseEvent } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { Link, Outlet, createRootRoute, createRoute, createRouter, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { FolderKanban, Keyboard, Library, ListChecks, Plus, Search, Settings } from 'lucide-react';
+import { Keyboard, Plus } from 'lucide-react';
 import { nativeAvailable, nativeRequest, subscribeEngine } from '../lib/bridge';
 import { flushDrafts } from '../lib/drafts';
 import { useNativeResource, useResource } from '../lib/queries';
 import { useInterface } from '../lib/ui-store';
 import { item, number, object, text, type RecordData } from '../lib/data';
-import { Details, ErrorNotice, Modal, Notice, Toolbar } from '../components/ui';
+import { buttonClass, Details, ErrorNotice, Modal, Notice, Toolbar } from '../components/ui';
 import { LibraryPage, NewMeeting } from '../features/library';
 import { MeetingPage } from '../features/meeting';
 import { ProjectsPage } from '../features/projects';
@@ -43,7 +43,7 @@ function QuitGuard() {
     {state?.phase === 'blocked' && <><Notice danger>Stop the active meeting, then try again.</Notice><Details value={state.result} title="Blockers" /></>}
     {state?.phase === 'error' && <><ErrorNotice error={state.error} /><Notice danger>Quitting now can lose active recording audio.</Notice></>}
     <Toolbar>
-      <button disabled={busy} onClick={keepWorking}>Keep working</button>
+      <button className={buttonClass.primary} disabled={busy} onClick={keepWorking}>Keep working</button>
       <button disabled={busy} onClick={() => { void attempt(); }}>Try again</button>
       {state?.phase === 'error' && <button onClick={() => { void nativeRequest('force_exit').catch(() => undefined); }}>Quit anyway</button>}
     </Toolbar>
@@ -92,7 +92,7 @@ function UpdatePrompt() {
     {state?.phase === 'error' && <ErrorNotice error={state.error} />}
     <Toolbar>
       <button disabled={busy} onClick={later}>Later</button>
-      <button disabled={busy} onClick={() => { void install(); }}>{state?.phase === 'error' ? 'Retry' : 'Install and restart'}</button>
+      <button className={buttonClass.primary} disabled={busy} onClick={() => { void install(); }}>{state?.phase === 'error' ? 'Retry' : 'Install and restart'}</button>
     </Toolbar>
   </Modal>;
 }
@@ -107,7 +107,6 @@ function Shell() {
   const workspace = useResource('workspace.status');
   const preferences = useNativeResource('native_preferences_get');
   const savedPreferences = object(preferences.data?.preferences ?? preferences.data);
-  const collapsed = savedPreferences.sidebar_collapsed === true;
   useEffect(() => {
     document.documentElement.dataset.theme = text(savedPreferences.theme, 'system');
   }, [savedPreferences.theme]);
@@ -131,20 +130,31 @@ function Shell() {
     return () => window.removeEventListener('keydown', shortcuts);
   }, [navigate, setShortcutsOpen]);
   const navigation = [
-    { to: '/' as const, label: 'Library', icon: Library },
-    { to: '/projects' as const, label: 'Projects', icon: FolderKanban },
-    { to: '/followups' as const, label: 'Follow-ups', icon: ListChecks },
-    { to: '/search' as const, label: 'Search & Ask', icon: Search },
-    { to: '/settings' as const, label: 'Settings', icon: Settings },
+    { to: '/' as const, label: 'Library' },
+    { to: '/projects' as const, label: 'Projects' },
+    { to: '/followups' as const, label: 'Follow-ups' },
+    { to: '/search' as const, label: 'Search' },
+    { to: '/settings' as const, label: 'Settings' },
   ];
   const followLink = (event: MouseEvent<HTMLAnchorElement>, to: '/' | '/projects' | '/followups' | '/search' | '/settings'): void => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     void flushDrafts().then(() => navigate({ to })).catch(setError);
   };
-  const active = object(item(workspace.data).capabilities);
+  const captureMissing = nativeAvailable() && workspace.isSuccess && object(item(workspace.data).capabilities).capture !== true;
+  const current = (to: string): boolean => to === '/' ? pathname === '/' || pathname.startsWith('/meeting/') : pathname === to || pathname.startsWith(to + '/');
   const mod = navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl+';
-  return <><a className="skip-link" href="#workspace-content">Skip to workspace</a><div className={`${styles.shell} ${collapsed ? styles.collapsed : ''}`}><aside className={styles.sidebar} aria-label="Application navigation"><Link className={styles.brand} to="/" onClick={(event) => followLink(event, '/')}><span className={styles.brandMark} aria-hidden="true"><i /><i /><i /></span><span className={styles.brandText}>Meeting<strong>Assistant</strong></span></Link><nav aria-label="Main navigation">{navigation.map((entry) => <Link key={entry.to} to={entry.to} onClick={(event) => followLink(event, entry.to)} className={`${styles.navLink} ${(entry.to === '/' ? pathname === '/' || pathname.startsWith('/meeting/') : pathname === entry.to || pathname.startsWith(entry.to + '/')) ? styles.active : ''}`} aria-current={(entry.to === '/' ? pathname === '/' || pathname.startsWith('/meeting/') : pathname === entry.to || pathname.startsWith(entry.to + '/')) ? 'page' : undefined}><entry.icon className={styles.navIcon} size={18} aria-hidden="true" /><span className={styles.navLabel}>{entry.label}</span>{entry.to === '/search' && <kbd>{mod}K</kbd>}</Link>)}</nav><div className={styles.sidebarAction}><NewMeeting trigger={<><Plus size={16} aria-hidden="true" /><span className={styles.actionLabel}>New meeting</span></>} /></div><div className={styles.sidebarBottom}><div className={styles.localStatus}><span aria-hidden="true" />{nativeAvailable() ? 'Local engine' : 'Browser preview'}</div><button onClick={() => setShortcutsOpen(true)}><Keyboard size={15} aria-hidden="true" /><span className={styles.navLabel}>Keyboard shortcuts</span><kbd>?</kbd></button><span className={styles.version}>1.0.0 beta{active.capture === true ? '' : ' · no capture host'}</span></div></aside><div className={styles.mainFrame}>{!nativeAvailable() && <div className={styles.offlineBanner} role="status"><strong>Native desktop features are unavailable in this browser.</strong> Recording, providers, files and playback are disabled.</div>}{workspace.isError && <ErrorNotice error={workspace.error} retry={() => { void workspace.refetch(); }} />}{Boolean(error) && <Notice danger><ErrorNotice error={error} /><button onClick={() => setError(undefined)}>Dismiss</button></Notice>}<main id="workspace-content" className={styles.content} tabIndex={-1}><Outlet /></main></div></div><QuitGuard /><UpdatePrompt /><Modal open={shortcutsOpen} onOpenChange={setShortcutsOpen} title="Keyboard shortcuts"><dl><dt>Search</dt><dd><kbd>{mod}K</kbd></dd><dt>Start / stop</dt><dd><kbd>{mod}Shift+M</kbd></dd><dt>Save minutes</dt><dd><kbd>{mod}Shift+S</kbd></dd><dt>Settings</dt><dd><kbd>{mod},</kbd></dd><dt>This list</dt><dd><kbd>?</kbd></dd><dt>Edit utterance</dt><dd>Double-click or Enter · Shift+Enter for newline</dd></dl></Modal></>;
+  return <><a className="skip-link" href="#workspace-content">Skip to workspace</a><div className={styles.shell}>
+    <header className={styles.bar}>
+      <Link className={styles.brand} to="/" onClick={(event) => followLink(event, '/')}>Meeting Assistant</Link>
+      <nav className={styles.nav} aria-label="Main navigation">{navigation.map((entry) => <Link key={entry.to} to={entry.to} onClick={(event) => followLink(event, entry.to)} className={`${styles.navLink} ${current(entry.to) ? styles.active : ''}`} aria-current={current(entry.to) ? 'page' : undefined}>{entry.label}</Link>)}</nav>
+      <div className={styles.actions}><button type="button" className={styles.iconButton} aria-label="Keyboard shortcuts" onClick={() => setShortcutsOpen(true)}><Keyboard size={18} aria-hidden="true" /></button><NewMeeting trigger={<><Plus size={16} aria-hidden="true" />New meeting</>} /></div>
+    </header>
+    {!nativeAvailable() && <div className={styles.banner} role="status">Recording, providers, files and playback need the desktop app.</div>}
+    {captureMissing && <div className={styles.banner} role="status">Recording is unavailable because the capture host did not start.</div>}
+    {(workspace.isError || Boolean(error)) && <div className={styles.errors}>{workspace.isError && <ErrorNotice error={workspace.error} retry={() => { void workspace.refetch(); }} />}{Boolean(error) && <ErrorNotice error={error}><button type="button" onClick={() => setError(undefined)}>Dismiss</button></ErrorNotice>}</div>}
+    <main id="workspace-content" className={styles.content} tabIndex={-1}><Outlet /></main>
+  </div><QuitGuard /><UpdatePrompt /><Modal open={shortcutsOpen} onOpenChange={setShortcutsOpen} title="Keyboard shortcuts"><dl><dt>Search</dt><dd><kbd>{mod}K</kbd></dd><dt>Start or stop</dt><dd><kbd>{mod}Shift+M</kbd></dd><dt>Save minutes</dt><dd><kbd>{mod}Shift+S</kbd></dd><dt>Settings</dt><dd><kbd>{mod},</kbd></dd><dt>This list</dt><dd><kbd>?</kbd></dd><dt>Edit a line</dt><dd>Double-click or Enter, Shift+Enter for a new line</dd></dl></Modal></>;
 }
 
 const rootRoute = createRootRoute({ component: Shell });

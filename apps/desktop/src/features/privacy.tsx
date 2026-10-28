@@ -39,7 +39,8 @@ function BackupAndRestore() {
   return <Panel title="Backup & restore">
     <div className={styles.settingsColumns}>
       <section><h3>Create backup</h3>
-        <SecureSecret label="Backup passphrase (keep it; needed to restore)" onStored={setPassphraseRef} />
+        <SecureSecret label="Backup passphrase" onStored={setPassphraseRef} />
+        <small>Keep it safe. You need it to restore.</small>
         {passphraseRef && <Badge>Backup will be encrypted</Badge>}
         <label className={styles.check}><input type="checkbox" checked={includeMedia} onChange={(event) => setIncludeMedia(event.target.checked)} />Include retained audio</label>
         <label className={styles.check}><input type="checkbox" checked={plaintext} disabled={!!passphraseRef} onChange={(event) => setPlaintext(event.target.checked)} />Skip encryption (anyone with the file can read it)</label>
@@ -48,7 +49,7 @@ function BackupAndRestore() {
         {backup.isSuccess && <Details title="Details" value={backup.data} />}
       </section>
       <section><h3>Restore backup</h3>
-        <SecureSecret label="Backup passphrase (leave empty if unencrypted)" onStored={setRestoreRef} />
+        <SecureSecret label="Passphrase, if the backup has one" onStored={setRestoreRef} />
         {restoreRef && <Badge>Passphrase stored</Badge>}
         <label className={styles.check}><input type="checkbox" checked={restoreConfirmed} onChange={(event) => setRestoreConfirmed(event.target.checked)} />I understand restoring replaces the current data (a rollback copy is kept).</label>
         <button disabled={!nativeAvailable() || restore.isPending || !restoreConfirmed} onClick={() => restore.mutate()}>Choose backup and restore</button>

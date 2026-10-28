@@ -42,6 +42,12 @@ export function label(row: RecordData): string {
   return text(row.title ?? row.display_name ?? row.name ?? row.description ?? row.spelling ?? row.heading ?? row.id, 'Untitled');
 }
 
+/** Engine ids (`follow_ups`, `in_progress`) as sentence-case words. */
+export function humanize(value: unknown): string {
+  const words = text(value).replaceAll('_', ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 export function clock(milliseconds: unknown): string {
   const seconds = Math.max(0, Math.floor(number(milliseconds) / 1000));
   return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;

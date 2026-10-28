@@ -3,7 +3,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { useCommand, useResource } from '../lib/queries';
 import { useInterface } from '../lib/ui-store';
 import { nativeAvailable, nativeRequest } from '../lib/bridge';
-import { array, clock, date, id, item, items, object, revision, text, type RecordData } from '../lib/data';
+import { array, clock, date, humanize, id, item, items, object, revision, text, type RecordData } from '../lib/data';
 import { ActionMenu } from '../components/controls';
 import { AsyncView, Badge, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, ErrorNotice, FieldInput, Modal, Notice, Panel, Toolbar, useOpenState, type Field } from '../components/ui';
 import styles from './workspace.module.css';
@@ -23,7 +23,7 @@ export function Citation({ source, number: citationNumber }: { source: RecordDat
   const utteranceId = text(source.utterance_id ?? source.source_utterance_id ?? source.start_utterance_id ?? source.source_id);
   if (source.type === 'human_note' || source.provenance === 'Human note') return <Badge>Human note</Badge>;
   if (!meetingId || !utteranceId) return <Badge>{citationNumber ? `[${citationNumber}] ` : ''}Source unavailable</Badge>;
-  return <Link className={styles.citation} to="/meeting/$meetingId" params={{ meetingId }} onClick={() => select(utteranceId)} title={text(source.quote ?? source.quote_snapshot ?? source.excerpt, 'Open source')}><span>{citationNumber ? `[${citationNumber}]` : '↗'} {text(source.meeting_title, 'Source')} · {clock(source.start_ms)}</span>{(source.stale === true || source.stale === 1) && <Badge tone="warning">Out of date</Badge>}</Link>;
+  return <Link className={styles.citation} to="/meeting/$meetingId" params={{ meetingId }} onClick={() => select(utteranceId)} title={text(source.quote ?? source.quote_snapshot ?? source.excerpt, 'Open source')}><span>{citationNumber ? `[${citationNumber}] ` : ''}{text(source.meeting_title, 'Source')} at {clock(source.start_ms)}</span>{(source.stale === true || source.stale === 1) && <Badge tone="warning">Out of date</Badge>}</Link>;
 }
 
 export function CitedResult({ result }: { result: RecordData }) {
@@ -32,7 +32,7 @@ export function CitedResult({ result }: { result: RecordData }) {
   const groups = ['cues', 'questions', 'topics', 'decisions', 'risks', 'milestones', 'deliverables', 'follow_ups', 'candidates', 'actions'].filter((key) => Array.isArray(data[key]));
   const body = text(data.answer ?? data.summary ?? data.text ?? data.body ?? data.markdown);
   return <div className={styles.result}>
-    {Boolean(result.state) && <Badge>{text(result.state)}</Badge>}
+    {result.state === 'superseded' && <Badge>Older version</Badge>}
     {Boolean(result.stale) && <Badge tone="warning">Out of date</Badge>}
     {Boolean(result.updated_at) && <small>Generated {date(result.updated_at)}</small>}
     {sections.map((section, index) => <section key={id(section) || index}>
@@ -46,40 +46,40 @@ export function CitedResult({ result }: { result: RecordData }) {
     </section>)}
     {!sections.length && body && <p className={styles.preWrap}>{body}</p>}
     {groups.map((key) => <section key={key}>
-      <h3>{key.replaceAll('_', ' ')}</h3>
+      <h3>{humanize(key)}</h3>
       {array(data[key]).map((entry, index) => <article key={id(entry) || index} className={styles.actionRow} style={{ marginLeft: entry.parent_key ? '1.25rem' : 0 }}>
         <strong>{text(entry.title ?? entry.description ?? entry.text ?? entry.question)}</strong>
         <Toolbar>
-          {Boolean(entry.kind) && <Badge>{text(entry.kind)}</Badge>}
-          {Boolean(entry.sentiment) && <Badge>{text(entry.sentiment)}</Badge>}
-          {entry.start_ms !== undefined && <small>{clock(entry.start_ms)}–{clock(entry.end_ms)}</small>}
+          {Boolean(entry.kind) && <Badge>{humanize(entry.kind)}</Badge>}
+          {Boolean(entry.sentiment) && <Badge>{humanize(entry.sentiment)}</Badge>}
+          {entry.start_ms !== undefined && <small>{clock(entry.start_ms)} to {clock(entry.end_ms)}</small>}
           {Boolean(entry.parent_key) && <small>Under {text(entry.parent_key)}</small>}
           {array(entry.source_refs).map((source, citationIndex) => <Citation key={citationIndex} source={source} number={citationIndex + 1} />)}
         </Toolbar>
       </article>)}
     </section>)}
     {array(data.citations).map((source, index) => <Citation key={id(source) || index} source={source} number={index + 1} />)}
-    {Array.isArray(data.warnings) && data.warnings.length > 0 && <Notice>{data.warnings.map((warning) => typeof warning === 'string' ? warning : JSON.stringify(warning)).join(' · ')}</Notice>}
+    {Array.isArray(data.warnings) && data.warnings.map((warning, index) => <Notice key={index}>{typeof warning === 'string' ? warning : JSON.stringify(warning)}</Notice>)}
     {!sections.length && !body && !groups.length && <Details title="Details" value={data} />}
   </div>;
 }
 
 const running = (row: RecordData) => row.status === 'queued' || row.status === 'running';
 
-/** Per-task job state under a generate button; nothing once the task is done. */
-function TaskStatus({ status, task }: { status: RecordData | undefined; task: string }) {
+/** Per-task job state under a generate button; nothing once the task is done. Retry regenerates the task: a soft failure carries the id of a finalize job that succeeded overall. */
+function TaskStatus({ meetingId, status, task }: { meetingId: string; status: RecordData | undefined; task: string }) {
   const row = items(status).find((entry) => entry.task === task);
   if (!row) return null;
   if (running(row)) return <small role="status">Generating…</small>;
   if (row.status !== 'failed') return null;
-  return <Toolbar><small role="alert">Failed: {text(row.error, 'unknown error')}</small><CommandButton operation="jobs.retry" payload={{ job_id: text(row.job_id) }}>Retry</CommandButton></Toolbar>;
+  return <Toolbar><small role="alert">Failed: {text(row.error, 'unknown error')}</small><CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task }}>Retry</CommandButton></Toolbar>;
 }
 
 export function AnalysisPanel({ meetingId, task = 'summary' }: { meetingId: string; task?: string }) {
   const query = useResource('analysis.list', { meeting_id: meetingId, task });
   const status = useResource('analysis.status', { meeting_id: meetingId }, true, (data) => items(data).some(running));
   const generating = items(status.data).some((row) => row.task === task && running(row));
-  return <Panel title={task === 'summary' ? 'Summary' : 'Topics & outcomes'} actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task }}>Generate {task}</CommandButton>}><TaskStatus status={status.data} task={task} /><AsyncView query={query}>{(data) => items(data).length === 0 ? (generating ? null : <Empty title={`No ${task} yet`} />) : items(data).map((result) => <CitedResult key={id(result)} result={result} />)}</AsyncView>{task === 'topics' && <Artifacts meetingId={meetingId} />}</Panel>;
+  return <Panel title={task === 'summary' ? 'Summary' : 'Topics and outcomes'} actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task }}>Generate {task}</CommandButton>}><TaskStatus meetingId={meetingId} status={status.data} task={task} /><AsyncView query={query}>{(data) => items(data).length === 0 ? (generating ? null : <Empty title={`No ${task} yet`} />) : items(data).map((result) => <CitedResult key={id(result)} result={result} />)}</AsyncView>{task === 'topics' && <Artifacts meetingId={meetingId} />}</Panel>;
 }
 
 function Artifacts({ meetingId }: { meetingId: string }) {
@@ -133,7 +133,7 @@ export function ActionRow({ row }: { row: RecordData }) {
 export function QuestionsPanel({ meetingId }: { meetingId: string }) {
   const questions = useResource('questions.list', { meeting_id: meetingId });
   const cues = useResource('analysis.list', { meeting_id: meetingId, task: 'cues' });
-  return <Panel title="Cues & questions" actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task: 'cues' }}>Generate cues</CommandButton>}><AsyncView query={cues}>{(data) => items(data).map((row) => <CitedResult key={id(row)} result={row} />)}</AsyncView><h3>Questions</h3><AsyncView query={questions}>{(data) => items(data).length === 0 ? <Empty title="No open questions" /> : items(data).map((row) => <article className={styles.actionRow} key={id(row)}><div><p>{text(row.text ?? row.question)}</p><Badge>{text(row.status, 'open')}</Badge>{array(row.source_refs).map((source, index) => <Citation key={index} source={source} />)}</div><Toolbar><CommandButton operation="questions.update" payload={{ id: id(row), expected_revision: revision(row), status: 'answered' }}>Mark answered</CommandButton><CommandButton operation="questions.update" payload={{ id: id(row), expected_revision: revision(row), status: 'dismissed' }}>Dismiss</CommandButton><CommandButton operation="questions.update" payload={{ id: id(row), expected_revision: revision(row), status: 'open' }}>Reopen</CommandButton></Toolbar></article>)}</AsyncView></Panel>;
+  return <Panel title="Cues & questions" actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task: 'cues' }}>Generate cues</CommandButton>}><AsyncView query={cues}>{(data) => items(data).map((row) => <CitedResult key={id(row)} result={row} />)}</AsyncView><h3>Questions</h3><AsyncView query={questions}>{(data) => items(data).length === 0 ? <Empty title="No open questions" /> : items(data).map((row) => <article className={styles.actionRow} key={id(row)}><div><p>{text(row.text ?? row.question)}</p><Badge>{humanize(row.status ?? 'open')}</Badge>{array(row.source_refs).map((source, index) => <Citation key={index} source={source} />)}</div><Toolbar><CommandButton operation="questions.update" payload={{ id: id(row), expected_revision: revision(row), status: 'answered' }}>Mark answered</CommandButton><CommandButton operation="questions.update" payload={{ id: id(row), expected_revision: revision(row), status: 'dismissed' }}>Dismiss</CommandButton><CommandButton operation="questions.update" payload={{ id: id(row), expected_revision: revision(row), status: 'open' }}>Reopen</CommandButton></Toolbar></article>)}</AsyncView></Panel>;
 }
 
 export function ImportantPanel({ meetingId }: { meetingId: string }) {

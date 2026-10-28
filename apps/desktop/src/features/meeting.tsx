@@ -6,10 +6,10 @@ import { nativeAvailable, nativeRequest, request } from '../lib/bridge';
 import { flushDrafts } from '../lib/drafts';
 import { useResource } from '../lib/queries';
 import { useInterface } from '../lib/ui-store';
-import { date, id, item, items, label, object, revision, text, type RecordData } from '../lib/data';
+import { date, humanize, id, item, items, label, object, revision, text, type RecordData } from '../lib/data';
 import { ActionMenu } from '../components/controls';
-import { AsyncView, Badge, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, ErrorNotice, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, useOpenState } from '../components/ui';
-import { CaptureControls, CaptureStatus, LanguageControl, SpeakersPanel } from './capture';
+import { AsyncView, Badge, buttonClass, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, ErrorNotice, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, useOpenState } from '../components/ui';
+import { CaptureControls, LanguageControl, MeetingStatus, SpeakersPanel } from './capture';
 import { Transcript } from './transcript';
 import { HumanNotes } from './notes';
 import { ActionsPanel, AnalysisPanel, CitedResult, ImportantPanel, QuestionsPanel } from './outcomes';
@@ -28,15 +28,11 @@ function MeetingWorkspace({ meeting }: { meeting: RecordData }) {
   const panel = useInterface((state) => state.panel);
   const setPanel = useInterface((state) => state.setPanel);
   const recording = ['recording', 'starting', 'paused'].includes(text(meeting.state));
-  return <><PageHeader title={label(meeting)}><MeetingActions meeting={meeting} /></PageHeader><CaptureStatus meeting={meeting}><div className={styles.captureActions}><CaptureControls meeting={meeting} /></div></CaptureStatus><CaptureAlert meeting={meeting} /><TabSet value={panel} onValueChange={setPanel} tabs={[
+  return <><PageHeader title={label(meeting)}><CaptureControls meeting={meeting} /><MeetingActions meeting={meeting} /></PageHeader><MeetingStatus meeting={meeting} /><CaptureAlert meeting={meeting} /><div className={styles.meeting}><div className={styles.record}><TabSet value={panel} onValueChange={setPanel} tabs={[
     { label: 'Transcript', content: <><Transcript meetingId={meetingId} recording={recording} />{!recording && <ReplayPanel meetingId={meetingId} recording={recording} />}{!recording && <CandidatePanel meetingId={meetingId} />}</> },
-    { label: 'Notes', content: <HumanNotes meetingId={meetingId} /> },
-    { label: 'Summary', content: <><AnalysisPanel meetingId={meetingId} /><AnalysisPanel meetingId={meetingId} task="topics" /></> },
-    { label: 'Actions', content: <ActionsPanel meetingId={meetingId} /> },
-    { label: 'Questions', content: <><QuestionsPanel meetingId={meetingId} /><ImportantPanel meetingId={meetingId} /></> },
-    { label: 'Speakers', content: <SpeakersPanel meetingId={meetingId} /> },
+    { label: 'Outcomes', content: <><AnalysisPanel meetingId={meetingId} /><ActionsPanel meetingId={meetingId} /><AnalysisPanel meetingId={meetingId} task="topics" /><QuestionsPanel meetingId={meetingId} /><ImportantPanel meetingId={meetingId} /></> },
     { label: 'Minutes', content: <><MinutesPanel meeting={meeting} /><FinalizationPanel meetingId={meetingId} /></> },
-  ]} /></>;
+  ]} /></div><aside className={styles.margin} aria-label="Your notes"><HumanNotes meetingId={meetingId} /></aside></div></>;
 }
 
 const CAPTURE_ALERTS: Record<string, string> = {
@@ -73,7 +69,7 @@ function CaptureAlert({ meeting }: { meeting: RecordData }) {
   return <Notice danger>{alert ? `${CAPTURE_ALERTS[alert.type]}${alert.message ? `: ${alert.message}` : ''}` : 'Some audio was not transcribed.'}<Toolbar>{live && source && !interrupted && <CommandButton operation="meetings.source_retry" payload={{ source_id: id(source) }} onSuccess={() => setAlert(null)}>Restart capture</CommandButton>}{interrupted && <button type="button" onClick={() => { setAlert(null); void client.invalidateQueries({ queryKey: ['engine'] }); }}>Reopen meeting</button>}{alert && <button type="button" onClick={() => setAlert(null)}>Dismiss</button>}</Toolbar></Notice>;
 }
 
-type MeetingDialog = 'export' | 'edit' | 'language' | 'delete' | null;
+type MeetingDialog = 'export' | 'edit' | 'language' | 'speakers' | 'delete' | null;
 
 /** One primary action (Export) plus an overflow menu; each dialog stays mounted so the menu can close first. */
 function MeetingActions({ meeting }: { meeting: RecordData }) {
@@ -82,22 +78,27 @@ function MeetingActions({ meeting }: { meeting: RecordData }) {
   const [dialog, setDialog] = useState<MeetingDialog>(null);
   const bind = (name: Exclude<MeetingDialog, null>) => ({ open: dialog === name, onOpenChange: (open: boolean) => setDialog(open ? name : null) });
   return <>
-    <button onClick={() => setDialog('export')}>Export / share…</button>
+    <button onClick={() => setDialog('export')}>Export…</button>
     <ActionMenu label="More meeting actions" actions={[
       { label: 'Edit details…', onSelect: () => setDialog('edit') },
-      { label: 'Output language…', onSelect: () => setDialog('language') },
+      { label: 'Speakers…', onSelect: () => setDialog('speakers') },
+      { label: 'Summary language…', onSelect: () => setDialog('language') },
       { label: 'Delete meeting…', danger: true, onSelect: () => setDialog('delete') },
     ]} />
     <ExportControls meeting={meeting} {...bind('export')} />
     <LanguageControl meeting={meeting} {...bind('language')} />
+    <Modal title="Speakers" {...bind('speakers')}><SpeakersPanel meetingId={id(meeting)} /></Modal>
     <EditResource operation="meetings.update" row={meeting} label="Edit meeting" fields={[{ name: 'title', label: 'Title', required: true }, { name: 'project_id', label: 'Project', type: 'select', options: [{ value: '', label: 'No project' }, ...items(projects.data).map((row) => ({ value: id(row), label: label(row) }))] }]} {...bind('edit')} />
     <ConfirmCommand trigger="Delete meeting…" title="Delete meeting?" message="Deletes the transcript, notes and audio. Anything already sent elsewhere stays." operation="meetings.delete" payload={{ id: id(meeting), expected_revision: revision(meeting), confirm: true }} onSuccess={() => { void navigate({ to: '/' }); }} {...bind('delete')} />
   </>;
 }
 
+const STAGES: Record<string, string> = { drain: 'Finish the transcript', final_diarization: 'Tell speakers apart', final_analysis: 'Summary, actions and topics', minutes: 'Minutes', memory: 'Project memory', index: 'Search index' };
+const JOB_STATUS: Record<string, string> = { queued: 'Waiting', running: 'Running', succeeded: 'Done', failed: 'Failed', skipped: 'Skipped', cancelled: 'Cancelled' };
+
 function FinalizationPanel({ meetingId }: { meetingId: string }) {
   const query = useResource('meetings.finalization', { meeting_id: meetingId });
-  return <Panel title="Finalization"><AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title="No finalization stages" /> : items(data).map((job) => <article className={styles.actionRow} key={id(job)}><div><strong>{text(job.stage ?? object(job.payload).stage ?? job.kind)}</strong><Badge tone={job.status === 'failed' ? 'danger' : job.status === 'succeeded' ? 'success' : 'neutral'}>{text(job.status)}</Badge>{job.error && <Details title="Details" value={job.error} />}<small>Updated {date(job.updated_at)}</small></div><Toolbar>{job.status === 'failed' && <CommandButton operation="meetings.retry" payload={{ meeting_id: meetingId, stage: job.stage ?? object(job.payload).stage ?? '' }}>Retry</CommandButton>}{['queued', 'running'].includes(text(job.status)) && <CommandButton operation="jobs.cancel" payload={{ id: id(job), expected_revision: revision(job) }}>Cancel</CommandButton>}</Toolbar></article>)}</AsyncView></Panel>;
+  return <Panel title="Processing"><AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title="Not processed yet" /> : items(data).map((job) => { const stage = text(job.stage ?? object(job.payload).stage ?? job.kind); return <article className={styles.actionRow} key={id(job)}><div><strong>{STAGES[stage] ?? stage.replaceAll('_', ' ')}</strong><Badge tone={job.status === 'failed' ? 'danger' : job.status === 'succeeded' ? 'success' : 'neutral'}>{JOB_STATUS[text(job.status)] ?? text(job.status)}</Badge>{Boolean(object(job.error).message) && <p>{text(object(job.error).message)}</p>}{job.error && <Details title="Details" value={job.error} />}<small>Updated {date(job.updated_at)}</small></div><Toolbar>{job.status === 'failed' && <CommandButton operation="meetings.retry" payload={{ meeting_id: meetingId, stage }}>Retry</CommandButton>}{['queued', 'running'].includes(text(job.status)) && <CommandButton operation="jobs.cancel" payload={{ id: id(job), expected_revision: revision(job) }}>Cancel</CommandButton>}</Toolbar></article>; })}</AsyncView></Panel>;
 }
 
 function MinutesPanel({ meeting }: { meeting: RecordData }) {
@@ -120,7 +121,7 @@ function MinutesPanel({ meeting }: { meeting: RecordData }) {
         <h3>Approved minutes</h3>
         {id(approved) ? <><CitedResult result={approved} /><EditResource operation="minutes.edit" row={approved} fixed={{ meeting_id: id(meeting) }} label="Edit minutes" fields={[{ name: 'sections', label: 'Sections (JSON)', type: 'json', value: approved.sections ?? [] }]} /></> : <Empty title="No approved minutes" />}
         <h3>Candidates</h3>
-        {candidates.length === 0 ? <Empty title="No candidates" /> : candidates.map((row) => <article key={id(row)}><Badge>{text(row.state)}</Badge>{Boolean(row.stale) && <Badge tone="warning">Out of date — regenerate before approving</Badge>}<small>Created {date(row.created_at)}</small><button onClick={() => setDraft(row)}>Review</button></article>)}
+        {candidates.length === 0 ? <Empty title="No candidates" /> : candidates.map((row) => <article className={styles.actionRow} key={id(row)}><div><Badge>{humanize(row.state)}</Badge>{Boolean(row.stale) && <Badge tone="warning">Out of date. Prepare again before approving.</Badge>}<small>Created {date(row.created_at)}</small></div><button onClick={() => setDraft(row)}>Review</button></article>)}
       </>;
     }}</AsyncView>
   </Panel>;
@@ -149,10 +150,10 @@ export function ExportControls({ meeting, open: controlledOpen, onOpenChange }: 
     window.addEventListener('meeting-save-minutes', handler);
     return () => window.removeEventListener('meeting-save-minutes', handler);
   }, []);
-  return <Modal open={open} onOpenChange={setOpen} trigger={controlled ? undefined : <button>Export / share…</button>} title="Export"><div className={styles.filters}><label>Format<select value={format} onChange={(event) => setFormat(event.target.value)}>{['markdown', 'pdf', 'srt', 'json'].map((value) => <option key={value} value={value}>{value.toUpperCase()}</option>)}</select></label><label className={styles.check}><input type="checkbox" checked={includeTranscript} onChange={(event) => setIncludeTranscript(event.target.checked)} />Include transcript</label></div><label>Email recipients (comma-separated)<input value={recipients} onChange={(event) => setRecipients(event.target.value)} /></label><Toolbar><button disabled={exportOperation.isPending || !nativeAvailable()} onClick={() => exportOperation.mutate('save')}>Save export…</button><button disabled={exportOperation.isPending || !nativeAvailable()} onClick={() => exportOperation.mutate('copy')}>Copy email</button><button disabled={exportOperation.isPending || !nativeAvailable()} onClick={() => exportOperation.mutate('mailto')}>Open mail draft</button></Toolbar>{exportOperation.error && <ErrorNotice error={exportOperation.error} />}{exportOperation.isSuccess && <Details value={exportOperation.data} />}<DeliveryPreview meetingId={id(meeting)} /></Modal>;
+  return <Modal open={open} onOpenChange={setOpen} trigger={controlled ? undefined : <button>Export…</button>} title="Export"><div className={styles.filters}><label>Format<select value={format} onChange={(event) => setFormat(event.target.value)}>{['markdown', 'pdf', 'srt', 'json'].map((value) => <option key={value} value={value}>{value.toUpperCase()}</option>)}</select></label><label className={styles.check}><input type="checkbox" checked={includeTranscript} onChange={(event) => setIncludeTranscript(event.target.checked)} />Include transcript</label></div><label>Email recipients, separated by commas<input value={recipients} onChange={(event) => setRecipients(event.target.value)} /></label><Toolbar><button className={buttonClass.primary} disabled={exportOperation.isPending || !nativeAvailable()} onClick={() => exportOperation.mutate('save')}>Save export…</button><button disabled={exportOperation.isPending || !nativeAvailable()} onClick={() => exportOperation.mutate('copy')}>Copy email</button><button disabled={exportOperation.isPending || !nativeAvailable()} onClick={() => exportOperation.mutate('mailto')}>Open mail draft</button></Toolbar>{exportOperation.error && <ErrorNotice error={exportOperation.error} />}{exportOperation.isSuccess && <Details value={exportOperation.data} />}<DeliveryPreview meetingId={id(meeting)} /></Modal>;
 }
 
 function DeliveryPreview({ meetingId }: { meetingId: string }) {
   const [preview, setPreview] = useState<RecordData | null>(null);
-  return <><hr /><h3>Slack / email delivery</h3><CommandForm operation="delivery.preview" fixed={{ meeting_id: meetingId, include_transcript: false }} fields={[{ name: 'connection_id', label: 'Connection ID', required: true }]} submit="Preview" onSuccess={(result) => setPreview(item(result))} />{preview && <><Details value={preview} /><CommandForm operation="delivery.send" fixed={{ id: id(preview), expected_revision: revision(preview), reviewed: true }} fields={[]} submit="Send" confirm="I reviewed the content and recipients. Sent messages can't be recalled." /></>}</>;
+  return <><hr /><h3>Send to Slack or email</h3><CommandForm operation="delivery.preview" fixed={{ meeting_id: meetingId, include_transcript: false }} fields={[{ name: 'connection_id', label: 'Connection ID', required: true }]} submit="Preview" onSuccess={(result) => setPreview(item(result))} />{preview && <><Details value={preview} /><CommandForm operation="delivery.send" fixed={{ id: id(preview), expected_revision: revision(preview), reviewed: true }} fields={[]} submit="Send" confirm="I reviewed the content and recipients. Sent messages can’t be recalled." /></>}</>;
 }

@@ -17,7 +17,7 @@ const groups: { id: string; title: string; notice?: string; fields: Field[] }[] 
     { name: 'mode', label: 'Capture', type: 'select', value: 'both', options: [{ value: 'both', label: 'Microphone and computer audio' }, { value: 'mic', label: 'Microphone only' }, { value: 'system', label: 'Computer audio only' }] },
     { name: 'microphone_device_key', label: 'Microphone', type: 'select' },
     { name: 'system_device_key', label: 'Computer audio', type: 'select' },
-    { name: 'vad_threshold', label: 'Speech detection sensitivity (0–1)', type: 'number', value: .5, min: 0, max: 1 },
+    { name: 'vad_threshold', label: 'Speech detection sensitivity (0 to 1)', type: 'number', value: .5, min: 0, max: 1 },
     { name: 'pre_roll_ms', label: 'Audio kept before speech starts (ms)', type: 'number', value: 300, min: 0, max: 2000 },
     { name: 'post_silence_ms', label: 'Silence before a line ends (ms)', type: 'number', value: 400, min: 0, max: 3000 },
     { name: 'minimum_true_speech_ms', label: 'Shortest speech to transcribe (ms)', type: 'number', value: 250, min: 0, max: 2000 },
@@ -44,7 +44,7 @@ const groups: { id: string; title: string; notice?: string; fields: Field[] }[] 
   { id: 'speakers', title: 'Speakers', fields: [
     { name: 'diarization_enabled', label: 'Tell speakers apart', type: 'checkbox', value: false },
     { name: 'voice_profiles_enabled', label: 'Recognise returning speakers by voice', type: 'checkbox', value: false },
-    { name: 'match_threshold', label: 'Voice match strictness (0–1)', type: 'number', value: .45, min: 0, max: 1 },
+    { name: 'match_threshold', label: 'Voice match strictness (0 to 1)', type: 'number', value: .45, min: 0, max: 1 },
   ] },
   { id: 'retrieval', title: 'Search', fields: [
     { name: 'mode', label: 'Default search', type: 'select', value: 'keyword', options: [{ value: 'keyword', label: 'Exact words' }, { value: 'semantic', label: 'Meaning' }, { value: 'hybrid', label: 'Both' }] },
@@ -70,19 +70,16 @@ const groups: { id: string; title: string; notice?: string; fields: Field[] }[] 
   ] },
 ];
 
-/** Tuning knobs most people never touch; shown on the Advanced tab instead of their group. */
+/** Tuning knobs most people never touch; shown under Advanced on the App tab instead of their group. */
 const advanced: Record<string, true> = { 'capture.vad_threshold': true, 'capture.pre_roll_ms': true, 'capture.post_silence_ms': true, 'capture.minimum_true_speech_ms': true, 'capture.maximum_utterance_ms': true, 'recording.byte_cap': true, 'recording.max_import_bytes': true, 'recording.max_import_seconds': true, 'analysis.rolling_summary_seconds': true, 'analysis.checkpoint_seconds': true, 'speakers.match_threshold': true, 'speakers.match_margin': true, 'retrieval.embedding_profile_id': true, 'retrieval.chunk_tokens': true, 'retrieval.overlap_tokens': true, 'jobs.max_concurrent_inference': true, 'jobs.queue_limit': true, 'jobs.worker_startup_seconds': true, 'jobs.pyannote_startup_seconds': true, 'jobs.shutdown_grace_seconds': true };
 
 export function SettingsPage() {
   const panels: Record<string, ReactNode> = {
-    'Audio': <><AudioSettings /><SettingsGroup groupId="capture" /></>,
-    'Meetings': <><SettingsGroup groupId="analysis" /><SettingsGroup groupId="speakers" /><Profiles /><SettingsGroup groupId="retrieval" /><SettingsGroup groupId="exports" /></>,
-    'Transcription & AI': <AiSettings />,
-    'Calendar & integrations': <><CalendarSettings /><IntegrationSettings /></>,
-    'Privacy & backup': <><SettingsGroup groupId="privacy" /><SettingsGroup groupId="recording" /><PrivacySettings /></>,
-    'App & updates': <><WindowSettings /><UpdatesSettings /></>,
-    'Advanced': <><ModelSettings /><ProviderSettings />{groups.map((group) => <SettingsGroup key={group.id} groupId={group.id} advancedOnly />)}</>,
-    'About': <About />,
+    'Transcription & AI': <><AiSettings /><details className={styles.advanced}><summary>Models and providers</summary><ModelSettings /><ProviderSettings /></details></>,
+    'Audio': <><AudioSettings /><SettingsGroup groupId="capture" /><SettingsGroup groupId="recording" /></>,
+    'Meetings': <><SettingsGroup groupId="analysis" /><SettingsGroup groupId="speakers" /><Profiles /><SettingsGroup groupId="retrieval" /><SettingsGroup groupId="exports" /><CalendarSettings /><IntegrationSettings /></>,
+    'Privacy & data': <><SettingsGroup groupId="privacy" /><PrivacySettings /></>,
+    'App': <><WindowSettings /><UpdatesSettings /><details className={styles.advanced}><summary>Advanced</summary>{groups.map((group) => <SettingsGroup key={group.id} groupId={group.id} advancedOnly />)}</details><About /></>,
   };
   return <><PageHeader title="Settings" /><TabSet tabs={settingsTabs.map((label) => ({ label, content: panels[label] }))} /></>;
 }
@@ -98,7 +95,7 @@ const credits = [
 ];
 
 function About() {
-  return <Panel title="About & credits"><h3>Model credits</h3><ul>{credits.map(([name, author, license, source]) => <li key={name}><strong>{name}</strong>: {author}. License: {license}. Source: <code>{source}</code></li>)}</ul><p>Runtimes: faster-whisper (MIT), sherpa-onnx (Apache-2.0), fermion-research (Apache-2.0) with PyTorch (BSD-3-Clause), pyannote.audio (MIT), ONNX Runtime (MIT). The optional GPU Whisper pack includes NVIDIA cuBLAS, cuDNN and NVRTC under NVIDIA's license terms (not MIT), shipped inside the pack. The optional Azure Speech pack uses Microsoft's Speech SDK license.</p></Panel>;
+  return <Panel title="About"><h3>Model credits</h3><ul>{credits.map(([name, author, license, source]) => <li key={name}><strong>{name}</strong>: {author}. License: {license}. Source: <code>{source}</code></li>)}</ul><p>Runtimes: faster-whisper (MIT), sherpa-onnx (Apache-2.0), fermion-research (Apache-2.0) with PyTorch (BSD-3-Clause), pyannote.audio (MIT), ONNX Runtime (MIT). The optional GPU Whisper pack includes NVIDIA cuBLAS, cuDNN and NVRTC under NVIDIA's license terms (not MIT), shipped inside the pack. The optional Azure Speech pack uses Microsoft's Speech SDK license.</p></Panel>;
 }
 
 function SettingsGroup({ groupId, advancedOnly = false }: { groupId: string; advancedOnly?: boolean }) {
@@ -157,7 +154,7 @@ function NativePreferences({ saved }: { saved: RecordData }) {
   const [values, setValues] = useState<Payload>({ theme: saved.theme ?? 'system', tray_enabled: saved.tray_enabled ?? false, always_on_top: saved.always_on_top ?? true, sidebar_collapsed: saved.sidebar_collapsed ?? false });
   const client = useQueryClient();
   const save = useMutation({ mutationFn: () => updatePreferences(values), onSuccess: async () => { document.documentElement.dataset.theme = text(values.theme); await client.invalidateQueries({ queryKey: ['native'] }); } });
-  return <form className={styles.settingsForm} onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>{[{ name: 'theme', label: 'Theme', type: 'select' as const, options: ['system', 'light', 'dark'].map((value) => ({ value, label: value })) }, { name: 'always_on_top', label: 'Always on top', type: 'checkbox' as const }, { name: 'tray_enabled', label: 'Tray icon', type: 'checkbox' as const }, { name: 'sidebar_collapsed', label: 'Compact sidebar', type: 'checkbox' as const }].map((field) => <FieldInput key={field.name} field={field} value={values[field.name] ?? false} onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))} />)}<button disabled={save.isPending || !nativeAvailable()} type="submit">Save</button>{save.error && <ErrorNotice error={save.error} />}{save.isSuccess && <Notice>Saved.</Notice>}</form>;
+  return <form className={styles.settingsForm} onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>{[{ name: 'theme', label: 'Theme', type: 'select' as const, options: [{ value: 'system', label: 'Match Windows' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }] }, { name: 'always_on_top', label: 'Always on top', type: 'checkbox' as const }, { name: 'tray_enabled', label: 'Tray icon', type: 'checkbox' as const }].map((field) => <FieldInput key={field.name} field={field} value={values[field.name] ?? false} onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))} />)}<button disabled={save.isPending || !nativeAvailable()} type="submit">Save</button>{save.error && <ErrorNotice error={save.error} />}{save.isSuccess && <Notice>Saved.</Notice>}</form>;
 }
 
 export function UpdatesSettings() {

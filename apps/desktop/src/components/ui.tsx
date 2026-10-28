@@ -9,6 +9,9 @@ import { updatePreferences } from '../lib/preferences';
 import { object, pretty, safeParse, text, type Json, type Payload, type RecordData } from '../lib/data';
 import styles from './ui.module.css';
 
+/** Class names for plain `<button>`s: default buttons are secondary (ink outline); these give the primary, quiet or danger look. */
+export const buttonClass = { primary: styles.primary, quiet: styles.quiet, danger: styles.dangerButton };
+
 export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
   return <header className={styles.pageHeader}><h1>{title}</h1><div className={styles.toolbar}>{children}</div></header>;
 }
@@ -49,7 +52,7 @@ export function AsyncView({ query, children, empty, isEmpty = false }: { query: 
   if (query.isPending || starting) return <div className={styles.loading} role="status">{starting ? 'Starting…' : 'Loading…'}</div>;
   if (query.isError) return <ErrorNotice error={query.error} retry={() => { void query.refetch(); }} />;
   if (isEmpty) return <>{empty ?? <Empty />}</>;
-  return <div>{children(query.data ?? {})}</div>;
+  return <div className={styles.view}>{children(query.data ?? {})}</div>;
 }
 
 export function Modal({ trigger, title, description, children, open, onOpenChange }: { trigger?: ReactNode; title: string; description?: string; children: ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void }) {
@@ -124,7 +127,7 @@ export function CommandForm({ operation, fields, fixed = {}, submit = 'Save chan
     } catch (error) { setLocalError(error); }
   };
   const input = (field: Field) => <FieldInput key={field.name} field={field} value={values[field.name] ?? null} onChange={(value) => { setValues((current) => ({ ...current, [field.name]: value })); command.reset(); }} />;
-  return <form className={styles.form} onSubmit={submitForm}>{fields.filter((field) => !field.advanced).map(input)}{fields.some((field) => field.advanced) && <details className={styles.details}><summary>Advanced</summary><div className={styles.form}>{fields.filter((field) => field.advanced).map(input)}</div></details>}{children}{confirm && <label className={styles.check}><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} required />{confirm}</label>}{Boolean(command.error || localError) && <ErrorNotice error={command.error ?? localError} />}{command.isSuccess && <Notice>Saved.</Notice>}<button className={styles.primary} disabled={command.isPending || !nativeAvailable() || (!!confirm && !confirmed)} type="submit">{command.isPending ? 'Working…' : submit}</button></form>;
+  return <form className={styles.form} onSubmit={submitForm}>{fields.filter((field) => !field.advanced).map(input)}{fields.some((field) => field.advanced) && <details className={styles.details}><summary>More options</summary><div className={styles.form}>{fields.filter((field) => field.advanced).map(input)}</div></details>}{children}{confirm && <label className={styles.check}><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} required />{confirm}</label>}{Boolean(command.error || localError) && <ErrorNotice error={command.error ?? localError} />}{command.isSuccess && <Notice>Saved.</Notice>}<button className={styles.primary} disabled={command.isPending || !nativeAvailable() || (!!confirm && !confirmed)} type="submit">{command.isPending ? 'Working…' : submit}</button></form>;
 }
 export function CommandButton({ operation, payload = {}, children, danger = false, disabled = false, onSuccess }: { operation: string; payload?: Payload; children: ReactNode; danger?: boolean; disabled?: boolean; onSuccess?: (result: RecordData) => void }) {
   const command = useCommand(operation);

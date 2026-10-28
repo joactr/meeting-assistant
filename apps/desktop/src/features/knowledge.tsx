@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { request } from '../lib/bridge';
 import { useResource } from '../lib/queries';
-import { array, clock, id, item, items, label, text, type Payload, type RecordData } from '../lib/data';
+import { array, id, item, items, label, text, type Payload, type RecordData } from '../lib/data';
 import { Bookmark } from 'lucide-react';
 import { FilterDisclosure, MeetingPicker, Segmented } from '../components/controls';
-import { AsyncView, Badge, CommandForm, Details, EditResource, Empty, ErrorNotice, FieldInput, Modal, Notice, PageHeader, Panel, Toolbar } from '../components/ui';
+import { AsyncView, Badge, buttonClass, CommandForm, Details, EditResource, Empty, ErrorNotice, FieldInput, Modal, Notice, PageHeader, Panel, Toolbar } from '../components/ui';
 import { ActionRow, Citation, CitedResult } from './outcomes';
 import { VirtualList } from '../components/virtual-list';
 import styles from './workspace.module.css';
@@ -92,7 +92,7 @@ export function SearchPage() {
     <form onSubmit={(event) => { event.preventDefault(); submit(false); }}>
       <label className={styles.searchInput}>Query<input name="query" value={queryText} onChange={(event) => setQueryText(event.target.value)} placeholder="A phrase, decision, or question…" required autoFocus /></label>
       <div className={styles.searchActions}>
-        <button type="submit" className={styles.primaryAction} disabled={!queryText.trim()}>Search</button>
+        <button type="submit" className={buttonClass.primary} disabled={!queryText.trim()}>Search</button>
         <button type="button" disabled={!queryText.trim() || askRequest.isPending} onClick={() => submit(true)}>{askRequest.isPending ? 'Asking…' : 'Ask'}</button>
         <label className={styles.check}><input type="checkbox" checked={historicalConsent} onChange={(event) => setHistoricalConsent(event.target.checked)} />Let Ask send matching excerpts to your AI provider</label>
       </div>
@@ -111,7 +111,7 @@ export function SearchPage() {
     {currentQuery && !ask && <Panel title="Results"><AsyncView query={results}>{(data) => <>
       {data.retrieval_mode === 'keyword' && mode !== 'keyword' && <Notice>Meaning search isn't available yet; showing exact matches.</Notice>}
       {(Boolean(data.destination) || Boolean(data.fallback_reason ?? data.warning)) && <Toolbar>{Boolean(data.destination) && <Badge>Sent to: {text(data.destination)}</Badge>}{Boolean(data.fallback_reason ?? data.warning) && <Notice>{text(data.fallback_reason ?? data.warning)}</Notice>}</Toolbar>}
-      {items(data).length === 0 ? <Empty title="No matches" /> : <VirtualList label="Search results" rows={items(data)} estimate={130} render={(row) => <article className={styles.searchResult}><h3>{text(row.meeting_title, 'Meeting passage')}</h3><p><Highlight value={excerpt(text(row.excerpt ?? row.text), terms)} terms={terms} /></p><Toolbar><Citation source={row} /><small>{clock(row.start_ms)}–{clock(row.end_ms)}</small></Toolbar></article>} />}
+      {items(data).length === 0 ? <Empty title="No matches" /> : <VirtualList label="Search results" rows={items(data)} estimate={130} render={(row) => <article className={styles.searchResult}><h3>{text(row.meeting_title, 'Meeting passage')}</h3><p><Highlight value={excerpt(text(row.excerpt ?? row.text), terms)} terms={terms} /></p><Citation source={row} /></article>} />}
       <Toolbar><button disabled={!previous.length} onClick={() => { setCursor(previous[previous.length - 1] ?? null); setPrevious((values) => values.slice(0, -1)); }}>Previous results</button><button disabled={!data.next_cursor} onClick={() => { setPrevious((values) => [...values, cursor]); setCursor(text(data.next_cursor)); }}>Next results</button></Toolbar>
     </>}</AsyncView></Panel>}
     {ask && <Panel title="Answer">{askRequest.isPending && <Notice>Searching…</Notice>}{askRequest.error && <ErrorNotice error={askRequest.error} retry={() => submit(true)} />}{askRequest.data && <AskAnswer answer={askRequest.data} />}</Panel>}

@@ -9,9 +9,9 @@ test('browser clearly disables native journeys and never calls a direct backend'
   await expect(page.getByRole('heading', { name: 'Meeting library' })).toBeVisible();
   await expect(page.getByText('Native desktop features are unavailable in this browser.')).toBeVisible();
   await page.getByRole('button', { name: 'New meeting', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Prepare a meeting' });
+  const dialog = page.getByRole('dialog', { name: 'New meeting' });
   await dialog.getByLabel('Meeting name').fill('Browser is not a recorder');
-  await expect(dialog.getByRole('button', { name: 'Create preparation' })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Create meeting' })).toBeDisabled();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await page.getByRole('main').getByRole('button', { name: 'Import audio' }).click();
@@ -77,7 +77,7 @@ test('P27 keyboard-only: navigation, dialog focus containment and focus restorat
   const trigger = page.getByRole('button', { name: 'New meeting', exact: true });
   await trigger.focus();
   await page.keyboard.press('Enter');
-  const dialog = page.getByRole('dialog', { name: 'Prepare a meeting' });
+  const dialog = page.getByRole('dialog', { name: 'New meeting' });
   await expect(dialog).toBeVisible();
   for (let index = 0; index < 25; index += 1) {
     await page.keyboard.press('Tab');

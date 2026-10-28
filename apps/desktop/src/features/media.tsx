@@ -26,7 +26,7 @@ export function ReplayPanel({ meetingId, recording }: { meetingId: string; recor
   const toggle = (): void => control.mutate({ operation: state.playing ? 'pause' : 'play', position_ms: number(state.position_ms, number(chosen?.start_ms)), speed });
   return <Panel title="Retained audio" actions={recording ? <Badge>Paused while recording</Badge> : null}>
     <AsyncView query={media}>{() => playable.length === 0 ? <Empty title="Audio unavailable" /> : <div role="region" aria-label="Native audio player" className={styles.player} tabIndex={0} onFocus={() => setFocused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }} onKeyDown={(event) => { if (event.key === ' ' && !['INPUT', 'SELECT', 'BUTTON', 'TEXTAREA'].includes((event.target as HTMLElement).tagName)) { event.preventDefault(); if (mediaId && !recording) toggle(); } }}>
-      <FieldInput field={{ name: 'media', label: 'Track', type: 'select', options: [{ value: '', label: 'Choose track' }, ...playable.map((row) => ({ value: id(row), label: `${row.source_kind} · ${clock(row.start_ms)}–${clock(row.end_ms)}` }))] }} value={mediaId} onChange={(value) => { setMediaId(text(value)); control.reset(); }} />
+      <FieldInput field={{ name: 'media', label: 'Track', type: 'select', options: [{ value: '', label: 'Choose track' }, ...playable.map((row) => ({ value: id(row), label: `${text(row.source_kind)}, ${clock(row.start_ms)} to ${clock(row.end_ms)}` }))] }} value={mediaId} onChange={(value) => { setMediaId(text(value)); control.reset(); }} />
       <Toolbar>
         <button disabled={!mediaId || recording || control.isPending} onClick={toggle}>{state.playing ? 'Pause' : 'Play'}</button>
         <label>Speed<select value={speed} disabled={!mediaId || recording} onChange={(event) => { const value = Number(event.target.value); setSpeed(value); control.mutate({ operation: 'speed', speed: value }); }}>{[.75, 1, 1.25, 1.5, 2].map((value) => <option key={value} value={value}>{value}×</option>)}</select></label>
@@ -67,7 +67,7 @@ export function CandidatePanel({ meetingId }: { meetingId: string }) {
   const diff = useResource('transcript.diff', { meeting_id: meetingId, run_id: candidateId }, !!candidateId);
   return <Panel title="Transcript candidates">
     <AsyncView query={runs}>{(data) => <>
-      <FieldInput field={{ name: 'candidate', label: 'Candidate', type: 'select', options: [{ value: '', label: 'Choose candidate' }, ...items(data).filter((run) => run.state === 'candidate' && !!run.completed_at).map((run, index) => ({ value: id(run), label: `#${index + 1} · ${text(run.source)}` }))] }} value={candidateId} onChange={(value) => setCandidateId(text(value))} />
+      <FieldInput field={{ name: 'candidate', label: 'Candidate', type: 'select', options: [{ value: '', label: 'Choose candidate' }, ...items(data).filter((run) => run.state === 'candidate' && !!run.completed_at).map((run, index) => ({ value: id(run), label: `Run ${index + 1}, ${text(run.source)}` }))] }} value={candidateId} onChange={(value) => setCandidateId(text(value))} />
       {!items(data).some((run) => run.state === 'candidate' && !!run.completed_at) && <Empty title="No candidates" />}
     </>}</AsyncView>
     {selected && <AsyncView query={diff}>{(data) => <>
