@@ -3,11 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import { router } from './app/router';
-import '@fontsource-variable/hanken-grotesk/wght.css';
-import '@fontsource-variable/newsreader/wght.css';
-import '@fontsource-variable/newsreader/wght-italic.css';
-import '@fontsource/ibm-plex-mono/400.css';
-import '@fontsource/ibm-plex-mono/500.css';
+import '@fontsource-variable/mona-sans/standard.css';
+import '@fontsource-variable/mona-sans/standard-italic.css';
 import './styles/global.css';
 
 class RenderBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {

@@ -1,47 +1,51 @@
 :root {
-  color-scheme: light;
+  color-scheme: dark;
   --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px; --space-4xl: 144px;
   --text-xs: 0.75rem; --text-sm: 0.875rem; --text-md: 1rem; --text-lg: 1.2rem; --text-xl: 1.44rem; --text-2xl: 1.728rem; --text-3xl: 2.074rem;
   --text-display-s: 1.44rem; --text-display: 1.728rem; --text-section: 1.2rem; --text-title: 1rem; --text-lead: 1rem;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1); --ease-in: cubic-bezier(0.7, 0, 0.84, 0); --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --dur-micro: 120ms; --dur-short: 220ms; --dur-long: 420ms;
-  --color-error: oklch(48% 0.17 27); --color-success: oklch(46% 0.11 150); --color-warning: oklch(48% 0.10 70);
-  --container: 1440px; --gutter: 40px; --gap-columns: 32px;
+  --container: 1200px; --gutter: 40px; --gap-columns: 32px;
   --control: 36px; --bar-height: 56px;
   --z-base: 1; --z-raised: 10; --z-dropdown: 100; --z-sticky: 200; --z-sticky-nav: 300; --z-modal: 400; --z-toast: 500; --z-tooltip: 600;
-  --color-paper: oklch(84% 0.012 245); --color-paper-2: oklch(81% 0.012 245); --color-paper-3: oklch(77% 0.012 245);
-  --color-ink: oklch(16% 0.020 245); --color-ink-2: oklch(24% 0.018 245); --color-muted: oklch(38% 0.016 245);
-  --color-rule: oklch(80% 0.013 240); --color-rule-2: oklch(32% 0.018 240);
-  --color-accent: oklch(45% 0.180 350); --color-accent-2: oklch(37% 0.160 350); --color-accent-ink: oklch(97% 0.006 245); --color-focus: oklch(46% 0.190 350);
-  --color-sheet: oklch(93.5% 0.008 245); --color-sheet-2: oklch(90% 0.010 245);
-  --color-overlay: oklch(16% 0.020 245 / 0.45);
-  --font-display: "Hanken Grotesk Variable", "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-body: "Newsreader Variable", "Newsreader", ui-serif, Georgia, serif;
-  --font-outlier: "IBM Plex Mono", ui-monospace, monospace;
-  --radius-card: 0; --radius-pill: 2px; --rule-hair: 1px; --rule-bar: 2px; --shadow-card: none;
-  --tracking-display: -0.02em; --display-weight: 600;
+  /* Midnight: one midnight ground to every edge, square surfaces stepped up in lightness, one azure signal. */
+  --color-error: oklch(74% 0.14 27); --color-success: oklch(78% 0.11 160); --color-warning: oklch(82% 0.11 80);
+  --color-paper: oklch(14% 0.048 264); --color-paper-2: oklch(18.5% 0.052 264); --color-paper-3: oklch(23% 0.055 264);
+  --color-ink: oklch(95% 0.016 250); --color-ink-2: oklch(88% 0.05 245); --color-muted: oklch(73% 0.04 256);
+  --color-rule: oklch(29% 0.058 264); --color-rule-2: oklch(40% 0.06 262);
+  --color-accent: oklch(80% 0.11 230); --color-accent-2: oklch(72% 0.11 232); --color-accent-ink: oklch(16% 0.05 264); --color-focus: oklch(84% 0.12 228);
+  /* A sheet is a raised surface on the ground (panes, dialogs, menus, fields); sheet-2 is one step above it. */
+  --color-sheet: var(--color-paper-2); --color-sheet-2: var(--color-paper-3);
+  --color-overlay: oklch(6% 0.04 264 / 0.7);
+  --font-display: "Mona Sans Variable", "Mona Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Mona Sans Variable", "Mona Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-outlier: var(--font-body);
+  --radius-card: 0; --radius-pill: 0; --rule-hair: 1px; --rule-bar: 2px;
+  --shadow-card: 0 24px 48px -24px oklch(6% 0.04 264 / 0.7);
+  --tracking-display: -0.015em; --display-weight: 300; --display-stretch: 125%;
 }
 
-[data-theme="dark"] {
-  color-scheme: dark;
-  --color-error: oklch(74% 0.14 27); --color-success: oklch(76% 0.11 150); --color-warning: oklch(80% 0.10 80);
-  --color-paper: oklch(15% 0.012 245); --color-paper-2: oklch(18% 0.012 245); --color-paper-3: oklch(21% 0.012 245);
-  --color-ink: oklch(93% 0.010 245); --color-ink-2: oklch(86% 0.012 245); --color-muted: oklch(72% 0.014 245);
-  --color-rule: oklch(30% 0.013 240); --color-rule-2: oklch(70% 0.016 240);
-  --color-accent: oklch(72% 0.150 350); --color-accent-2: oklch(78% 0.130 350); --color-accent-ink: oklch(16% 0.020 245); --color-focus: oklch(74% 0.160 350);
-  --color-sheet: oklch(20% 0.012 245); --color-sheet-2: oklch(24% 0.012 245);
-  --color-overlay: oklch(8% 0.010 245 / 0.65);
+/* The Light setting keeps working: the same azure and midnight ink on a cool pale ground. */
+[data-theme="light"] {
+  color-scheme: light;
+  --color-error: oklch(50% 0.17 27); --color-success: oklch(46% 0.11 155); --color-warning: oklch(50% 0.11 70);
+  --color-paper: oklch(97% 0.008 255); --color-paper-2: oklch(94% 0.012 258); --color-paper-3: oklch(90% 0.016 260);
+  --color-ink: oklch(20% 0.05 264); --color-ink-2: oklch(30% 0.05 262); --color-muted: oklch(46% 0.04 258);
+  --color-rule: oklch(88% 0.018 260); --color-rule-2: oklch(62% 0.03 260);
+  --color-accent: oklch(48% 0.13 240); --color-accent-2: oklch(42% 0.12 240); --color-accent-ink: oklch(98% 0.01 250); --color-focus: oklch(50% 0.14 236);
+  --color-overlay: oklch(20% 0.05 264 / 0.4);
+  --shadow-card: 0 24px 48px -24px oklch(20% 0.05 264 / 0.25);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]):not([data-theme="dark"]) {
-    color-scheme: dark;
-    --color-error: oklch(74% 0.14 27); --color-success: oklch(76% 0.11 150); --color-warning: oklch(80% 0.10 80);
-    --color-paper: oklch(15% 0.012 245); --color-paper-2: oklch(18% 0.012 245); --color-paper-3: oklch(21% 0.012 245);
-    --color-ink: oklch(93% 0.010 245); --color-ink-2: oklch(86% 0.012 245); --color-muted: oklch(72% 0.014 245);
-    --color-rule: oklch(30% 0.013 240); --color-rule-2: oklch(70% 0.016 240);
-    --color-accent: oklch(72% 0.150 350); --color-accent-2: oklch(78% 0.130 350); --color-accent-ink: oklch(16% 0.020 245); --color-focus: oklch(74% 0.160 350);
-    --color-sheet: oklch(20% 0.012 245); --color-sheet-2: oklch(24% 0.012 245);
-    --color-overlay: oklch(8% 0.010 245 / 0.65);
+@media (prefers-color-scheme: light) {
+  [data-theme="system"] {
+    color-scheme: light;
+    --color-error: oklch(50% 0.17 27); --color-success: oklch(46% 0.11 155); --color-warning: oklch(50% 0.11 70);
+    --color-paper: oklch(97% 0.008 255); --color-paper-2: oklch(94% 0.012 258); --color-paper-3: oklch(90% 0.016 260);
+    --color-ink: oklch(20% 0.05 264); --color-ink-2: oklch(30% 0.05 262); --color-muted: oklch(46% 0.04 258);
+    --color-rule: oklch(88% 0.018 260); --color-rule-2: oklch(62% 0.03 260);
+    --color-accent: oklch(48% 0.13 240); --color-accent-2: oklch(42% 0.12 240); --color-accent-ink: oklch(98% 0.01 250); --color-focus: oklch(50% 0.14 236);
+    --color-overlay: oklch(20% 0.05 264 / 0.4);
+    --shadow-card: 0 24px 48px -24px oklch(20% 0.05 264 / 0.25);
   }
 }

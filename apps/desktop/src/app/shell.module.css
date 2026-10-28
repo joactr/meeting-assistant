@@ -1,13 +1,14 @@
-/* Hallmark · shape: app screen · genre: editorial · theme: Almanac (deal 2/3, seed desktop-app-record-meetings-32f1·a70167b6·2026-10-28·r0) · redesign: full
- * nav: top bar, five destinations and one primary action · signature: the transcript set as a printed record on the sheet · states: loading, empty, error, full, recording, processing
- * axes: mid/grotesk-sans/chromatic-magenta · posture: restrained · contrast: pass · modes: light+dark · v2.0.0 */
-/* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 · weakest: P, a calm reference-book register over a busy tool; cut seven meeting tabs to three and the badge row to one status line */
-/* The shell: a slate top bar over one pale sheet. Five destinations, so no sidebar. */
+/* Hallmark · shape: app screen · genre: atmospheric · theme: Midnight (deal 1/3, seed desktop-app-records-meetings-a93e·a70167b6·2026-10-28·r0) · redesign: full
+ * nav: top bar, five destinations and one primary action · signature: the transcript as one square pane a step above the midnight ground; azure only for the primary action, the selection and live state · states: loading, empty, error, full, recording, processing
+ * axes: dark/grotesk-sans/cool-azure · posture: restrained · contrast: pass · modes: dark+light · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 · weakest: E, one family at two widths carries every voice; the expanded 300 stays on page and section heads only · waiver: theme posture committed, held restrained for a tool */
+/* The shell: one midnight ground to every edge. Bar, banners and page share one column edge at any width. */
 
 .shell {
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
+  --edge: max(var(--gutter), calc((100% - var(--container)) / 2 + var(--gutter)));
 }
 
 .bar {
@@ -18,15 +19,16 @@
   align-items: center;
   gap: var(--space-lg);
   min-height: var(--bar-height);
-  padding: 0 var(--gutter);
+  padding: 0 var(--edge);
   background: var(--color-paper);
-  border-bottom: var(--rule-hair) solid var(--color-rule-2);
+  border-bottom: var(--rule-hair) solid var(--color-rule);
 }
 
 .brand {
   flex-shrink: 0;
   color: var(--color-ink);
-  font: 600 var(--text-md) / 1 var(--font-display);
+  font: 500 var(--text-md) / 1 var(--font-display);
+  font-stretch: var(--display-stretch);
   letter-spacing: var(--tracking-display);
   text-decoration: none;
   white-space: nowrap;
@@ -82,7 +84,7 @@
 }
 
 .banner {
-  padding: var(--space-xs) var(--gutter);
+  padding: var(--space-xs) var(--edge);
   background: var(--color-paper-2);
   color: var(--color-ink);
   font-size: var(--text-sm);
@@ -95,7 +97,6 @@
   min-width: 0;
   margin: 0 auto;
   padding: var(--space-lg) var(--gutter) var(--space-2xl);
-  background: var(--color-sheet);
 }
 
 .content:focus-visible {
@@ -105,7 +106,13 @@
 .errors {
   display: grid;
   gap: var(--space-xs);
-  padding: var(--space-xs) var(--gutter) 0;
+  padding: var(--space-xs) var(--edge) 0;
+}
+
+@media (max-width: 60rem) {
+  .brand {
+    display: none;
+  }
 }
 
 @media (max-width: 48rem) {
@@ -115,10 +122,6 @@
 
   .nav {
     gap: var(--space-md);
-  }
-
-  .brand {
-    display: none;
   }
 }
 
