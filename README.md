@@ -10,7 +10,7 @@ Fireflies or Granola.
 **[Download for Windows](https://github.com/joactr/meeting-assistant/releases/latest)** · [Privacy](docs/privacy.md) · [Troubleshooting](docs/troubleshooting.md)
 
 <p align="center">
-  <img src="docs/screenshots/demo.gif" alt="Demo: meeting library, a transcript with speaker labels and extracted actions, follow-ups across meetings, and keyword search that cites the transcript" width="900">
+  <img src="docs/screenshots/demo.gif" alt="Demo: meeting library, a transcript that scrolls beside your notes, outcomes with actions, one-click minutes, follow-ups across meetings, and keyword search that cites the transcript" width="900">
 </p>
 
 > **Beta, Windows 11 x64.** The installer is not code-signed, so SmartScreen warns on
@@ -22,7 +22,9 @@ Fireflies or Granola.
 - **Runs on your machine.** Speech recognition runs locally on the CPU, or on an NVIDIA GPU with the optional CUDA pack (Whisper large-v3-turbo: an 8 s clip in 0.25 s on an RTX 4090, 7.8 s on CPU).
 - **Pick your model.** Whisper small, large-v3 and large-v3-turbo; Parakeet; Phonon-2.5 (25 languages, 156 MB). Models download on demand, pinned to an exact revision, after you accept their license.
 - **Knows who spoke.** Microphone and system audio are captured separately (WASAPI loopback); optional pyannote diarization separates remote speakers. Speakers and text are editable, with revision history and undo.
-- **Actions with receipts.** Actions, decisions, risks and important moments each cite the transcript line they came from, and follow-ups are tracked across meetings. AI summaries and extraction use the LLM you choose: local Ollama, or your own OpenAI, Anthropic, Gemini or Azure key. Cloud use is opt-in per destination.
+- **Actions with receipts.** Actions, decisions, risks and important moments each cite the transcript line they came from, and follow-ups are tracked across meetings. AI summaries and extraction use the LLM you choose: local Ollama, OpenRouter, or your own OpenAI, Anthropic, Gemini or Azure key. Cloud use is opt-in per destination.
+- **Minutes in one click.** **Make minutes** writes Summary, Decisions, Actions and Follow-ups from the transcript and your notes and saves them straight away; edit them afterwards if needed.
+- **Your notes beside the transcript.** The transcript scrolls in its own pane while your notes and the audio player stay in view.
 - **Find anything.** Keyword search, plus optional semantic search and Ask, over every meeting, with answers that cite excerpts.
 - **Keep it yours.** Export Markdown, PDF or SRT; hash-verified backup and restore. Recording audio to disk is off by default.
 
@@ -30,9 +32,13 @@ Fireflies or Granola.
 |---|---|
 | ![Meeting library](docs/screenshots/library.png) | ![Follow-ups](docs/screenshots/followups.png) |
 
-| Meeting transcript | Search with transcript evidence |
+| Meeting transcript beside your notes | Outcomes: summary and actions |
 |---|---|
-| ![Meeting transcript](docs/screenshots/transcript.png) | ![Search & Ask](docs/screenshots/search.png) |
+| ![Meeting transcript](docs/screenshots/transcript.png) | ![Outcomes](docs/screenshots/outcomes.png) |
+
+| Minutes | Search with transcript evidence |
+|---|---|
+| ![Minutes](docs/screenshots/minutes.png) | ![Search & Ask](docs/screenshots/search.png) |
 
 Screenshots use a synthetic demo workspace; no real meeting data.
 
