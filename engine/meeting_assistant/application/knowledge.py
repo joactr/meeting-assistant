@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, cast
 
-from meeting_assistant.application.routing import task_policy
+from meeting_assistant.application.routing import output_language, task_policy
 from meeting_assistant.application.transcripts import active_run, all_items
 from meeting_assistant.domain.errors import require
 from meeting_assistant.domain.model import fingerprint, new_id, now_ms
@@ -144,7 +144,7 @@ def save_grounded_result(
                 "payload": result,
                 "state": "promoted",
                 "promoted_at": now_ms(),
-                "language": meeting["config_snapshot"].get("output_language", "auto"),
+                "language": output_language(meeting),
                 "content_hash": fingerprint(result),
             },
         )
@@ -227,7 +227,7 @@ def register_knowledge(workspace: Workspace, registry: CommandRegistry) -> None:
                 "actions": [(item["id"], item["revision"]) for item in actions],
                 "decisions": [(item["id"], item["revision"]) for item in decisions],
                 "calendar_event_revision": event.get("revision") if event else None,
-                "language": meeting["config_snapshot"].get("output_language", "auto"),
+                "language": output_language(meeting),
                 "policy": policy,
                 "prompt": "briefings-v1",
                 "meeting_note_revision": meeting["note_revision"],
@@ -271,7 +271,7 @@ def register_knowledge(workspace: Workspace, registry: CommandRegistry) -> None:
                 "briefings",
                 evidence,
                 policy,
-                language=meeting["config_snapshot"].get("output_language", "auto"),
+                language=output_language(meeting),
                 context={
                     "kind": kind,
                     "scope": scope,
@@ -368,7 +368,7 @@ def register_knowledge(workspace: Workspace, registry: CommandRegistry) -> None:
             "memory",
             sources,
             job["payload"]["policy"],
-            language=meeting["config_snapshot"].get("output_language", "auto"),
+            language=output_language(meeting),
             context={
                 "compress_summaries": [
                     {"summary": segment["summary"], "meeting_id": segment["meeting_id"]}

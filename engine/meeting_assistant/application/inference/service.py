@@ -32,7 +32,7 @@ from ...infrastructure.providers.registry import (
     resolve_capabilities,
 )
 from ...infrastructure.resources import resource_root
-from .results import RESULT_MODELS, validate_sources
+from .results import RESULT_MODELS, prune_sources, validate_sources
 
 if TYPE_CHECKING:
     from ...infrastructure.providers.asr import CloudSpeechSession
@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from ...infrastructure.workers.models import ModelRuntime
 
 T = TypeVar("T")
+LANGUAGE_TAG = r"[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*"
 
 
 class Budget(Value):
@@ -191,20 +192,29 @@ class InferenceService:
             }
         parsed = self._policy(policy)
         language = parsed.output_language or language
-        if language != "auto" and not re.fullmatch(
-            r"[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*", language
-        ):
+        if language != "auto" and not re.fullmatch(LANGUAGE_TAG, language):
             raise ProviderError(
                 "invalid_input", "Output language must be auto or a valid BCP-47 language tag"
             )
         if language == "auto":
-            known = [item.get("detected_language", item.get("language")) for item in evidence]
-            known = [item for item in known if item]
+            # Weigh by speech duration: ASR mislabels short noise bursts, so counting
+            # utterances let a handful of one-word "ja" segments outvote the real language.
+            spoken: dict[str, int] = {}
+            for item in evidence:
+                code = item.get("detected_language", item.get("language"))
+                if code:
+                    length = max(1, item.get("end_ms", 0) - item.get("start_ms", 0))
+                    spoken[code] = spoken.get(code, 0) + length
             language = (
-                max(sorted(set(known)), key=known.count)
-                if known
-                else "preserve source language; language is unknown"
+                max(sorted(spoken), key=lambda code: spoken[code])
+                if spoken
+                else "the language most of the evidence is written in"
             )
+        target = (
+            f"the language with BCP-47 tag {language}"
+            if re.fullmatch(LANGUAGE_TAG, language)
+            else language
+        )
         token = cancellation_token or str(uuid.uuid4())
         cancelled = self.tokens.register(token)
         defaults = DEFAULTS[task]
@@ -333,7 +343,7 @@ class InferenceService:
                             operation_id=token,
                             task=task,
                             policy_revision=parsed.revision,
-                            system_text=prompt,
+                            system_text=f"{prompt}\n\nOutput language: write every generated text field in {target}. Quotes, names and human notes stay in their original language.",
                             messages=messages,
                             output_schema=schema,
                             output_limit=cap,
@@ -343,6 +353,8 @@ class InferenceService:
                         candidate = None
                         try:
                             candidate, usage = await self._collect(llm, request, cancelled)
+                            if isinstance(candidate, dict):
+                                prune_sources(candidate, selected)
                             result = (
                                 RESULT_MODELS[task]
                                 .model_validate(candidate)
@@ -372,10 +384,20 @@ class InferenceService:
                         except (ValidationError, ProviderError) as exc:
                             if isinstance(exc, ProviderError) and exc.code != "invalid_output":
                                 raise
+                            reason = (
+                                "; ".join(
+                                    f"{'.'.join(str(part) for part in item['loc'])}: {item['msg']}"
+                                    for item in exc.errors()[:3]
+                                )
+                                if isinstance(exc, ValidationError)
+                                else exc.message
+                            )
                             if attempt >= repairs:
                                 raise ProviderError(
                                     "invalid_output",
-                                    "Completed analysis failed strict schema or source validation; prior valid result must be retained",
+                                    f"The model's {task} output was rejected ({reason}). Retry, or choose a model that follows JSON schemas more reliably.",
+                                    retryable=True,
+                                    details={"reason": reason},
                                 ) from None
                             if candidate is not None:
                                 messages.append(
@@ -387,7 +409,7 @@ class InferenceService:
                             messages.append(
                                 {
                                     "role": "user",
-                                    "content": "Repair the prior output: emit exactly one complete JSON object satisfying the supplied exact schema and selected source references. Do not add evidence or invent missing facts. Return only the corrected JSON object.",
+                                    "content": f"The prior output was rejected: {reason}. Repair it: emit exactly one complete JSON object satisfying the supplied exact schema and selected source references. Do not add evidence or invent missing facts. Return only the corrected JSON object.",
                                 }
                             )
                             if (
@@ -536,9 +558,7 @@ class InferenceService:
             clean: list[dict[str, Any]] = []
             for candidate in result["candidates"]:
                 if not any(ref.get("quote") for ref in candidate["source_refs"]):
-                    raise ProviderError(
-                        "invalid_output", "Action requires an explicit quoted commitment/request"
-                    )
+                    continue  # no quoted commitment: not an action, and nothing is invented
                 if candidate["assignee"] and candidate["assignee"].casefold() not in names:
                     candidate["assignee"] = None
                 from .deadlines import interpret_deadline
@@ -550,10 +570,7 @@ class InferenceService:
                     candidate["deadline_text"] in selected_sources[ref["source_id"]].get("text", "")
                     for ref in candidate["source_refs"]
                 ):
-                    raise ProviderError(
-                        "invalid_output",
-                        "Action deadline wording is not present in its cited evidence",
-                    )
+                    candidate["deadline_text"] = None
                 interpretation = interpret_deadline(candidate["deadline_text"], context)
                 candidate["due_date"] = interpretation["due_date"]
                 if candidate["deadline_text"]:
@@ -573,30 +590,28 @@ class InferenceService:
                     clean.append(candidate)
             result["candidates"] = clean
         if task == "topics":
-            by_title: dict[str, dict[str, Any]] = {
-                topic["title"]: topic for topic in result["topics"]
-            }
+            supported: list[dict[str, Any]] = []
             for topic in result["topics"]:
                 starts = [
                     ref["start_ms"] for ref in topic["source_refs"] if ref["start_ms"] is not None
                 ]
                 ends = [ref["end_ms"] for ref in topic["source_refs"] if ref["end_ms"] is not None]
                 if (
-                    not starts
-                    or not ends
-                    or topic["start_ms"] < min(starts)
-                    or topic["end_ms"] > max(ends)
+                    starts
+                    and ends
+                    and topic["start_ms"] >= min(starts)
+                    and topic["end_ms"] <= max(ends)
                 ):
-                    raise ProviderError(
-                        "invalid_output", "Topic time range is not supported by its cited spans"
-                    )
+                    supported.append(topic)
+            result["topics"] = supported
+            by_title: dict[str, dict[str, Any]] = {topic["title"]: topic for topic in supported}
+            for topic in supported:
                 seen = {topic["title"]}
                 parent = topic["parent_key"]
                 while parent is not None:
                     if parent not in by_title or parent in seen:
-                        raise ProviderError(
-                            "invalid_output", "Topic hierarchy contains an unknown parent or cycle"
-                        )
+                        topic["parent_key"] = None  # unknown parent or cycle: top level
+                        break
                     seen.add(parent)
                     parent = by_title[parent]["parent_key"]
                 if not context.get("topic_sentiment_enabled", False):

@@ -6,6 +6,13 @@ if TYPE_CHECKING:
     from meeting_assistant.workspace import Workspace
 
 
+def output_language(meeting: dict[str, Any]) -> str:
+    """Language AI text is written in: the configured one, else the spoken one, else detected."""
+    config = meeting.get("config_snapshot", {})
+    configured = config.get("output_language", "auto")
+    return configured if configured != "auto" else config.get("meeting_language") or "auto"
+
+
 def task_policy(
     workspace: Workspace, task: str, meeting: dict[str, Any] | None = None
 ) -> dict[str, Any] | None:

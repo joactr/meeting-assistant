@@ -7,11 +7,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 from zoneinfo import ZoneInfo
 
-from meeting_assistant.application.routing import task_policy
+from meeting_assistant.application.routing import output_language, task_policy
 from meeting_assistant.domain.errors import AppError, require
 from meeting_assistant.domain.model import canonical, fingerprint, new_id, now_ms
 from meeting_assistant.domain.ports import CommandRegistry
-from meeting_assistant.infrastructure.providers.contracts import normalize_endpoint
+from meeting_assistant.infrastructure.providers.contracts import ProviderError, normalize_endpoint
 
 if TYPE_CHECKING:
     from meeting_assistant.workspace import Workspace
@@ -50,6 +50,20 @@ READABLE = EDITABLE | {
     "voice_profiles",
     "installed_artifacts",
 }
+
+
+def requeue_job(w: Workspace, job: dict[str, Any]) -> dict[str, Any]:
+    return w.put(
+        "jobs",
+        job["id"],
+        {
+            "status": "queued",
+            "available_at": now_ms(),
+            "error": None,
+            "cancellation_requested": 0,
+        },
+        expected_revision=job["revision"],
+    )
 
 
 def register_core(w: Workspace, r: CommandRegistry) -> None:
@@ -617,7 +631,13 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             "invalid_state",
             "Meeting cannot stop/finalize from this state.",
         )
-        if item["state"] in ("complete", "processing") and operation == "stop":
+        live = any(
+            j["status"] in ("queued", "running")
+            for j in w.list("jobs", {"meeting_id": meeting_id, "kind": "finalize"})
+        )
+        if operation == "stop" and (
+            item["state"] == "complete" or (item["state"] == "processing" and live)
+        ):
             return w.idempotent(
                 operation,
                 p,
@@ -690,20 +710,22 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                 "index",
                 "minutes",
             ):
-                jobs.append(
-                    w.queue_job(
-                        "finalize",
-                        {
-                            "stage": stage,
-                            "input_revision": watermark,
-                            "note_revision": current["note_revision"],
-                            "policy_hash": current["policy_hash"],
-                            "depends_on": [jobs[-1]["id"]] if jobs else [],
-                        },
-                        meeting_id=meeting_id,
-                        idempotency_key=f"finalize:{meeting_id}:{stage}:{watermark}:{current['policy_hash']}",
-                    )
+                job = w.queue_job(
+                    "finalize",
+                    {
+                        "stage": stage,
+                        "input_revision": watermark,
+                        "note_revision": current["note_revision"],
+                        "policy_hash": current["policy_hash"],
+                        "depends_on": [jobs[-1]["id"]] if jobs else [],
+                    },
+                    meeting_id=meeting_id,
+                    idempotency_key=f"finalize:{meeting_id}:{stage}:{watermark}:{current['policy_hash']}",
                 )
+                if job["status"] in ("failed", "cancelled"):
+                    # Same inputs return the earlier attempt; finishing again must run it again.
+                    job = requeue_job(w, job)
+                jobs.append(job)
             return {"item": updated, "jobs": jobs, "preservation_watermark": watermark}
 
         return w.idempotent(operation, p, finalize)
@@ -756,19 +778,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                 if job["status"] in ("failed", "cancelled") and (
                     not p.get("stage") or p["stage"] == job["stage"]
                 ):
-                    selected.append(
-                        w.put(
-                            "jobs",
-                            job["id"],
-                            {
-                                "status": "queued",
-                                "available_at": now_ms(),
-                                "error": None,
-                                "cancellation_requested": 0,
-                            },
-                            expected_revision=job["revision"],
-                        )
-                    )
+                    selected.append(requeue_job(w, job))
             if mid:
                 item = w.require_item("meetings", mid)
                 if selected and item["state"] == "attention_required":
@@ -1220,6 +1230,9 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             idempotency_key=p.get("idempotency_key")
             or f"analysis:{meeting['id']}:{task}:{meeting['transcript_revision']}:{meeting['note_revision']}:{meeting['policy_hash']}",
         )
+        if job["status"] in ("failed", "cancelled"):
+            # The deterministic key returns the earlier attempt; a retry must run it again.
+            job = requeue_job(w, job)
         return {"job": job, "status": "accepted"}
 
     r["analysis.generate"] = generate
@@ -1231,10 +1244,12 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
     r["analysis.list"] = analysis_list
 
     def analysis_status(p: dict[str, Any]) -> dict[str, Any]:
-        # Latest job per task; the finalize stages run analysis inline, so they report too.
+        # Latest activity per task; the finalize stages run analysis inline and record the tasks
+        # that failed in stage_output, so they report too. `error` is the human message.
         latest: dict[str, dict[str, Any]] = {}
         for job in sorted(
-            w.list("jobs", {"meeting_id": p["meeting_id"]}), key=lambda j: j["created_at"]
+            w.list("jobs", {"meeting_id": p["meeting_id"]}),
+            key=lambda j: (j["updated_at"], j["created_at"]),
         ):
             if job["kind"] == "analysis":
                 tasks = [job["payload"]["task"]]
@@ -1250,11 +1265,19 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                 )
             else:
                 continue
+            output = cast(dict[str, Any], job.get("stage_output") or {})
+            soft = cast(dict[str, Any], output.get("failed") or {})
             for task in tasks:
+                error: Any = soft.get(task) or job.get("error")
+                failed = task in soft or job["status"] == "failed"
+                detail = cast(dict[str, Any], error) if isinstance(error, dict) else None
                 latest[task] = {
                     "task": task,
-                    "status": job["status"],
-                    "error": job.get("error"),
+                    "status": "failed" if failed else job["status"],
+                    "error": (detail.get("message") or detail.get("code"))
+                    if detail is not None
+                    else error,
+                    "error_code": detail.get("code") if detail is not None else None,
                     "job_id": job["id"],
                 }
         return {"items": list(latest.values())}
@@ -1375,7 +1398,7 @@ async def execute_analysis(w: Workspace, job: dict[str, Any]) -> None:
             task,
             evidence,
             payload.get("policy", meeting["config_snapshot"].get("ai_policy", {})),
-            language=meeting["config_snapshot"].get("output_language", "auto"),
+            language=output_language(meeting),
             context={
                 "meeting_id": meeting["id"],
                 "meeting_local_date": local_date,
@@ -1429,7 +1452,7 @@ async def execute_analysis(w: Workspace, job: dict[str, Any]) -> None:
                     "kind": task,
                     "payload": result,
                     "state": "candidate",
-                    "language": meeting["config_snapshot"].get("output_language", "auto"),
+                    "language": output_language(meeting),
                     "content_hash": fingerprint(result),
                 },
             )
@@ -1461,7 +1484,7 @@ async def execute_analysis(w: Workspace, job: dict[str, Any]) -> None:
             {
                 "status": "failed",
                 "error": exc.as_dict()
-                if isinstance(exc, AppError)
+                if isinstance(exc, (AppError, ProviderError))
                 else {"code": "provider_failed", "message": "Analysis failed."},
             },
             expected_revision=latest["revision"],

@@ -96,6 +96,12 @@ class Workspace(Store):
                     },
                     expected_revision=current["revision"],
                 )
+            # A finalize job that finished while the engine was down, or a processing meeting whose
+            # chain already ended, must not sit in `processing` forever.
+            for meeting in self.connection.execute(
+                "SELECT id FROM meetings WHERE state IN('processing','attention_required')"
+            ).fetchall():
+                self._refresh_finalization(meeting["id"])
             self.connection.execute(
                 "UPDATE jobs SET status='queued',lease_owner=NULL,lease_until=NULL WHERE status='running' AND lease_owner IN(SELECT id FROM process_runs WHERE ended_at IS NOT NULL)"
             )
@@ -640,6 +646,7 @@ class Workspace(Store):
                 rebuild_index(self, str(meeting_id))
             elif stage in ("final_analysis", "minutes", "memory"):
                 from meeting_assistant.application.routing import task_policy
+                from meeting_assistant.infrastructure.providers.contracts import ProviderError
 
                 tasks = (
                     ("summary", "actions", "topics", "artifacts")
@@ -647,33 +654,54 @@ class Workspace(Store):
                     else (stage,)
                 )
                 configured = False
+                failed: dict[str, dict[str, Any]] = {}
                 for task in tasks:
                     policy = task_policy(self, task, meeting)
-                    if task == "minutes":
-                        await self.connected.notes.prepare(
-                            {
-                                "meeting_id": meeting_id,
-                                "note_revision": meeting["note_revision"],
-                                "transcript_revision": meeting["transcript_revision"],
-                                **({"policy": policy} if policy else {}),
+                    if not policy and task != "minutes":
+                        continue
+                    configured = True
+                    try:
+                        if task == "minutes":
+                            await self.connected.notes.prepare(
+                                {
+                                    "meeting_id": meeting_id,
+                                    "note_revision": meeting["note_revision"],
+                                    "transcript_revision": meeting["transcript_revision"],
+                                    **({"policy": policy} if policy else {}),
+                                }
+                            )
+                        else:
+                            await execute_analysis(
+                                self,
+                                {
+                                    **job,
+                                    "payload": {**job["payload"], "task": task, "policy": policy},
+                                },
+                            )
+                    except Exception as exc:
+                        if getattr(exc, "code", None) == "cancelled":
+                            raise
+                        # One failed AI task must not block the others or the meeting: it is
+                        # recorded here, shown by analysis.status and retried with analysis.generate.
+                        failed[task] = (
+                            exc.as_dict()
+                            if isinstance(exc, (AppError, ProviderError))
+                            else {
+                                "code": "stage_failed",
+                                "message": f"{task} failed unexpectedly ({type(exc).__name__}).",
                             }
                         )
-                        configured = True
-                        continue
-                    if policy:
-                        configured = True
-                        await execute_analysis(
-                            self,
-                            {**job, "payload": {**job["payload"], "task": task, "policy": policy}},
-                        )
-                if not configured:
-                    current = self.require_item("jobs", job["id"])
-                    self.put(
-                        "jobs",
-                        job["id"],
-                        {"stage_output": {"state": "skipped", "reason": "AI not configured"}},
-                        expected_revision=current["revision"],
-                    )
+                current = self.require_item("jobs", job["id"])
+                self.put(
+                    "jobs",
+                    job["id"],
+                    {
+                        "stage_output": {"failed": failed}
+                        if configured
+                        else {"state": "skipped", "reason": "AI not configured"}
+                    },
+                    expected_revision=current["revision"],
+                )
             elif stage == "final_diarization":
                 if meeting["config_snapshot"].get("diarization_policy"):
                     require(
@@ -724,7 +752,14 @@ class Workspace(Store):
         meeting = self.get("meetings", meeting_id)
         if not meeting or meeting["state"] not in ("processing", "attention_required"):
             return
-        jobs = self.list("jobs", {"meeting_id": meeting_id, "kind": "finalize"})
+        latest: dict[str, dict[str, Any]] = {}
+        for job in self.list("jobs", {"meeting_id": meeting_id, "kind": "finalize"}):
+            if (
+                job["stage"] not in latest
+                or job["created_at"] >= latest[job["stage"]]["created_at"]
+            ):
+                latest[job["stage"]] = job
+        jobs = list(latest.values())
         if not jobs:
             return
         state = (
@@ -734,7 +769,12 @@ class Workspace(Store):
             if all(j["status"] in ("succeeded", "skipped") for j in jobs)
             else "processing"
         )
-        if state != meeting["state"]:
-            self.put(
-                "meetings", meeting_id, {"state": state}, expected_revision=meeting["revision"]
-            )
+        changes: dict[str, Any] = {} if state == meeting["state"] else {"state": state}
+        if (
+            state == "complete"
+            and meeting["health"] != "degraded"
+            and any(j.get("stage_output", {}).get("failed") for j in jobs)
+        ):
+            changes["health"] = "degraded"  # finished, but some AI task needs a retry
+        if changes:
+            self.put("meetings", meeting_id, changes, expected_revision=meeting["revision"])

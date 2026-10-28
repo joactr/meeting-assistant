@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from meeting_assistant.workspace import Workspace
 
+from meeting_assistant.application.routing import output_language
+
 from .common import all_items, existing, fail, fingerprint, is_json_list, required, save
 
 MINUTES_OUTLINE: list[dict[str, str]] = [
@@ -189,7 +191,7 @@ class NotesService:
             "transcript": transcript,
             "transcript_revision": meeting.get("transcript_revision", 0),
             "moments": moments,
-            "language": meeting.get("config_snapshot", {}).get("output_language", "auto"),
+            "language": output_language(meeting),
         }
 
     async def prepare(self, payload: dict[str, Any]) -> dict[str, Any]:
