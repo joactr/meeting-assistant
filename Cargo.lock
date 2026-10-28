@@ -364,7 +364,7 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "audio-core"
-version = "1.0.0-beta.6"
+version = "1.0.0-beta.7"
 dependencies = [
  "anyhow",
  "crossbeam-queue",
@@ -377,7 +377,7 @@ dependencies = [
 
 [[package]]
 name = "audio-macos"
-version = "1.0.0-beta.6"
+version = "1.0.0-beta.7"
 dependencies = [
  "anyhow",
  "audio-core",
@@ -386,7 +386,7 @@ dependencies = [
 
 [[package]]
 name = "audio-pipewire"
-version = "1.0.0-beta.6"
+version = "1.0.0-beta.7"
 dependencies = [
  "anyhow",
  "audio-core",
@@ -396,7 +396,7 @@ dependencies = [
 
 [[package]]
 name = "audio-wasapi"
-version = "1.0.0-beta.6"
+version = "1.0.0-beta.7"
 dependencies = [
  "anyhow",
  "audio-core",
@@ -1369,7 +1369,7 @@ dependencies = [
 
 [[package]]
 name = "dsp"
-version = "1.0.0-beta.6"
+version = "1.0.0-beta.7"
 dependencies = [
  "anyhow",
  "libloading 0.8.9",
@@ -2980,7 +2980,7 @@ dependencies = [
 
 [[package]]
 name = "meeting-assistant-desktop"
-version = "1.0.0-beta.6"
+version = "1.0.0-beta.7"
 dependencies = [
  "anyhow",
  "audio-core",
@@ -3119,7 +3119,7 @@ checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 
 [[package]]
 name = "native-host"
-version = "1.0.0-beta.6"
+version = "1.0.0-beta.7"
 dependencies = [
  "age",
  "anyhow",
@@ -3155,7 +3155,7 @@ dependencies = [
 
 [[package]]
 name = "native-media"
-version = "1.0.0-beta.6"
+version = "1.0.0-beta.7"
 dependencies = [
  "anyhow",
  "audio-core",
@@ -7301,7 +7301,7 @@ dependencies = [
 
 [[package]]
 name = "worker-protocol"
-version = "1.0.0-beta.6"
+version = "1.0.0-beta.7"
 dependencies = [
  "anyhow",
  "serde",
