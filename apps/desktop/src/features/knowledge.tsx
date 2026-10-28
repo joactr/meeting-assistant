@@ -30,7 +30,7 @@ export function FollowupsPage() {
       <FieldInput field={{ name: 'to', label: 'Through date', type: 'date' }} value={filters.to_date ?? ''} onChange={(value) => change('to_date', value)} />
     </FilterDisclosure>
     <AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title="No follow-ups match these filters" /> : <>
-      <VirtualList rows={items(data)} label="Follow-up results" estimate={76} height="min(62dvh, 720px)" render={(row) => row.kind === 'moment' || row.entity_type === 'important_moment' ? <ImportantFollowup row={row} /> : <ActionRow row={row} />} />
+      <VirtualList rows={items(data)} label="Follow-up results" estimate={76} render={(row) => row.kind === 'moment' || row.entity_type === 'important_moment' ? <ImportantFollowup row={row} /> : <ActionRow row={row} />} />
       {(previous.length > 0 || Boolean(data.next_cursor)) && <Toolbar><button disabled={!previous.length} onClick={() => { setCursor(previous[previous.length - 1] ?? null); setPrevious((current) => current.slice(0, -1)); }}>Previous page</button><button disabled={!data.next_cursor} onClick={() => { setPrevious((current) => [...current, cursor]); setCursor(text(data.next_cursor)); }}>Next page</button></Toolbar>}
     </>}</AsyncView>
   </Panel></>;

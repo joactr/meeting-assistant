@@ -46,6 +46,8 @@ class AudioPipeline:
         self.pending_ms: dict[tuple[int, int], int] = {}
         self.misses: dict[tuple[int, int], int] = {}
         self.pause_task: asyncio.Task[dict[str, Any]] | None = None
+        # Sources whose audio socket is open: their packets can still arrive.
+        self.streaming: set[tuple[int, int]] = set()
 
     async def start(self) -> int:
         self.server = await asyncio.start_server(self._client, "127.0.0.1", 0, limit=1_048_624)
@@ -95,6 +97,7 @@ class AudioPipeline:
                 self._gap(source, "drain_incomplete", last[0] // 1_000_000 if last else 0, {})
 
     async def _client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        streamed: set[tuple[int, int]] = set()
         try:
             supplied = await asyncio.wait_for(reader.readexactly(32), 5)
             require(
@@ -167,6 +170,8 @@ class AudioPipeline:
                         self.total_bytes.pop(old_key, None)
                         self.last_sequences.pop(old_key, None)
                 queue = self.buffers.setdefault(key, deque())
+                streamed.add(key)
+                self.streaming.add(key)
                 queue.append(packet)
                 self.last_sequences[key] = sequence
                 self.total_bytes[key] = self.total_bytes.get(key, 0) + len(pcm)
@@ -224,6 +229,7 @@ class AudioPipeline:
         except AppError:
             pass
         finally:
+            self.streaming.difference_update(streamed)
             writer.close()
             with contextlib.suppress(ConnectionError):
                 await writer.wait_closed()
@@ -314,6 +320,22 @@ class AudioPipeline:
         )
         return pcm, rate
 
+    async def _await_audio(self, key: tuple[int, int], end_ms: int) -> None:
+        """Packets and the utterance request reach the engine on separate connections; when the
+        loop is busy (transcription, speaker model) the request can arrive before the audio it
+        names. Wait for the stream to catch up instead of dropping the speech as a gap."""
+        deadline = asyncio.get_running_loop().time() + 10
+        # ponytail: 20 ms polling; an arrival condition if this ever shows up in profiles.
+        while key in self.streaming and asyncio.get_running_loop().time() < deadline:
+            queue = self.buffers.get(key)
+            last = queue[-1] if queue else None
+            if last and (
+                last.monotonic_ns + last.frame_count * 1_000_000_000 // last.sample_rate
+                >= end_ms * 1_000_000
+            ):
+                return
+            await asyncio.sleep(0.02)
+
     def _gap(
         self, source: dict[str, Any], reason: str, start_ms: int, details: dict[str, Any]
     ) -> None:
@@ -364,6 +386,7 @@ class AudioPipeline:
             status=422,
         )
         key = (epoch, index)
+        await self._await_audio(key, end)
         try:
             pcm, rate = self._slice(list(self.buffers.get(key, [])), p, start, end)
         except AppError as exc:

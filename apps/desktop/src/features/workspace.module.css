@@ -2,6 +2,7 @@
  * nav: top bar, five destinations and one primary action · signature: the transcript as one square pane a step above the midnight ground; azure only for the primary action, the selection and live state · states: loading, empty, error, full, recording, processing
  * axes: dark/grotesk-sans/cool-azure · posture: restrained · contrast: pass · modes: dark+light · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V4 · weakest: E, one family at two widths carries every voice; the expanded 300 stays on page and section heads only · waiver: theme posture committed, held restrained for a tool */
+/* Hallmark · dropped onScroll · the transcript pane no longer scrolls on its own; the page is the only scroller, so follow-live listens on window scroll */
 /* Feature pages. Entries are parted by hairline rules on the ground; the transcript is the one pane. */
 
 /* Meeting page: the record on the left, your notes in a ruled margin column on wide windows. */
@@ -96,18 +97,12 @@
   height: 6px;
 }
 
-/* Transcript: one square pane a step above the ground; time gutter, speaker, then speech. */
+/* Transcript: one square pane a step above the ground; it grows with the page, which is the
+ * only scroller. Time gutter, speaker, then speech. */
 .transcriptScroll {
   position: relative;
-  height: max(20rem, calc(100dvh - 20rem));
   background: var(--color-sheet);
-  overflow: auto;
-  scrollbar-color: var(--color-rule-2) transparent;
-  overscroll-behavior: contain;
-}
-
-.transcriptScroll:focus-visible {
-  outline-offset: -2px;
+  overflow-anchor: none;
 }
 
 .utterance {
@@ -217,13 +212,17 @@ span.timestamp {
   }
 }
 
+/* Stays in view at the window's bottom edge while the transcript scrolls under it. */
 .jumpLive {
+  position: sticky;
+  bottom: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-sm);
-  padding-top: var(--space-sm);
+  padding-block: var(--space-sm);
+  background: var(--color-paper);
   color: var(--color-muted);
   font-size: var(--text-sm);
 }

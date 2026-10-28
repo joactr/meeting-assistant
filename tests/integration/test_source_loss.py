@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import struct
 from collections import deque
 from pathlib import Path
@@ -189,4 +190,36 @@ async def test_dropped_utterances_become_gaps_and_flag_a_stall_once(workspace: W
     )
     assert accepted["accepted"] is True
     assert (1, 1) not in pipeline.misses
+    await pipeline.close()
+
+
+async def test_utterance_that_beats_its_audio_waits_instead_of_dropping(
+    workspace: Workspace,
+) -> None:
+    # A busy engine loop reads the audio socket late; the utterance request names audio that
+    # is still in flight. It must be transcribed, not recorded as a gap.
+    w = workspace
+    meeting, _, system = recording_meeting(w)
+    w.put("capture_sources", system["id"], {"epoch": 1}, expected_revision=system["revision"])
+    pipeline = AudioPipeline(w, "ab" * 32)
+    pcm = struct.pack("<960f", *([0.1] * 960))
+    pipeline.buffers[(1, 1)] = deque(
+        Packet(sequence, 1, 1, 48000, 960, sequence * 20_000_000, pcm) for sequence in range(50)
+    )
+    pipeline.streaming.add((1, 1))
+
+    async def late_audio() -> None:
+        await asyncio.sleep(0.2)
+        pipeline.buffers[(1, 1)].extend(
+            Packet(sequence, 1, 1, 48000, 960, sequence * 20_000_000, pcm)
+            for sequence in range(50, 100)
+        )
+
+    arriving = asyncio.create_task(late_audio())
+    accepted = await pipeline.utterance(
+        {"capture_epoch": 1, "source_index": 1, "start_ms": 1_200, "end_ms": 1_700}
+    )
+    await arriving
+    assert accepted["accepted"] is True
+    assert w.list("timeline_gaps", {"meeting_id": meeting["id"]}) == []
     await pipeline.close()
