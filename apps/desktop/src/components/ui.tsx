@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as Tabs from '@radix-ui/react-tabs';
 import { X } from 'lucide-react';
@@ -11,6 +11,8 @@ import styles from './ui.module.css';
 
 /** Class names for plain `<button>`s: default buttons are secondary (ink outline); these give the primary, quiet or danger look. */
 export const buttonClass = { primary: styles.primary, quiet: styles.quiet, danger: styles.dangerButton };
+/** True inside a dialog: a form there owns the screen's one primary action; on a page its submit stays secondary. */
+const InDialog = createContext(false);
 
 export function PageHeader({ title, children }: { title: string; children?: ReactNode }) {
   return <header className={styles.pageHeader}><h1>{title}</h1><div className={styles.toolbar}>{children}</div></header>;
@@ -56,7 +58,7 @@ export function AsyncView({ query, children, empty, isEmpty = false }: { query: 
 }
 
 export function Modal({ trigger, title, description, children, open, onOpenChange }: { trigger?: ReactNode; title: string; description?: string; children: ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void }) {
-  return <Dialog.Root open={open} onOpenChange={onOpenChange}>{trigger && <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>}<Dialog.Portal><Dialog.Overlay className={styles.overlay} /><Dialog.Content className={styles.modal} {...(description ? {} : { 'aria-describedby': undefined })}><Dialog.Title>{title}</Dialog.Title>{description && <Dialog.Description className={styles.description}>{description}</Dialog.Description>}{children}<Dialog.Close className={styles.close} aria-label="Close dialog"><X size={18} aria-hidden="true" /></Dialog.Close></Dialog.Content></Dialog.Portal></Dialog.Root>;
+  return <Dialog.Root open={open} onOpenChange={onOpenChange}>{trigger && <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>}<Dialog.Portal><Dialog.Overlay className={styles.overlay} /><Dialog.Content className={styles.modal} {...(description ? {} : { 'aria-describedby': undefined })}><Dialog.Title>{title}</Dialog.Title>{description && <Dialog.Description className={styles.description}>{description}</Dialog.Description>}<InDialog.Provider value>{children}</InDialog.Provider><Dialog.Close className={styles.close} aria-label="Close dialog"><X size={18} aria-hidden="true" /></Dialog.Close></Dialog.Content></Dialog.Portal></Dialog.Root>;
 }
 
 export function TabSet({ tabs, value, onValueChange }: { tabs: { label: string; content: ReactNode }[]; value?: string; onValueChange?: (value: string) => void }) {
@@ -81,7 +83,7 @@ export function TabSet({ tabs, value, onValueChange }: { tabs: { label: string; 
       setSaveError(error);
     });
   };
-  return <Tabs.Root value={value ?? local} onValueChange={change}>{Boolean(saveError) && <ErrorNotice error={saveError} />}<Tabs.List className={styles.tabs} aria-label="Workspace panels">{tabs.map((tab) => <Tabs.Trigger key={tab.label} value={tab.label}>{tab.label}</Tabs.Trigger>)}</Tabs.List>{tabs.map((tab) => <Tabs.Content className={styles.tabContent} key={tab.label} value={tab.label}>{tab.content}</Tabs.Content>)}</Tabs.Root>;
+  return <Tabs.Root className={styles.tabSet} value={value ?? local} onValueChange={change}>{Boolean(saveError) && <ErrorNotice error={saveError} />}<Tabs.List className={styles.tabs} aria-label="Workspace panels">{tabs.map((tab) => <Tabs.Trigger key={tab.label} value={tab.label}>{tab.label}</Tabs.Trigger>)}</Tabs.List>{tabs.map((tab) => <Tabs.Content className={styles.tabContent} key={tab.label} value={tab.label}>{tab.content}</Tabs.Content>)}</Tabs.Root>;
 }
 
 export interface Field {
@@ -106,6 +108,7 @@ export function FieldInput({ field, value, onChange }: { field: Field; value: Js
 
 export function CommandForm({ operation, fields, fixed = {}, submit = 'Save changes', onSuccess, confirm, children, mapPayload }: { operation: string; fields: Field[]; fixed?: Payload; submit?: string; onSuccess?: (result: RecordData) => void; confirm?: string; children?: ReactNode; mapPayload?: (payload: Payload) => Payload }) {
   const command = useCommand(operation);
+  const inDialog = useContext(InDialog);
   const [values, setValues] = useState<Payload>(() => Object.fromEntries(fields.map((field) => [field.name, field.type === 'json' ? pretty(field.value ?? {}) : field.value ?? (field.type === 'checkbox' ? false : '')])));
   const [localError, setLocalError] = useState<unknown>();
   const [confirmed, setConfirmed] = useState(false);
@@ -127,7 +130,7 @@ export function CommandForm({ operation, fields, fixed = {}, submit = 'Save chan
     } catch (error) { setLocalError(error); }
   };
   const input = (field: Field) => <FieldInput key={field.name} field={field} value={values[field.name] ?? null} onChange={(value) => { setValues((current) => ({ ...current, [field.name]: value })); command.reset(); }} />;
-  return <form className={styles.form} onSubmit={submitForm}>{fields.filter((field) => !field.advanced).map(input)}{fields.some((field) => field.advanced) && <details className={styles.details}><summary>More options</summary><div className={styles.form}>{fields.filter((field) => field.advanced).map(input)}</div></details>}{children}{confirm && <label className={styles.check}><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} required />{confirm}</label>}{Boolean(command.error || localError) && <ErrorNotice error={command.error ?? localError} />}{command.isSuccess && <Notice>Saved.</Notice>}<button className={styles.primary} disabled={command.isPending || !nativeAvailable() || (!!confirm && !confirmed)} type="submit">{command.isPending ? 'Working…' : submit}</button></form>;
+  return <form className={styles.form} onSubmit={submitForm}>{fields.filter((field) => !field.advanced).map(input)}{fields.some((field) => field.advanced) && <details className={styles.details}><summary>More options</summary><div className={styles.form}>{fields.filter((field) => field.advanced).map(input)}</div></details>}{children}{confirm && <label className={styles.check}><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} required />{confirm}</label>}{Boolean(command.error || localError) && <ErrorNotice error={command.error ?? localError} />}{command.isSuccess && <Notice>Saved.</Notice>}<button className={inDialog ? styles.primary : undefined} disabled={command.isPending || !nativeAvailable() || (!!confirm && !confirmed)} type="submit">{command.isPending ? 'Working…' : submit}</button></form>;
 }
 export function CommandButton({ operation, payload = {}, children, danger = false, disabled = false, onSuccess }: { operation: string; payload?: Payload; children: ReactNode; danger?: boolean; disabled?: boolean; onSuccess?: (result: RecordData) => void }) {
   const command = useCommand(operation);

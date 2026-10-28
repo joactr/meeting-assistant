@@ -10,7 +10,7 @@ import { PrepareEvent } from './connections';
 import { GetStarted, useGetStarted } from './providers';
 import styles from './workspace.module.css';
 
-const LANGUAGES = [['en', 'English'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'], ['pt', 'Portuguese'], ['nl', 'Dutch'], ['ca', 'Catalan'], ['pl', 'Polish'], ['ja', 'Japanese'], ['zh', 'Chinese'], ['ko', 'Korean'], ['ar', 'Arabic'], ['hi', 'Hindi'], ['ru', 'Russian']] as const;
+export const LANGUAGES = [['en', 'English'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'], ['pt', 'Portuguese'], ['nl', 'Dutch'], ['ca', 'Catalan'], ['pl', 'Polish'], ['ja', 'Japanese'], ['zh', 'Chinese'], ['ko', 'Korean'], ['ar', 'Arabic'], ['hi', 'Hindi'], ['ru', 'Russian']] as const;
 export function NewMeeting({ trigger = 'New meeting' }: { trigger?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();

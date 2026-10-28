@@ -29,38 +29,45 @@ export function Citation({ source, number: citationNumber }: { source: RecordDat
 export function CitedResult({ result }: { result: RecordData }) {
   const data = object(result.result ?? result.content ?? result.payload ?? result);
   const sections = array(data.sections);
-  const groups = ['cues', 'questions', 'topics', 'decisions', 'risks', 'milestones', 'deliverables', 'follow_ups', 'candidates', 'actions'].filter((key) => Array.isArray(data[key]));
+  const groups = ['cues', 'questions', 'topics', 'decisions', 'risks', 'milestones', 'deliverables', 'follow_ups', 'candidates', 'actions'].filter((key) => array(data[key]).length > 0);
   const body = text(data.answer ?? data.summary ?? data.text ?? data.body ?? data.markdown);
+  const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+  const meta = result.state === 'superseded' || Boolean(result.stale) || Boolean(result.updated_at);
   return <div className={styles.result}>
-    {result.state === 'superseded' && <Badge>Older version</Badge>}
-    {Boolean(result.stale) && <Badge tone="warning">Out of date</Badge>}
-    {Boolean(result.updated_at) && <small>Generated {date(result.updated_at)}</small>}
-    {sections.map((section, index) => <section key={id(section) || index}>
-      <h3>{text(section.heading ?? section.title)}</h3>
-      <p className={styles.preWrap}>{text(section.body ?? section.text)}</p>
-      {Boolean(section.human_note) && <p className={styles.preWrap}>Human note: {text(section.human_note)}</p>}
-      <Toolbar>
-        {Boolean(section.source ?? section.provenance) && <Badge>{text(section.source ?? section.provenance)}</Badge>}
-        {array(section.source_refs ?? section.citations).map((source, citationIndex) => <Citation key={id(source) || citationIndex} source={source} number={citationIndex + 1} />)}
-      </Toolbar>
-    </section>)}
+    {meta && <div className={styles.resultMeta}>
+      {result.state === 'superseded' && <Badge>Older version</Badge>}
+      {Boolean(result.stale) && <Badge tone="warning">Out of date</Badge>}
+      {Boolean(result.updated_at) && <span>Generated {date(result.updated_at)}</span>}
+    </div>}
+    {sections.map((section, index) => {
+      const source = text(section.source ?? section.provenance);
+      const refs = array(section.source_refs ?? section.citations);
+      return <section key={id(section) || index}>
+        <h3>{text(section.heading ?? section.title)}</h3>
+        <p className={styles.preWrap}>{text(section.body ?? section.text)}</p>
+        {Boolean(section.human_note) && <p className={styles.preWrap}>Human note: {text(section.human_note)}</p>}
+        {(refs.length > 0 || (source && source !== 'transcript')) && <Toolbar>
+          {source && source !== 'transcript' && <Badge>{humanize(source)}</Badge>}
+          {refs.map((ref, citationIndex) => <Citation key={id(ref) || citationIndex} source={ref} number={citationIndex + 1} />)}
+        </Toolbar>}
+      </section>;
+    })}
     {!sections.length && body && <p className={styles.preWrap}>{body}</p>}
     {groups.map((key) => <section key={key}>
-      <h3>{humanize(key)}</h3>
-      {array(data[key]).map((entry, index) => <article key={id(entry) || index} className={styles.actionRow} style={{ marginLeft: entry.parent_key ? '1.25rem' : 0 }}>
+      {groups.length > 1 && <h3>{humanize(key)}</h3>}
+      {array(data[key]).map((entry, index) => <article key={id(entry) || index} className={`${styles.entry} ${entry.parent_key ? styles.child : ''}`}>
         <strong>{text(entry.title ?? entry.description ?? entry.text ?? entry.question)}</strong>
-        <Toolbar>
-          {Boolean(entry.kind) && <Badge>{humanize(entry.kind)}</Badge>}
-          {Boolean(entry.sentiment) && <Badge>{humanize(entry.sentiment)}</Badge>}
-          {entry.start_ms !== undefined && <small>{clock(entry.start_ms)} to {clock(entry.end_ms)}</small>}
-          {Boolean(entry.parent_key) && <small>Under {text(entry.parent_key)}</small>}
+        <div className={styles.entryMeta}>
+          {Boolean(entry.kind) && <span>{humanize(entry.kind)}</span>}
+          {Boolean(entry.sentiment) && <span>{humanize(entry.sentiment)}</span>}
+          {entry.start_ms !== undefined && <span>{clock(entry.start_ms)} to {clock(entry.end_ms)}</span>}
           {array(entry.source_refs).map((source, citationIndex) => <Citation key={citationIndex} source={source} number={citationIndex + 1} />)}
-        </Toolbar>
+        </div>
       </article>)}
     </section>)}
-    {array(data.citations).map((source, index) => <Citation key={id(source) || index} source={source} number={index + 1} />)}
-    {Array.isArray(data.warnings) && data.warnings.map((warning, index) => <Notice key={index}>{typeof warning === 'string' ? warning : JSON.stringify(warning)}</Notice>)}
-    {!sections.length && !body && !groups.length && <Details title="Details" value={data} />}
+    {array(data.citations).length > 0 && <Toolbar>{array(data.citations).map((source, index) => <Citation key={id(source) || index} source={source} number={index + 1} />)}</Toolbar>}
+    {warnings.length > 0 && <details className={styles.disclosure}><summary>Caveats ({warnings.length})</summary><ul>{warnings.map((warning, index) => <li key={index}>{typeof warning === 'string' ? warning : JSON.stringify(warning)}</li>)}</ul></details>}
+    {!sections.length && !body && !groups.length && (Array.isArray(data.sections) ? <Empty title="Nothing in this version" /> : <Details title="Details" value={data} />)}
   </div>;
 }
 
@@ -79,19 +86,19 @@ export function AnalysisPanel({ meetingId, task = 'summary' }: { meetingId: stri
   const query = useResource('analysis.list', { meeting_id: meetingId, task });
   const status = useResource('analysis.status', { meeting_id: meetingId }, true, (data) => items(data).some(running));
   const generating = items(status.data).some((row) => row.task === task && running(row));
-  return <Panel title={task === 'summary' ? 'Summary' : 'Topics and outcomes'} actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task }}>Generate {task}</CommandButton>}><TaskStatus meetingId={meetingId} status={status.data} task={task} /><AsyncView query={query}>{(data) => items(data).length === 0 ? (generating ? null : <Empty title={`No ${task} yet`} />) : items(data).map((result) => <CitedResult key={id(result)} result={result} />)}</AsyncView>{task === 'topics' && <Artifacts meetingId={meetingId} />}</Panel>;
+  return <><Panel title={task === 'summary' ? 'Summary' : 'Topics'} actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task }}>Generate {task}</CommandButton>}><TaskStatus meetingId={meetingId} status={status.data} task={task} /><AsyncView query={query}>{(data) => items(data).length === 0 ? (generating ? null : <Empty title={`No ${task} yet`} />) : items(data).map((result) => <CitedResult key={id(result)} result={result} />)}</AsyncView></Panel>{task === 'topics' && <Artifacts meetingId={meetingId} />}</>;
 }
 
 function Artifacts({ meetingId }: { meetingId: string }) {
   const query = useResource('analysis.list', { meeting_id: meetingId, task: 'artifacts' });
-  return <><hr /><Toolbar><h3>Outcomes</h3><CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task: 'artifacts' }}>Generate outcomes</CommandButton></Toolbar><AsyncView query={query}>{(data) => items(data).map((row) => <CitedResult key={id(row)} result={row} />)}</AsyncView></>;
+  return <Panel title="Outcomes" actions={<CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task: 'artifacts' }}>Generate outcomes</CommandButton>}><AsyncView query={query} isEmpty={items(query.data).length === 0} empty={<Empty title="No outcomes yet" />}>{(data) => items(data).map((row) => <CitedResult key={id(row)} result={row} />)}</AsyncView></Panel>;
 }
 
 export function ActionsPanel({ meetingId }: { meetingId: string }) {
   const query = useResource('actions.list', { meeting_id: meetingId });
   const [open, setOpen] = useState(false);
   const [undo, setUndo] = useState<RecordData | null>(null);
-  return <Panel title="Actions" actions={<><Modal open={open} onOpenChange={setOpen} trigger={<button>Add action</button>} title="Add action"><CommandForm operation="actions.create" fixed={{ meeting_id: meetingId }} fields={actionFields} onSuccess={() => setOpen(false)} /></Modal><CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task: 'actions' }}>Extract actions</CommandButton></>}><AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title="No actions" /> : items(data).map((row) => <ActionRow key={id(row)} row={row} />)}</AsyncView><Toolbar><ConfirmCommand trigger="Clear actions" title="Clear actions?" message="Removes all actions for this meeting. You can undo for ten minutes." operation="actions.clear" payload={{ meeting_id: meetingId }} onSuccess={(result) => setUndo(result)} />{undo && <CommandButton operation="undo.apply" payload={{ id: text(undo.undo_id ?? item(undo).id) }}>Undo clear</CommandButton>}</Toolbar></Panel>;
+  return <Panel title="Actions" actions={<><Modal open={open} onOpenChange={setOpen} trigger={<button>Add action</button>} title="Add action"><CommandForm operation="actions.create" fixed={{ meeting_id: meetingId }} fields={actionFields} onSuccess={() => setOpen(false)} /></Modal><CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task: 'actions' }}>Extract actions</CommandButton></>}><AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title="No actions" /> : items(data).map((row) => <ActionRow key={id(row)} row={row} />)}</AsyncView>{(items(query.data).length > 0 || undo) && <Toolbar><ConfirmCommand trigger="Clear actions" title="Clear actions?" message="Removes all actions for this meeting. You can undo for ten minutes." operation="actions.clear" payload={{ meeting_id: meetingId }} onSuccess={(result) => setUndo(result)} />{undo && <CommandButton operation="undo.apply" payload={{ id: text(undo.undo_id ?? item(undo).id) }}>Undo clear</CommandButton>}</Toolbar>}</Panel>;
 }
 
 export function ActionRow({ row }: { row: RecordData }) {

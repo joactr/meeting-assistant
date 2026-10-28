@@ -64,6 +64,13 @@
   gap: var(--space-sm) var(--space-md);
 }
 
+/* Fields in the bar size like the library filters instead of filling the line. */
+.disclosureBar > div {
+  flex: 1 1 12rem;
+  width: auto;
+  max-width: 18rem;
+}
+
 .disclosureBar > .disclosureToggle {
   margin-left: auto;
 }

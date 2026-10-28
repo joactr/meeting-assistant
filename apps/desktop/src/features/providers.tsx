@@ -39,9 +39,9 @@ function profileFields(connections: RecordData[]): Field[] {
   ];
 }
 
-export function SecureSecret({ label: promptLabel, onStored }: { label: string; onStored: (reference: string) => void }) {
+export function SecureSecret({ label: promptLabel, onStored, action = 'Save credential…' }: { label: string; onStored: (reference: string) => void; action?: string }) {
   const command = useMutation({ mutationFn: () => nativeRequest('vault_prompt', { secretRef: `credential:${crypto.randomUUID()}`, label: promptLabel }), onSuccess: (result) => { if (result.stored === true) onStored(text(result.secret_ref)); } });
-  return <div><button type="button" disabled={!nativeAvailable() || command.isPending} onClick={() => command.mutate()}>{command.isPending ? 'Waiting…' : 'Save credential…'}</button>{Boolean(command.error) && <ErrorNotice error={command.error} />}</div>;
+  return <div><button type="button" disabled={!nativeAvailable() || command.isPending} onClick={() => command.mutate()}>{command.isPending ? 'Waiting…' : action}</button>{Boolean(command.error) && <ErrorNotice error={command.error} />}</div>;
 }
 
 /** API key field: hidden text with a show toggle; stored by the engine on blur. */
@@ -183,7 +183,7 @@ const modelBytes = (entry: RecordData): number => typeof entry.bytes === 'number
 
 function ModelCard({ entry }: { entry: RecordData }) {
   const license = object(entry.license);
-  return <Panel title={label(entry)} actions={<><Badge>{text(entry.role)}</Badge>{entry.gpu === true && <Badge>GPU</Badge>}{entry.installed === true && <Badge>Installed</Badge>}</>}><dl><dt>Download</dt><dd>{(modelBytes(entry) / 1024 / 1024).toFixed(1)} MiB</dd><dt>License</dt><dd>{text(license.spdx ?? entry.license_spdx, 'Review license details')}</dd><dt>Revision</dt><dd>{text(entry.revision ?? entry.upstream_revision)}</dd></dl>{entry.installed === true ? <ConfirmCommand trigger="Delete" title={`Delete ${label(entry)}?`} message="Removes this model from this computer." operation="catalog.delete" payload={{ id: id(entry), confirmed: true, revision: text(entry.revision) }} /> : <ModelDownload entry={entry} />}</Panel>;
+  return <Panel title={label(entry)} actions={<><Badge>{aiRows.find(([role]) => role === entry.role)?.[1] ?? text(entry.role)}</Badge>{entry.gpu === true && <Badge>GPU</Badge>}{entry.installed === true && <Badge>Installed</Badge>}</>}><dl><dt>Download</dt><dd>{(modelBytes(entry) / 1024 / 1024).toFixed(1)} MiB</dd><dt>License</dt><dd>{text(license.spdx ?? entry.license_spdx, 'Review license details')}</dd></dl>{entry.installed === true ? <ConfirmCommand trigger="Delete" title={`Delete ${label(entry)}?`} message="Removes this model from this computer." operation="catalog.delete" payload={{ id: id(entry), confirmed: true, revision: text(entry.revision) }} /> : <ModelDownload entry={entry} />}</Panel>;
 }
 
 /** License review and download; the engine also switches the model's task to it. */

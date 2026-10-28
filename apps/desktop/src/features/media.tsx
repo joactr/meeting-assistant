@@ -65,11 +65,10 @@ export function CandidatePanel({ meetingId }: { meetingId: string }) {
   const [candidateId, setCandidateId] = useState('');
   const selected = items(runs.data).find((run) => id(run) === candidateId);
   const diff = useResource('transcript.diff', { meeting_id: meetingId, run_id: candidateId }, !!candidateId);
+  const candidates = items(runs.data).filter((run) => run.state === 'candidate' && !!run.completed_at);
+  if (!candidates.length) return null;
   return <Panel title="Transcript candidates">
-    <AsyncView query={runs}>{(data) => <>
-      <FieldInput field={{ name: 'candidate', label: 'Candidate', type: 'select', options: [{ value: '', label: 'Choose candidate' }, ...items(data).filter((run) => run.state === 'candidate' && !!run.completed_at).map((run, index) => ({ value: id(run), label: `Run ${index + 1}, ${text(run.source)}` }))] }} value={candidateId} onChange={(value) => setCandidateId(text(value))} />
-      {!items(data).some((run) => run.state === 'candidate' && !!run.completed_at) && <Empty title="No candidates" />}
-    </>}</AsyncView>
+    <FieldInput field={{ name: 'candidate', label: 'Candidate', type: 'select', options: [{ value: '', label: 'Choose candidate' }, ...candidates.map((run, index) => ({ value: id(run), label: `Run ${index + 1}, ${text(run.source)}` }))] }} value={candidateId} onChange={(value) => setCandidateId(text(value))} />
     {selected && <AsyncView query={diff}>{(data) => <>
       <pre className={styles.preWrap} aria-label="Transcript changes">{Array.isArray(data.diff) ? data.diff.map((line) => text(line)).join('\n') : text(data.diff, 'No text differences')}</pre>
       <Details value={data} />

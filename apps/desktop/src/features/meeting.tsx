@@ -8,7 +8,7 @@ import { useResource } from '../lib/queries';
 import { useInterface } from '../lib/ui-store';
 import { date, humanize, id, item, items, label, object, revision, text, type RecordData } from '../lib/data';
 import { ActionMenu } from '../components/controls';
-import { AsyncView, Badge, buttonClass, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, ErrorNotice, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, useOpenState } from '../components/ui';
+import { AsyncView, Badge, buttonClass, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, ErrorNotice, FieldInput, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, useOpenState } from '../components/ui';
 import { CaptureControls, LanguageControl, MeetingStatus, SpeakersPanel } from './capture';
 import { Transcript } from './transcript';
 import { HumanNotes } from './notes';
@@ -150,10 +150,19 @@ export function ExportControls({ meeting, open: controlledOpen, onOpenChange }: 
     window.addEventListener('meeting-save-minutes', handler);
     return () => window.removeEventListener('meeting-save-minutes', handler);
   }, []);
-  return <Modal open={open} onOpenChange={setOpen} trigger={controlled ? undefined : <button>Export…</button>} title="Export"><div className={styles.filters}><label>Format<select value={format} onChange={(event) => setFormat(event.target.value)}>{['markdown', 'pdf', 'srt', 'json'].map((value) => <option key={value} value={value}>{value.toUpperCase()}</option>)}</select></label><label className={styles.check}><input type="checkbox" checked={includeTranscript} onChange={(event) => setIncludeTranscript(event.target.checked)} />Include transcript</label></div><label>Email recipients, separated by commas<input value={recipients} onChange={(event) => setRecipients(event.target.value)} /></label><Toolbar><button className={buttonClass.primary} disabled={exportOperation.isPending || !nativeAvailable()} onClick={() => exportOperation.mutate('save')}>Save export…</button><button disabled={exportOperation.isPending || !nativeAvailable()} onClick={() => exportOperation.mutate('copy')}>Copy email</button><button disabled={exportOperation.isPending || !nativeAvailable()} onClick={() => exportOperation.mutate('mailto')}>Open mail draft</button></Toolbar>{exportOperation.error && <ErrorNotice error={exportOperation.error} />}{exportOperation.isSuccess && <Details value={exportOperation.data} />}<DeliveryPreview meetingId={id(meeting)} /></Modal>;
+  return <Modal open={open} onOpenChange={setOpen} trigger={controlled ? undefined : <button>Export…</button>} title="Export"><div className={styles.filters}><label>Format<select value={format} onChange={(event) => setFormat(event.target.value)}>{[['markdown', 'Markdown'], ['pdf', 'PDF'], ['srt', 'Subtitles (SRT)'], ['json', 'JSON']].map(([value, name]) => <option key={value} value={value}>{name}</option>)}</select></label><label className={styles.check}><input type="checkbox" checked={includeTranscript} onChange={(event) => setIncludeTranscript(event.target.checked)} />Include transcript</label></div><label>Email recipients, separated by commas<input value={recipients} onChange={(event) => setRecipients(event.target.value)} /></label><Toolbar><button className={buttonClass.primary} disabled={exportOperation.isPending || !nativeAvailable()} onClick={() => exportOperation.mutate('save')}>Save export…</button><button disabled={exportOperation.isPending || !nativeAvailable()} onClick={() => exportOperation.mutate('copy')}>Copy email</button><button disabled={exportOperation.isPending || !nativeAvailable()} onClick={() => exportOperation.mutate('mailto')}>Open mail draft</button></Toolbar>{exportOperation.error && <ErrorNotice error={exportOperation.error} />}{exportOperation.isSuccess && <Details value={exportOperation.data} />}<DeliveryPreview meeting={meeting} /></Modal>;
 }
 
-function DeliveryPreview({ meetingId }: { meetingId: string }) {
+/** Meeting delivery to a configured Slack or email destination: preview the exact text, then send it there. Shown only when a destination covers this meeting. */
+function DeliveryPreview({ meeting }: { meeting: RecordData }) {
+  const destinations = useResource('delivery.list');
+  const [destination, setDestination] = useState('');
   const [preview, setPreview] = useState<RecordData | null>(null);
-  return <><hr /><h3>Send to Slack or email</h3><CommandForm operation="delivery.preview" fixed={{ meeting_id: meetingId, include_transcript: false }} fields={[{ name: 'connection_id', label: 'Connection ID', required: true }]} submit="Preview" onSuccess={(result) => setPreview(item(result))} />{preview && <><Details value={preview} /><CommandForm operation="delivery.send" fixed={{ id: id(preview), expected_revision: revision(preview), reviewed: true }} fields={[]} submit="Send" confirm="I reviewed the content and recipients. Sent messages can’t be recalled." /></>}</>;
+  const eligible = items(destinations.data).filter((row) => row.enabled !== false && (row.meeting_id ? row.meeting_id === id(meeting) : Boolean(row.project_id) && row.project_id === meeting.project_id));
+  if (!eligible.length) return null;
+  return <><hr /><h3>Send to Slack or email</h3>
+    <FieldInput field={{ name: 'delivery_id', label: 'Destination', type: 'select', options: [{ value: '', label: 'Choose destination' }, ...eligible.map((row) => ({ value: id(row), label: text(row.destination, text(row.transport)) }))] }} value={destination} onChange={(value) => { setDestination(text(value)); setPreview(null); }} />
+    {destination && <CommandForm operation="delivery.preview" fixed={{ meeting_id: id(meeting), include_transcript: false }} fields={[]} submit="Preview" onSuccess={(result) => setPreview(item(result))} />}
+    {preview && <><pre className={styles.preWrap} aria-label="Message preview">{text(object(preview.content).markdown)}</pre><CommandForm operation="delivery.send" fixed={{ preview_id: id(preview), preview_hash: text(preview.preview_hash), delivery_id: destination, reviewed: true }} fields={[]} submit="Send" confirm="I reviewed the content and recipients. Sent messages can’t be recalled." /></>}
+  </>;
 }

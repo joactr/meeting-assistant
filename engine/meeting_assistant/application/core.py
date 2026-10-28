@@ -1238,8 +1238,17 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
     r["analysis.generate"] = generate
 
     def analysis_list(p: dict[str, Any]) -> dict[str, Any]:
+        # Current results only: a regenerated task supersedes its earlier results.
         ids = {run["id"] for run in w.list("analysis_runs", {"meeting_id": p["meeting_id"]})}
-        return {"items": [i for i in w.list("analysis_results") if i["run_id"] in ids]}
+        return {
+            "items": [
+                i
+                for i in w.list("analysis_results")
+                if i["run_id"] in ids
+                and i["state"] != "superseded"
+                and (not p.get("task") or i["kind"] == p["task"])
+            ]
+        }
 
     r["analysis.list"] = analysis_list
 

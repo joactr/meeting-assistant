@@ -34,8 +34,25 @@
   border-top: var(--rule-hair) solid var(--color-rule);
 }
 
-.panel + .panel {
+.panel + .panel,
+.panel + .tabSet,
+.view + .tabSet,
+.tabSet + .panel {
   margin-top: var(--space-xl);
+}
+
+/* Panels laid out side by side share one top line. */
+.grid > .panel {
+  margin-top: 0;
+}
+
+/* A header bar or tab rule already divides the page; the first panel under it adds no second rule. */
+.pageHeader + .panel,
+.pageHeader + .view > .panel:first-child,
+.tabContent > .panel:first-child,
+.tabContent > .view:first-child > .panel:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 
 /* A lone control in a panel keeps its own width instead of stretching to the column. */
@@ -104,13 +121,13 @@
   display: grid;
   gap: var(--space-xs);
   max-width: 52ch;
-  padding: var(--space-xl) 0;
+  padding: var(--space-xs) 0;
   color: var(--color-muted);
 }
 
 .empty strong {
-  color: var(--color-ink);
-  font: 600 var(--text-title) / 1.3 var(--font-display);
+  color: var(--color-muted);
+  font: 400 var(--text-md) / 1.4 var(--font-body);
 }
 
 .notice {
@@ -245,7 +262,7 @@
   min-width: 0;
 }
 
-.form > button[type="submit"] {
+.form > button[type="submit"]:not(:first-child) {
   margin-top: var(--space-xs);
 }
 

@@ -10,6 +10,7 @@ import { AudioMeters } from './capture';
 import { CalendarSettings, IntegrationSettings } from './connections';
 import { AiSettings, ModelSettings, ProviderSettings, settingsTabs } from './providers';
 import { PrivacySettings } from './privacy';
+import { LANGUAGES } from './library';
 import styles from './workspace.module.css';
 
 const groups: { id: string; title: string; notice?: string; fields: Field[] }[] = [
@@ -34,7 +35,7 @@ const groups: { id: string; title: string; notice?: string; fields: Field[] }[] 
     { name: 'max_import_seconds', label: 'Longest audio file to import (seconds)', type: 'number', value: 28800, min: 1 },
   ] },
   { id: 'analysis', title: 'Summaries & language', fields: [
-    { name: 'output_language', label: 'Summary language (e.g. en, es, or auto)', value: 'auto' },
+    { name: 'output_language', label: 'Summary language', type: 'select', value: 'auto', options: [{ value: 'auto', label: 'Same as the meeting' }, ...LANGUAGES.map(([value, name]) => ({ value, label: name }))] },
     { name: 'topic_sentiment', label: 'Show the tone of each topic', type: 'checkbox', value: false },
     { name: 'live_cues_enabled', label: 'Live suggestions during meetings', type: 'checkbox', value: true },
     { name: 'question_detection_enabled', label: 'Detect questions', type: 'checkbox', value: true },
@@ -110,7 +111,7 @@ function SettingsGroup({ groupId, advancedOnly = false }: { groupId: string; adv
 
 function AudioSettings() {
   const devices = useNativeResource('audio_devices');
-  return <Panel title="Audio devices"><AsyncView query={devices}>{(data) => <><div className={styles.deviceGrid}>{items(data).map((row) => <section key={text(row.key)}><strong>{text(row.name)}</strong><Badge>{row.kind === 'system' ? 'computer audio' : 'microphone'}</Badge>{row.available === false && <Notice danger>Device unavailable.</Notice>}</section>)}</div><AudioTest devices={items(data)} /><AudioCalibration devices={items(data)} /><Details title="Details" value={data} /></>}</AsyncView></Panel>;
+  return <Panel title="Audio devices"><AsyncView query={devices}>{(data) => <><Toolbar><AudioTest devices={items(data)} /><AudioCalibration devices={items(data)} /></Toolbar><details className={styles.disclosure}><summary>{items(data).length} devices</summary><div className={styles.deviceGrid}>{items(data).map((row) => <section key={text(row.key)}><strong>{text(row.name)}</strong><Badge>{row.kind === 'system' ? 'computer audio' : 'microphone'}</Badge>{row.available === false && <Notice danger>Device unavailable.</Notice>}</section>)}</div></details></>}</AsyncView></Panel>;
 }
 
 function AudioTest({ devices }: { devices: RecordData[] }) {

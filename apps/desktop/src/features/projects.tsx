@@ -9,7 +9,7 @@ const vocabularyFields: Field[] = [
   { name: 'spelling', label: 'Preferred spelling', required: true },
   { name: 'aliases', label: 'Aliases (JSON array)', type: 'json', value: [] },
   { name: 'pronunciation', label: 'Pronunciation (optional)' },
-  { name: 'language', label: 'Language (e.g. en)', value: 'en' },
+  { name: 'language', label: 'Language code', value: 'en' },
   { name: 'priority', label: 'Priority', type: 'number', value: 50, min: 0, max: 100 },
   { name: 'enabled', label: 'Enabled', type: 'checkbox', value: true },
 ];
