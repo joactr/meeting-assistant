@@ -168,11 +168,9 @@ async def test_dropped_utterances_become_gaps_and_flag_a_stall_once(workspace: W
             )
         assert error.value.code == "audio_range_missing"
     gaps = w.list("timeline_gaps", {"meeting_id": meeting["id"]})
-    assert sorted(g["start_ms"] for g in gaps if g["reason"] == "audio_range_missing") == [
-        5_000,
-        6_000,
-        7_000,
-        8_000,
+    # Back-to-back drops are one visible stretch.
+    assert [(g["start_ms"], g["end_ms"]) for g in gaps if g["reason"] == "audio_range_missing"] == [
+        (5_000, 8_500)
     ]
     assert w.require_item("meetings", meeting["id"])["health"] == "degraded"
     stalls = [
@@ -222,4 +220,71 @@ async def test_utterance_that_beats_its_audio_waits_instead_of_dropping(
     await arriving
     assert accepted["accepted"] is True
     assert w.list("timeline_gaps", {"meeting_id": meeting["id"]}) == []
+    await pipeline.close()
+
+
+async def test_transcription_backlog_skips_speech_as_a_gap_without_pausing(
+    workspace: Workspace,
+) -> None:
+    # A slow transcriber used to pause the meeting until a manual Resume, leaving a silent hole.
+    w = workspace
+    meeting, _, system = recording_meeting(w)
+    w.put("capture_sources", system["id"], {"epoch": 1}, expected_revision=system["revision"])
+    pipeline = AudioPipeline(w, "ab" * 32)
+    pcm = struct.pack("<960f", *([0.1] * 960))
+    pipeline.buffers[(1, 1)] = deque(
+        Packet(sequence, 1, 1, 48000, 960, sequence * 20_000_000, pcm) for sequence in range(50)
+    )
+    pipeline.pending_ms[(1, 1)] = 61_000
+    skipped = await pipeline.utterance(
+        {"capture_epoch": 1, "source_index": 1, "start_ms": 100, "end_ms": 600}
+    )
+    assert skipped["accepted"] is False
+    gaps = w.list("timeline_gaps", {"meeting_id": meeting["id"]})
+    assert [(g["reason"], g["start_ms"], g["acknowledged"]) for g in gaps] == [
+        ("asr_backlog", 100, 0)
+    ]
+    assert w.require_item("meetings", meeting["id"])["state"] == "recording"
+
+    # Once the backlog drains, speech is transcribed again.
+    pipeline.pending_ms[(1, 1)] = 0
+    accepted = await pipeline.utterance(
+        {"capture_epoch": 1, "source_index": 1, "start_ms": 100, "end_ms": 600}
+    )
+    assert accepted["accepted"] is True
+    await pipeline.close()
+
+
+async def test_consecutive_drops_extend_one_gap_and_native_failures_are_visible(
+    workspace: Workspace,
+) -> None:
+    w = workspace
+    meeting, _, system = recording_meeting(w)
+    w.put("capture_sources", system["id"], {"epoch": 1}, expected_revision=system["revision"])
+    pipeline = AudioPipeline(w, "ab" * 32)
+    w.audio_pipeline = pipeline
+    pcm = struct.pack("<960f", *([0.1] * 960))
+    pipeline.buffers[(1, 1)] = deque(
+        Packet(sequence, 1, 1, 48000, 960, sequence * 20_000_000, pcm) for sequence in range(300)
+    )
+    pipeline.pending_ms[(1, 1)] = 61_000
+    for start, end in ((100, 600), (900, 1500), (5000, 5400)):
+        await pipeline.utterance(
+            {"capture_epoch": 1, "source_index": 1, "start_ms": start, "end_ms": end}
+        )
+
+    def gaps() -> list[tuple[str, int, int]]:
+        rows = w.list("timeline_gaps", {"meeting_id": meeting["id"]})
+        return sorted((g["reason"], g["start_ms"], g["end_ms"]) for g in rows)
+
+    # Drops within 2 s of each other are one stretch; a later one starts a new gap.
+    assert gaps() == [("asr_backlog", 100, 1500), ("asr_backlog", 5000, 5400)]
+
+    # A failed native hand-off already covered by an engine gap is not stacked again...
+    payload = {"meeting_id": meeting["id"], "source_index": 1, "start_ms": 200, "end_ms": 1400}
+    assert w.dispatch("capture.gap", payload)["recorded"] is False
+    # ...but one the engine never saw becomes visible.
+    payload.update(start_ms=9000, end_ms=9800)
+    assert w.dispatch("capture.gap", payload)["recorded"] is True
+    assert ("utterance_rejected", 9000, 9800) in gaps()
     await pipeline.close()

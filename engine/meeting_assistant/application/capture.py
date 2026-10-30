@@ -47,7 +47,6 @@ class AudioPipeline:
         self.diarization_disabled: set[tuple[int, int]] = set()
         self.pending_ms: dict[tuple[int, int], int] = {}
         self.misses: dict[tuple[int, int], int] = {}
-        self.pause_task: asyncio.Task[dict[str, Any]] | None = None
         # Sources whose audio socket is open: their packets can still arrive.
         self.streaming: set[tuple[int, int]] = set()
         # (epoch, index) -> (workspace.capture_version, source, meeting) for the packet loop.
@@ -100,7 +99,7 @@ class AudioPipeline:
                     for k, q in self.buffers.items()
                     if k[1] == source["source_index"] and q
                 ]
-                self._gap(source, "drain_incomplete", last[0] // 1_000_000 if last else 0, {})
+                self.record_gap(source, "drain_incomplete", last[0] // 1_000_000 if last else 0, {})
 
     async def _client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         streamed: set[tuple[int, int]] = set()
@@ -146,13 +145,13 @@ class AudioPipeline:
                     status=422,
                 )
                 key = (epoch, index)
+                # The frame is read before any per-packet check so the stream stays framed: one
+                # stale packet (old epoch, replayed sequence) is dropped, not the shared socket,
+                # which would stop every source with it.
+                pcm = await reader.readexactly(length - 44)
                 last = self.last_sequences.get(key)
-                require(
-                    last is None or sequence > last,
-                    "audio_sequence",
-                    "Audio sequence is not monotonic.",
-                    status=409,
-                )
+                if last is not None and sequence <= last:
+                    continue
                 # 50 packets/s per source: read the source and meeting again only after one of
                 # them was written (pause, resume, retry, stop, settings), not on every packet.
                 cached = self.lookups.get(key)
@@ -165,16 +164,10 @@ class AudioPipeline:
                     )
                     self.lookups[key] = cached
                 source, meeting = cached[1], cached[2]
-                require(
-                    source is not None,
-                    "audio_epoch",
-                    "Audio frame does not belong to a current active source.",
-                    status=409,
-                )
-                assert source is not None and meeting is not None
-                pcm = await reader.readexactly(length - 44)
+                if source is None or meeting is None:
+                    continue
                 if last is not None and sequence != last + 1:
-                    self._gap(
+                    self.record_gap(
                         source,
                         "sequence_gap",
                         max(0, (monotonic // 1_000_000) - 20),
@@ -369,11 +362,29 @@ class AudioPipeline:
                 return
             await asyncio.sleep(0.02)
 
-    def _gap(
+    def record_gap(
         self, source: dict[str, Any], reason: str, start_ms: int, details: dict[str, Any]
     ) -> None:
         w = self.workspace
         with w.transaction():
+            end_ms = details.get("end_ms")
+            # Consecutive drops of the same kind extend one gap instead of stacking rows, so a
+            # long bad stretch stays one readable badge and the gap list stays short.
+            previous = w.connection.execute(
+                "SELECT id FROM timeline_gaps WHERE source_id=? AND reason=? AND end_ms IS NOT NULL"
+                " AND end_ms>=? AND start_ms<=? ORDER BY start_ms DESC LIMIT 1",
+                (source["id"], reason, start_ms - 2000, start_ms),
+            ).fetchone()
+            if previous is not None and end_ms is not None:
+                gap = w.require_item("timeline_gaps", previous["id"])
+                if end_ms > gap["end_ms"]:
+                    w.put(
+                        "timeline_gaps",
+                        gap["id"],
+                        {"end_ms": end_ms},
+                        expected_revision=gap["revision"],
+                    )
+                return
             w.put(
                 "timeline_gaps",
                 new_id(),
@@ -404,16 +415,11 @@ class AudioPipeline:
             status=409,
         )
         assert source is not None
-        require(
-            int(p.get("true_speech_samples", 4000)) >= 4000,
-            "insufficient_speech",
-            "Utterance has less than 250 ms true speech.",
-            status=422,
-        )
         start = int(p["start_ms"])
         end = int(p["end_ms"])
         require(
-            0 <= start < end and end - start <= 13000,
+            # The longest-line setting goes to 30 s; the VAD may overrun it by one 32 ms window.
+            0 <= start < end and end - start <= 31000,
             "invalid_span",
             "Utterance duration is invalid.",
             status=422,
@@ -424,7 +430,7 @@ class AudioPipeline:
             pcm, rate = self._slice(list(self.buffers.get(key, [])), p, start, end)
         except AppError as exc:
             # Dropped speech is a visible gap; repeated drops mean transcription has stalled.
-            self._gap(source, exc.code, start, {"end_ms": end})
+            self.record_gap(source, exc.code, start, {"end_ms": end})
             self.misses[key] = self.misses.get(key, 0) + 1
             if self.misses[key] == 3:
                 self.workspace.emit(
@@ -434,28 +440,17 @@ class AudioPipeline:
                 )
             raise
         self.misses.pop(key, None)
-        if self.pending_ms.get(key, 0) + (end - start) > 30000:
+        # A slow transcriber (CPU only, speaker model on the same cores) must not stop capture:
+        # speech past a minute of backlog is skipped as a visible gap and transcription catches
+        # up by itself, instead of pausing the meeting until someone presses Resume.
+        if self.pending_ms.get(key, 0) > 60000:
+            self.record_gap(source, "asr_backlog", start, {"end_ms": end})
             self.workspace.emit(
                 "capture.backpressure",
-                {
-                    "source_id": source["id"],
-                    "backlog_ms": self.pending_ms.get(key, 0),
-                    "action": "pausing_capture",
-                },
+                {"source_id": source["id"], "backlog_ms": self.pending_ms[key]},
                 meeting_id=source["meeting_id"],
             )
-            if self.pause_task is None or self.pause_task.done():
-                self.pause_task = asyncio.create_task(
-                    self.workspace.adispatch(
-                        "meetings.pause",
-                        {
-                            "meeting_id": source["meeting_id"],
-                            "idempotency_key": "backpressure:" + new_id(),
-                        },
-                    )
-                )
-            while self.pending_ms.get(key, 0) + (end - start) > 30000 and self.tasks:
-                await asyncio.wait(self.tasks, return_when=asyncio.FIRST_COMPLETED)
+            return {"accepted": False, "source_id": source["id"], "start_ms": start, "end_ms": end}
 
         async def run() -> None:
             w = self.workspace
@@ -533,7 +528,7 @@ class AudioPipeline:
             except Exception as exc:
                 w = self.workspace
                 with w.transaction():
-                    self._gap(
+                    self.record_gap(
                         source,
                         "asr_failed",
                         start,
@@ -596,6 +591,27 @@ def register_capture(w: Workspace, r: CommandRegistry) -> None:
             return {"item": item}
 
     r["capture.source_event"] = source_event
+
+    def gap(p: dict[str, Any]) -> dict[str, Any]:
+        """Native host reports speech it could not hand over (request failed or timed out)."""
+        pipeline = w.audio_pipeline
+        require(pipeline is not None, "audio_unavailable", "Audio is unavailable.", status=503)
+        assert pipeline is not None
+        candidates = w.list("capture_sources", {"meeting_id": p["meeting_id"]})
+        source = next((s for s in candidates if s.get("source_index") == p["source_index"]), None)
+        require(source is not None, "source_missing", "Capture source not found.", status=404)
+        assert source is not None
+        start, end = int(p["start_ms"]), int(p["end_ms"])
+        # The engine already records a gap for drops it detects itself; don't stack a second.
+        covered = w.connection.execute(
+            "SELECT 1 FROM timeline_gaps WHERE source_id=? AND start_ms<=? AND end_ms>=?",
+            (source["id"], start, end),
+        ).fetchone()
+        if covered is None:
+            pipeline.record_gap(source, "utterance_rejected", start, {"end_ms": end})
+        return {"recorded": covered is None}
+
+    r["capture.gap"] = gap
 
     def commit(p: dict[str, Any]) -> dict[str, Any]:
         meeting = w.require_item("meetings", p["meeting_id"])

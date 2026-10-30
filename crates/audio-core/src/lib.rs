@@ -60,7 +60,10 @@ pub trait CaptureBackend: Send + Sync {
     fn start(&self, key: &str, kind: SourceKind, ring: Arc<Ring>)
         -> Result<Box<dyn CaptureStream>>;
 }
-/// Bounded clock PLL. A reset is a visible discontinuity, never hidden overlap.
+/// Maps device frames onto the monotonic clock. Between resets the mapped time advances exactly
+/// with the frame count, because the engine slices utterances out of packets assuming time and
+/// samples agree. A reset (drift or jump past 250 ms) is a visible discontinuity, never hidden
+/// overlap. `ratio` is only a drift estimate for echo cancellation.
 pub struct ClockMap {
     rate: u32,
     origin_frame: u64,
@@ -105,10 +108,11 @@ impl ClockMap {
         }
         self.last_frame = frame;
         self.last_ns = ns;
+        // Scaling the elapsed span by the block-by-block ratio turned ~1 ms timestamp jitter into
+        // jumps that grew with stream age (17 ms after 50 s), so utterance slices missed.
         (
             self.origin_ns.saturating_add(
-                ((frame.saturating_sub(self.origin_frame)) as f64 * 1e9 / self.rate as f64
-                    * self.ratio) as u64,
+                frame.saturating_sub(self.origin_frame) * 1_000_000_000 / self.rate as u64,
             ),
             reset,
         )

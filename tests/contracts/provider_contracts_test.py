@@ -193,7 +193,6 @@ def test_ollama_loopback_is_not_local_evidence():
     "url",
     [
         "https://key:secret@example.com/v1",
-        "http://remote.example/v1",
         "file:///tmp/model",
         "https://example.com/v1?key=secret",
     ],

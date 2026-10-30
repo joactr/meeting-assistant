@@ -16,7 +16,8 @@ export function Transcript({ meetingId, recording }: { meetingId: string; record
   const query = useCursorResource('transcript.list', { meeting_id: meetingId, limit: 200 });
   const speakers = useResource('speakers.list', { meeting_id: meetingId });
   const sources = useResource('entity.list', { collection: 'capture_sources', filters: { meeting_id: meetingId } });
-  const gaps = useResource('entity.list', { collection: 'timeline_gaps', filters: { meeting_id: meetingId } });
+  // entity.list returns 50 rows by default: past the 50th gap, dropped speech showed no badge.
+  const gaps = useResource('entity.list', { collection: 'timeline_gaps', filters: { meeting_id: meetingId }, limit: 200 });
   const media = useMeetingMedia(meetingId, !recording);
   const selected = useInterface((state) => state.selectedUtterance);
   const rows: RecordData[] = query.data?.pages.flatMap((page) => items(page)).map((row) => {

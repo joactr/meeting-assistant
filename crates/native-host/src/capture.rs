@@ -322,10 +322,11 @@ impl Capture {
     if matches!(pending_control,Some(Control::Resume(_,_))){if let Some(Control::Resume(new_epoch,ack))=pending_control.take(){ensure!(paused,"source is not paused");ensure!(new_epoch>epoch,"resume requires a new epoch");epoch=new_epoch;need_vad_origin=true;downsample=Resampler::new(48000,16000)?;clock=ClockMap::new(48000);stream=Some(backend.start(&source.device_key,source.kind.clone(),ring.clone())?);paused=false;let _=ack.send(Ok(Boundary{source_index:source.source_index,sequence,capture_epoch:epoch,committed_media:vec![]}));}}
     while let Some(block)=ring.queue.pop(){
      let observed=block.monotonic_ns.saturating_sub(monotonic_origin);let(start,reset)=clock.observe(block.hardware_position,observed);
-     // A clock reset splices unrelated audio: drop the open utterance and re-anchor. The partial
-     // packet is sent first: one straddling the jump carries post-jump samples under a pre-jump
-     // time, so speech starting right after the jump fell between packets ("evicted").
-     if reset{need_vad_origin=true;if !packet.is_empty(){sequence+=1;send_packet(&packets,&source,epoch,sequence,packet_ns,&packet)?;packet.clear();}}
+     // A clock reset splices unrelated audio: finish the open utterance on the old clock (its
+     // packets are already sent) and re-anchor. The partial packet is sent first: one straddling
+     // the jump carries post-jump samples under a pre-jump time, so speech starting right after
+     // the jump fell between packets ("evicted").
+     if reset{need_vad_origin=true;if !packet.is_empty(){sequence+=1;send_packet(&packets,&source,epoch,sequence,packet_ns,&packet)?;packet.clear();}for utterance in vad.flush(){submit_utterance(&runtime,&engine,&events,&config.meeting_id,source.source_index,epoch,vad_clock.map(utterance.start_sample),&utterance,"clock_reset");}}
      if need_vad_origin{vad.reset(start.saturating_mul(16_000)/1_000_000_000);need_vad_origin=false;}
      vad_clock.observe(start,vad.cursor());
      if reset||block.discontinuity{(events)("native.capture.discontinuity",json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"start_ns":start.to_string(),"reason":"clock_reset"}));}
@@ -341,12 +342,12 @@ impl Capture {
      let samples=&processed[..block.frames];
      // Packets first: the engine slices utterances out of packets it has already received.
      for(i,&sample)in samples.iter().enumerate(){if packet.is_empty(){packet_ns=start+i as u64*1_000_000_000/48000;}packet.push(sample);if packet.len()==960{sequence+=1;send_packet(&packets,&source,epoch,sequence,packet_ns,&packet)?;packet.clear();}}
-     speech.clear();downsample.process(samples,&mut speech);for utterance in vad.push(&speech){let start_sample=vad_clock.map(utterance.start_sample);let metadata=json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"capture_epoch":epoch,"start_sample":start_sample,"start_ms":start_sample/16,"end_ms":(start_sample+utterance.samples.len()as u64)/16,"true_speech_samples":utterance.true_speech_samples,"flush_reason":"vad"});let e=engine.clone();let notify=events.clone();let meeting_id=config.meeting_id.clone();let source_index=source.source_index;runtime.spawn(async move{if let Err(error)=e.internal("capture.utterance",&metadata).await{notify("native.capture.error",json!({"meeting_id":meeting_id,"source_index":source_index,"code":"utterance_rejected","message":error.to_string(),"retryable":true}));}});}
+     speech.clear();downsample.process(samples,&mut speech);for utterance in vad.push(&speech){submit_utterance(&runtime,&engine,&events,&config.meeting_id,source.source_index,epoch,vad_clock.map(utterance.start_sample),&utterance,"vad");}
      meter_count+=1;if meter_count%5==0{(events)("native.audio.level",json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"source_kind":source.kind,"rms":dsp::rms(raw),"peak":raw.iter().fold(0f32,|a,x|a.max(x.abs()))}));}
     }
     if ring.overflow.swap(false,Ordering::AcqRel){if let Some(mut s)=stream.take(){s.stop()?;}let lost=json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"state":"lost","start_ms":packet_ns/1_000_000,"reason":"source_lost"});(events)("native.capture.source_lost",json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"state":"lost","reason":"endpoint_changed_or_bounded_ring_overflow","dropped_frames":ring.dropped_frames.load(Ordering::Relaxed).to_string()}));let e=engine.clone();runtime.spawn(async move{let _=e.internal("capture.source_event",&lost).await;});paused=true;}
     if let Some(control)=pending_control.take(){let(stop,ack)=match control{Control::Pause(ack)=>(false,ack),Control::Stop(ack)=>(true,ack),Control::Resume(_,_)=>unreachable!()};
-     if !packet.is_empty(){sequence+=1;send_packet(&packets,&source,epoch,sequence,packet_ns,&packet)?;packet.clear();}speech.clear();downsample.finish(&mut speech);for utterance in vad.push(&speech).into_iter().chain(vad.flush()){let start_sample=vad_clock.map(utterance.start_sample);let data=json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"capture_epoch":epoch,"start_sample":start_sample,"start_ms":start_sample/16,"end_ms":(start_sample+utterance.samples.len()as u64)/16,"true_speech_samples":utterance.true_speech_samples,"flush_reason":if stop{"stop"}else{"pause"}});let e=engine.clone();let notify=events.clone();let meeting_id=config.meeting_id.clone();runtime.spawn(async move{if let Err(error)=e.internal("capture.utterance",&data).await{notify("native.capture.error",json!({"meeting_id":meeting_id,"message":error.to_string(),"retryable":true}));}});}
+     if !packet.is_empty(){sequence+=1;send_packet(&packets,&source,epoch,sequence,packet_ns,&packet)?;packet.clear();}speech.clear();downsample.finish(&mut speech);for utterance in vad.push(&speech).into_iter().chain(vad.flush()){submit_utterance(&runtime,&engine,&events,&config.meeting_id,source.source_index,epoch,vad_clock.map(utterance.start_sample),&utterance,if stop{"stop"}else{"pause"});}
      if let Some(writer)=writer.as_mut(){if let Some(commit)=writer.flush()?{let c=commit.clone();let e=engine.clone();runtime.spawn(async move{let _=e.internal("media.commit",&serde_json::to_value(c).unwrap_or(Value::Null)).await;});commits.push(commit);}}
      let boundary=Boundary{source_index:source.source_index,sequence,capture_epoch:epoch,committed_media:commits.clone()};let _=ack.send(Ok(boundary.clone()));paused=true;if stop{return Ok(boundary)}
     }
@@ -412,9 +413,9 @@ impl Capture {
         result
     }
 }
-/// The VAD counts samples while packets carry PLL-mapped clock time, which drifts away from the
-/// sample count (up to 0.1 %). The engine slices utterances by packet time, so map VAD positions
-/// onto the packet clock at every block.
+/// The VAD counts resampled 16 kHz samples while packets carry the frame clock; the two can differ
+/// by resampler rounding and are re-anchored at a reset. The engine slices utterances by packet
+/// time, so map VAD positions onto the packet clock at every block.
 #[derive(Default)]
 struct VadClock {
     drift: i64,
@@ -427,6 +428,38 @@ impl VadClock {
     fn map(&self, vad_sample: u64) -> u64 {
         vad_sample.saturating_add_signed(self.drift)
     }
+}
+/// Hands one utterance to the engine. If the request fails (timeout, engine busy or rejecting),
+/// the speech is reported as a timeline gap so the hole is visible in the transcript.
+#[allow(clippy::too_many_arguments)]
+fn submit_utterance(
+    runtime: &tokio::runtime::Handle,
+    engine: &Arc<crate::supervisor::Engine>,
+    events: &crate::Events,
+    meeting_id: &str,
+    source_index: u32,
+    epoch: u64,
+    start_sample: u64,
+    utterance: &dsp::Utterance,
+    flush_reason: &str,
+) {
+    let (start_ms, end_ms) = (
+        start_sample / 16,
+        (start_sample + utterance.samples.len() as u64) / 16,
+    );
+    let metadata = json!({"meeting_id":meeting_id,"source_index":source_index,"capture_epoch":epoch,"start_sample":start_sample,"start_ms":start_ms,"end_ms":end_ms,"true_speech_samples":utterance.true_speech_samples,"flush_reason":flush_reason});
+    let gap = json!({"meeting_id":meeting_id,"source_index":source_index,"start_ms":start_ms,"end_ms":end_ms});
+    let (engine, events) = (engine.clone(), events.clone());
+    let meeting_id = meeting_id.to_owned();
+    runtime.spawn(async move {
+        if let Err(error) = engine.internal("capture.utterance", &metadata).await {
+            let _ = engine.internal("capture.gap", &gap).await;
+            events(
+                "native.capture.error",
+                json!({"meeting_id":meeting_id,"source_index":source_index,"code":"utterance_rejected","message":error.to_string(),"retryable":true}),
+            );
+        }
+    });
 }
 fn send_packet(
     tx: &tokio::sync::mpsc::Sender<Vec<u8>>,
@@ -458,10 +491,11 @@ fn send_packet(
 mod tests {
     use super::*;
 
-    /// A device clock 500 ppm fast plus a device position restart: every utterance must end where
-    /// the packet clock is, otherwise the engine rejects it as `audio_range_missing`.
+    /// A 500 ppm fast device with ~1 ms timestamp jitter plus a device position restart: every
+    /// utterance must start where the packets carrying that audio say it does, otherwise the
+    /// engine rejects it (`audio_range_missing`) or slices the wrong audio.
     #[test]
-    fn utterances_stay_on_the_packet_clock_under_drift_and_clock_reset() {
+    fn utterances_stay_on_the_packet_clock_under_drift_jitter_and_clock_reset() {
         let mut clock = ClockMap::new(48000);
         let mut vad =
             dsp::Segmenter::new(dsp::VadConfig::default(), Box::new(dsp::EnergyGate)).unwrap();
@@ -470,20 +504,25 @@ mod tests {
         let mut need_origin = true;
         let (mut frame, mut utterances) = (0u64, 0);
         let mut speech = Vec::new();
+        // (VAD cursor, packet clock ns) at the start of every block since the last reset.
+        let mut blocks: Vec<(u64, u64)> = Vec::new();
         for block in 0..12_000u64 {
             if block == 6_000 {
                 frame = 0; // device restarted its position counter
             }
-            let ns = 10_000_000 + block * 480 * 1_000_000_000 / 48_024; // 500 ppm fast device
+            let jitter = (block * 7919 % 2001) * 1_000; // 0–2 ms, deterministic
+            let ns = 10_000_000 + block * 480 * 1_000_000_000 / 48_024 + jitter; // 500 ppm fast
             let (start, reset) = clock.observe(frame, ns);
             if reset {
                 need_origin = true;
             }
             if need_origin {
                 vad.reset(start * 16_000 / 1_000_000_000);
+                blocks.clear();
                 need_origin = false;
             }
             vad_clock.observe(start, vad.cursor());
+            blocks.push((vad.cursor(), start));
             let tone = (block / 100) % 5 == 0; // 1 s of speech every 5 s
             let samples: Vec<f32> = (0..480)
                 .map(|i| {
@@ -494,17 +533,20 @@ mod tests {
                     }
                 })
                 .collect();
-            let block_end_ns = start + (480. * 1e9 / 48000. * clock.ratio) as u64;
             speech.clear();
             downsample.process(&samples, &mut speech);
             for utterance in vad.push(&speech) {
-                let end_ns = (vad_clock.map(utterance.start_sample)
-                    + utterance.samples.len() as u64)
-                    * 1_000_000_000
-                    / 16_000;
+                let &(cursor, packet_ns) = blocks
+                    .iter()
+                    .rev()
+                    .find(|(cursor, _)| *cursor <= utterance.start_sample)
+                    .unwrap();
+                let carried_ns =
+                    packet_ns + (utterance.start_sample - cursor) * 1_000_000_000 / 16_000;
+                let mapped_ns = vad_clock.map(utterance.start_sample) * 1_000_000_000 / 16_000;
                 assert!(
-                    end_ns <= block_end_ns + 1_000_000 && end_ns + 40_000_000 >= block_end_ns,
-                    "block {block}: utterance ends {end_ns} vs packet clock {block_end_ns}"
+                    mapped_ns.abs_diff(carried_ns) <= 100_000,
+                    "block {block}: utterance starts {mapped_ns} but its audio was sent at {carried_ns}"
                 );
                 utterances += 1;
             }

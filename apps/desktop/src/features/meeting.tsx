@@ -38,9 +38,10 @@ function MeetingWorkspace({ meeting }: { meeting: RecordData }) {
 
 const CAPTURE_ALERTS: Record<string, string> = {
   'capture.attention': 'Transcription needs attention',
-  'capture.backpressure': 'Transcription fell behind, so capture paused',
+  'capture.backpressure': 'Transcription fell behind, so some speech was skipped',
   'native.capture.error': 'Capture problem',
   'native.capture.source_lost': 'An audio source was lost',
+  'native.dsp.mode': 'The speech detection model did not load, so quiet speech may be missed',
   'native.engine.interrupted': 'The engine stopped, so capture stopped',
 };
 
