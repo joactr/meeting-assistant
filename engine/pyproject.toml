@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "meeting-assistant"
-version = "1.0.0b7"
+version = "1.0.0b8"
 description = "Independent local-first developer meeting notebook"
 requires-python = ">=3.12,<3.13"
 license = "MIT"
