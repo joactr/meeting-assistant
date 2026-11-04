@@ -316,6 +316,7 @@ impl Capture {
         );
         let join=thread::Builder::new().name(format!("audio-dsp-{}",source.source_index)).spawn(move||{let result=(move||->Result<Boundary>{
    let model=resources.join("dsp/silero_vad.onnx");let detector:Box<dyn dsp::Probability>=match dsp::silero::Silero::load(&model){Ok(s)=>Box::new(s),Err(e)=>{(events)("native.dsp.mode",json!({"source_index":source.source_index,"mode":"energy_fallback_rms_0.01","reason":e.to_string()}));Box::new(dsp::EnergyGate)}};let mut vad=dsp::Segmenter::new(config.vad.clone(),detector)?;let mut downsample=Resampler::new(48000,16000)?;let mut speech=Vec::with_capacity(512);let mut clock=ClockMap::new(48000);let mut epoch=config.capture_epoch;let mut sequence=0u64;let mut packet=Vec::<f32>::with_capacity(960);let mut packet_ns=0;let mut commits=vec![];let mut writer=if config.recording{let mut writer=native_media::SegmentWriter::new(media_root,config.meeting_id.clone(),source.source_id.clone(),0,config.media_cap_bytes)?;writer.source_kind=Some(if source.kind==SourceKind::Mic{"mic"}else{"system"}.into());Some(writer)}else{None};let mut meter_count=0;let mut paused=false;let mut pending_control=None;let mut need_vad_origin=true;let mut vad_clock=VadClock::default();let mut media_cap_notified=false;
+   let mut last_partial=Instant::now();
    let ring=Ring::new();let mut stream=match backend.start(&source.device_key,source.kind.clone(),ring.clone()){Ok(s)=>{let _=ready_tx.send(Ok(()));Some(s)},Err(e)=>{let _=ready_tx.send(Err(e.to_string()));return Err(e)}};
    loop {
     if pending_control.is_none(){pending_control=rx.try_recv().ok();if matches!(pending_control,Some(Control::Pause(_))|Some(Control::Stop(_))){if let Some(mut s)=stream.take(){s.stop()?;}}}
@@ -343,6 +344,8 @@ impl Capture {
      // Packets first: the engine slices utterances out of packets it has already received.
      for(i,&sample)in samples.iter().enumerate(){if packet.is_empty(){packet_ns=start+i as u64*1_000_000_000/48000;}packet.push(sample);if packet.len()==960{sequence+=1;send_packet(&packets,&source,epoch,sequence,packet_ns,&packet)?;packet.clear();}}
      speech.clear();downsample.process(samples,&mut speech);for utterance in vad.push(&speech){submit_utterance(&runtime,&engine,&events,&config.meeting_id,source.source_index,epoch,vad_clock.map(utterance.start_sample),&utterance,"vad");}
+     // Live caption of the speech still open: once it is a second long, then every second.
+     if let Some((open_start,open_len))=vad.open(){if open_len>=16000&&last_partial.elapsed()>=Duration::from_secs(1){last_partial=Instant::now();submit_partial(&runtime,&engine,source.source_index,epoch,vad_clock.map(open_start),open_len);}}
      meter_count+=1;if meter_count%5==0{(events)("native.audio.level",json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"source_kind":source.kind,"rms":dsp::rms(raw),"peak":raw.iter().fold(0f32,|a,x|a.max(x.abs()))}));}
     }
     if ring.overflow.swap(false,Ordering::AcqRel){if let Some(mut s)=stream.take(){s.stop()?;}let lost=json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"state":"lost","start_ms":packet_ns/1_000_000,"reason":"source_lost"});(events)("native.capture.source_lost",json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"state":"lost","reason":"endpoint_changed_or_bounded_ring_overflow","dropped_frames":ring.dropped_frames.load(Ordering::Relaxed).to_string()}));let e=engine.clone();runtime.spawn(async move{let _=e.internal("capture.source_event",&lost).await;});paused=true;}
@@ -459,6 +462,21 @@ fn submit_utterance(
                 json!({"meeting_id":meeting_id,"source_index":source_index,"code":"utterance_rejected","message":error.to_string(),"retryable":true}),
             );
         }
+    });
+}
+/// Asks the engine for a live caption of open speech; best effort, a failure only skips it.
+fn submit_partial(
+    runtime: &tokio::runtime::Handle,
+    engine: &Arc<crate::supervisor::Engine>,
+    source_index: u32,
+    epoch: u64,
+    start_sample: u64,
+    samples: usize,
+) {
+    let metadata = json!({"source_index":source_index,"capture_epoch":epoch,"start_sample":start_sample,"start_ms":start_sample/16,"end_ms":(start_sample+samples as u64)/16});
+    let engine = engine.clone();
+    runtime.spawn(async move {
+        let _ = engine.internal("capture.partial", &metadata).await;
     });
 }
 fn send_packet(

@@ -5,7 +5,9 @@ import contextlib
 import hashlib
 import secrets
 import struct
+import time
 from collections import deque
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -53,6 +55,11 @@ class AudioPipeline:
         self.lookups: dict[
             tuple[int, int], tuple[int, dict[str, Any] | None, dict[str, Any] | None]
         ] = {}
+        # Per source: ASR milliseconds per millisecond of audio (last final), finals accepted so
+        # far, and the live-caption pass in flight.
+        self.asr_cost: dict[tuple[int, int], float] = {}
+        self.finals: dict[tuple[int, int], int] = {}
+        self.partials: dict[tuple[int, int], asyncio.Task[None]] = {}
 
     async def start(self) -> int:
         self.server = await asyncio.start_server(self._client, "127.0.0.1", 0, limit=1_048_624)
@@ -404,6 +411,101 @@ class AudioPipeline:
                 expected_revision=meeting["revision"],
             )
 
+    async def _transcribe(
+        self,
+        source: dict[str, Any],
+        pcm: bytes,
+        rate: int,
+        start: int,
+        chunk_id: str,
+        on_hypothesis: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
+    ) -> list[dict[str, Any]]:
+        w = self.workspace
+        meeting = w.require_item("meetings", source["meeting_id"])
+        policy = meeting["config_snapshot"].get("asr_policy")
+        require(
+            w.inference is not None and bool(policy),
+            "asr_unavailable",
+            "Selected ASR profile/runtime is not ready.",
+            status=503,
+        )
+        assert w.inference is not None
+        assert policy is not None
+        converted = await asyncio.to_thread(pcm16k, pcm, rate)
+        compiled: dict[str, Any] = meeting["config_snapshot"].get("vocabulary", {})
+        terms: list[dict[str, Any] | str] = compiled.get("terms", [])
+        vocabulary: list[str] = (
+            [compiled["prompt_hint"]]
+            if compiled.get("prompt_hint")
+            else [
+                hint
+                for term in terms
+                for hint in (
+                    term.get("hints", [term.get("spelling", term.get("term", ""))])
+                    if isinstance(term, dict)
+                    else [term]
+                )
+            ]
+        )
+        return await w.inference.transcribe(
+            converted,
+            sample_rate=16000,
+            policy=policy,
+            origin_ms=start,
+            stream_id=source["id"],
+            chunk_id=chunk_id,
+            vocabulary=vocabulary,
+            language=meeting["config_snapshot"].get("meeting_language"),
+            on_hypothesis=on_hypothesis,
+        )
+
+    def partial(self, p: dict[str, Any]) -> dict[str, Any]:
+        """Live caption of speech still in progress: transcribed, shown, never stored."""
+        key = (int(p["capture_epoch"]), int(p["source_index"]))
+        start, end = int(p["start_ms"]), int(p["end_ms"])
+        source = self._source(*key)
+        # Only with headroom: a caption pass must never queue behind a final or delay one by
+        # more than a second. Unknown cost (no final yet) means no captions.
+        if (
+            source is None
+            or not 0 <= start < end <= start + 31000
+            or self.pending_ms.get(key, 0)
+            or key in self.partials
+            or self.asr_cost.get(key, 1.0) * (end - start) > 1000
+        ):
+            return {"accepted": False}
+        finals = self.finals.get(key, 0)
+
+        async def run() -> None:
+            try:
+                await self._await_audio(key, end)
+                pcm, rate = self._slice(list(self.buffers.get(key, [])), p, start, end)
+                results = await self._transcribe(source, pcm, rate, start, "live")
+                text = " ".join(r["text"] for r in results if r["text"]).strip()
+                # A final accepted meanwhile covers this speech; its caption would be stale.
+                if text and self.finals.get(key, 0) == finals:
+                    await self.workspace.adispatch(
+                        "transcript.ingest",
+                        {
+                            "meeting_id": source["meeting_id"],
+                            "source_id": source["id"],
+                            "capture_epoch": key[0],
+                            "provider_stream_id": source["id"],
+                            "provider_result_id": "live",
+                            "is_final": False,
+                            "start_ms": start,
+                            "end_ms": end,
+                            "text": text,
+                        },
+                    )
+            except Exception:  # noqa: S110 - a missed caption is harmless; the final follows
+                pass
+            finally:
+                self.partials.pop(key, None)
+
+        self.partials[key] = asyncio.create_task(run())
+        return {"accepted": True}
+
     async def utterance(self, p: dict[str, Any]) -> dict[str, Any]:
         epoch = int(p["capture_epoch"])
         index = int(p["source_index"])
@@ -454,32 +556,6 @@ class AudioPipeline:
 
         async def run() -> None:
             w = self.workspace
-            meeting = w.require_item("meetings", source["meeting_id"])
-            policy = meeting["config_snapshot"].get("asr_policy")
-            require(
-                w.inference is not None and bool(policy),
-                "asr_unavailable",
-                "Selected ASR profile/runtime is not ready.",
-                status=503,
-            )
-            assert w.inference is not None
-            assert policy is not None
-            converted = await asyncio.to_thread(pcm16k, pcm, rate)
-            compiled: dict[str, Any] = meeting["config_snapshot"].get("vocabulary", {})
-            terms: list[dict[str, Any] | str] = compiled.get("terms", [])
-            vocabulary: list[str] = (
-                [compiled["prompt_hint"]]
-                if compiled.get("prompt_hint")
-                else [
-                    hint
-                    for term in terms
-                    for hint in (
-                        term.get("hints", [term.get("spelling", term.get("term", ""))])
-                        if isinstance(term, dict)
-                        else [term]
-                    )
-                ]
-            )
 
             async def on_hypothesis(hypothesis: dict[str, Any]) -> None:
                 await w.adispatch(
@@ -493,17 +569,11 @@ class AudioPipeline:
                     },
                 )
 
-            results = await w.inference.transcribe(
-                converted,
-                sample_rate=16000,
-                policy=policy,
-                origin_ms=start,
-                stream_id=source["id"],
-                chunk_id=str(p.get("utterance_id", new_id())),
-                vocabulary=vocabulary,
-                language=meeting["config_snapshot"].get("meeting_language"),
-                on_hypothesis=on_hypothesis,
+            began = time.monotonic()
+            results = await self._transcribe(
+                source, pcm, rate, start, str(p.get("utterance_id", new_id())), on_hypothesis
             )
+            self.asr_cost[key] = (time.monotonic() - began) * 1000 / (end - start)
             for result in results:
                 await w.adispatch(
                     "transcript.ingest",
@@ -515,7 +585,17 @@ class AudioPipeline:
                         "provider_stream_id": result.get("provider_stream_id", source["id"]),
                     },
                 )
+            # The final replaces the live caption of the same speech.
+            caption = w.interim_ids.pop((source["id"], source["id"], "live"), None)
+            if caption:
+                w.emit_live(
+                    "transcript.utterance_final",
+                    {"id": caption, "source_id": source["id"], "filtered": True},
+                    meeting_id=source["meeting_id"],
+                    entity_id=caption,
+                )
 
+        self.finals[key] = self.finals.get(key, 0) + 1
         self.pending_ms[key] = self.pending_ms.get(key, 0) + (end - start)
         task = asyncio.create_task(run())
         self.tasks.add(task)
@@ -562,6 +642,18 @@ def register_capture(w: Workspace, r: CommandRegistry) -> None:
         return await w.audio_pipeline.utterance(p)
 
     r["capture.utterance"] = utterance
+
+    def partial(p: dict[str, Any]) -> dict[str, Any]:
+        require(
+            w.audio_pipeline is not None,
+            "audio_unavailable",
+            "Audio ingress is not running.",
+            status=503,
+        )
+        assert w.audio_pipeline is not None
+        return w.audio_pipeline.partial(p)
+
+    r["capture.partial"] = partial
 
     def source_event(p: dict[str, Any]) -> dict[str, Any]:
         candidates = w.list("capture_sources", {"meeting_id": p["meeting_id"]})

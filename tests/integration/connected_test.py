@@ -435,7 +435,7 @@ async def test_slack_timeout_is_unknown_and_not_blindly_retried(workspace):
     item = project(workspace)
     run = (await workspace.adispatch("digest.preview", {"project_id": item["id"]}))["item"]
     setting = workspace.dispatch(
-        "digest.delivery.configure",
+        "delivery.configure",
         {
             "transport": "slack",
             "project_id": item["id"],
@@ -769,12 +769,11 @@ def test_connection_rejects_credentials_disguised_as_vault_references(workspace,
 
 
 @pytest.mark.asyncio
-async def test_saved_destination_enables_reviewed_automation_without_exposing_secret(workspace):
+async def test_saved_destination_does_not_expose_secret_and_binding_is_fixed(workspace):
     item = project(workspace)
-    preview = (await workspace.adispatch("digest.preview", {"project_id": item["id"]}))["item"]
     reference = "credential:00000000-0000-4000-8000-000000000001"
     public = workspace.dispatch(
-        "digest.delivery.configure",
+        "delivery.configure",
         {
             "transport": "smtp",
             "destination": "smtp.example.test",
@@ -784,29 +783,14 @@ async def test_saved_destination_enables_reviewed_automation_without_exposing_se
         },
     )["item"]
     assert "secret_ref" not in public
-    updated = workspace.dispatch(
-        "digest.delivery.configure",
-        {
-            **public,
-            "expected_revision": public["revision"],
-            "automatic": True,
-            "reviewed": True,
-            "preview_id": preview["id"],
-            "preview_hash": preview["preview_hash"],
-        },
-    )["item"]
-    assert updated["automatic"]
-    assert "secret_ref" not in updated
     assert workspace.get("delivery_settings", public["id"])["secret_ref"] == reference
     with pytest.raises(AppError) as error:
         workspace.dispatch(
-            "digest.delivery.configure",
+            "delivery.configure",
             {
-                **updated,
-                "expected_revision": updated["revision"],
+                **public,
+                "expected_revision": public["revision"],
                 "recipients": ["different@example.test"],
-                "reviewed": True,
-                "preview_id": preview["id"],
             },
         )
     assert error.value.code == "delivery_binding_changed"

@@ -61,10 +61,9 @@ function Digests({ projectId }: { projectId: string }) {
         { name: 'weekday', label: 'Weekday (0 = Monday)', type: 'number', value: row.weekday ?? 4, min: 0, max: 6 },
         { name: 'time', label: 'Local time', type: 'time', value: row.time ?? row.local_time ?? '16:00' },
         { name: 'timezone', label: 'Timezone', value: row.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone, required: true },
-        { name: 'delivery_ids', label: 'Delivery IDs (JSON array; empty = inbox only)', type: 'json', value: row.delivery_ids ?? [] },
       ]} submit="Save" />; }}</AsyncView>
       <Toolbar><CommandButton operation="digest.preview" payload={{ project_id: projectId }} onSuccess={(data) => setPreview(item(data))}>Preview</CommandButton><CommandButton operation="digest.run" payload={{ project_id: projectId, manual: true, idempotency_key: crypto.randomUUID() }}>Generate now</CommandButton></Toolbar>
-      {preview && <><CitedResult result={preview} /><Details value={preview} /><DigestDestination projectId={projectId} preview={preview} destinations={eligible} /></>}
+      {preview && <><CitedResult result={preview} /><Details value={preview} /></>}
       <Details value={{ items: eligible }} />
     </Panel>
     <TabSet tabs={[
@@ -72,13 +71,6 @@ function Digests({ projectId }: { projectId: string }) {
       { label: 'Run history', content: <Panel title="History"><AsyncView query={history}>{(data) => items(data).map((row) => <article key={id(row)} className={styles.actionRow}><div><strong>{date(row.period_end)}</strong><Badge tone={row.stale ? 'warning' : 'neutral'}>{row.stale ? 'Out of date' : text(row.state ?? row.status)}</Badge><CitedResult result={row} /><Details value={row} /><DigestRunActions run={row} destinations={eligible} /></div></article>)}</AsyncView></Panel> },
     ]} />
   </>;
-}
-
-function DigestDestination({ projectId, preview, destinations }: { projectId: string; preview: RecordData; destinations: RecordData[] }) {
-  const [destinationId, setDestinationId] = useState('');
-  const selected = destinations.find((row) => id(row) === destinationId);
-  return <Modal trigger={<button>Set up automatic delivery…</button>} title="Automatic delivery"><FieldInput field={{ name: 'destination', label: 'Destination', type: 'select', options: [{ value: '', label: 'Choose destination' }, ...destinations.map((row) => ({ value: id(row), label: `${text(row.transport)}: ${text(row.destination)}` }))] }} value={destinationId} onChange={(value) => setDestinationId(text(value))} />
-  {selected && <><Details value={selected} /><CommandForm operation="digest.delivery.configure" fixed={{ ...selected, project_id: projectId, expected_revision: revision(selected), automatic: true, enabled: true, preview_id: id(preview), preview_hash: preview.preview_hash ?? '', reviewed: true }} fields={[]} submit="Authorize" confirm="I reviewed the preview, recipients and destination." /></>}</Modal>;
 }
 
 function DigestRunActions({ run, destinations }: { run: RecordData; destinations: RecordData[] }) {

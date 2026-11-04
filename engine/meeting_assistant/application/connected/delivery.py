@@ -195,7 +195,6 @@ class DeliveryService:
             "secret_ref": vault_reference(reference) if transport != "local" else None,
             "project_id": payload.get("project_id"),
             "meeting_id": payload.get("meeting_id"),
-            "automatic": bool(payload.get("automatic", False)),
             "enabled": bool(payload.get("enabled", True)),
             "preview_hash": payload.get("preview_hash"),
         }
@@ -211,34 +210,6 @@ class DeliveryService:
             fail(
                 "delivery_binding_changed",
                 "Create a new reviewed destination when changing its transport, address, recipients, credential reference or project/meeting scope",
-            )
-        if data["automatic"]:
-            if data.get("meeting_id") or not data.get("project_id"):
-                fail(
-                    "automatic_scope_invalid",
-                    "Automatic delivery is available only for explicitly scheduled project digests",
-                )
-            preview = existing(self.workspace, "digest_runs", required(payload, "preview_id"))
-            if (
-                preview.get("project_id") != data["project_id"]
-                or payload.get("preview_hash") != fingerprint(preview.get("content"))
-                or not payload.get("reviewed")
-            ):
-                fail(
-                    "delivery_preview_required",
-                    "Review an exact digest preview for this project before authorizing automatic delivery",
-                )
-            data["consent_fingerprint"] = fingerprint(
-                {
-                    key: data[key]
-                    for key in (
-                        "transport",
-                        "destination",
-                        "recipients",
-                        "project_id",
-                        "secret_ref",
-                    )
-                }
             )
         item = self.workspace.put(
             "delivery_settings", identity, data, expected_revision=payload.get("expected_revision")
@@ -288,7 +259,7 @@ class DeliveryService:
                 "delivery_unknown",
                 "Delivery may already have occurred; explicit duplicate-risk authorization is required before retry",
             )
-        if not settings.get("automatic") and not payload.get("reviewed"):
+        if not payload.get("reviewed"):
             fail("review_required", "Review the digest and fixed destination before sending")
         text = run["content"]["markdown"]
         if settings["transport"] == "local":

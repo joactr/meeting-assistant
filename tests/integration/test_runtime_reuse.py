@@ -110,6 +110,43 @@ async def test_ensure_ready_never_downloads_and_ignores_exe_hash(tmp_path, monke
     assert started == ["whisper", "whisper"] and runtime.damaged == {RUNTIME}
 
 
+async def test_idle_workers_stay_loaded_while_a_meeting_is_live(tmp_path, monkeypatch):
+    import asyncio
+    import time
+
+    closed: list[str] = []
+
+    class Worker:
+        def __init__(self, name: str, idle: float) -> None:
+            self.name, self.lock, self.last_used = name, asyncio.Lock(), time.monotonic() - idle
+
+        async def close(self) -> None:
+            closed.append(self.name)
+
+    live = [True]
+    workers = {"idle": Worker("idle", 10_000), "recent": Worker("recent", 0)}
+    runtime = models.ModelRuntime(
+        tmp_path,
+        SimpleNamespace(worker_runtimes=workers),
+        lambda _: "",
+        meeting_live=lambda: live[0],
+    )
+    sweeps = 0
+
+    async def tick(_seconds: float) -> None:
+        nonlocal sweeps
+        sweeps += 1
+        if sweeps == 2:
+            assert closed == []  # first sweep ran during the live meeting
+            live[0] = False
+        if sweeps == 3:
+            workers.pop("recent")  # end the loop after the second real sweep
+
+    monkeypatch.setattr(models, "asyncio", SimpleNamespace(sleep=tick))
+    await runtime._release_idle()  # pyright: ignore[reportPrivateUsage]
+    assert closed == ["idle"] and runtime._reaper is None  # pyright: ignore[reportPrivateUsage]
+
+
 @pytest.fixture
 async def workspace(tmp_path: Path):
     w = Workspace(tmp_path / "workspace" / "workspace.sqlite3")

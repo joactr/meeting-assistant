@@ -150,6 +150,7 @@ CORE_REQUIRED = {
     "entity.update": ("collection", "id", "expected_revision"),
     "entity.delete": ("collection", "id", "expected_revision"),
     "capture.utterance": ("source_index", "capture_epoch", "start_ms", "end_ms"),
+    "capture.partial": ("source_index", "capture_epoch", "start_ms", "end_ms"),
     "capture.source_event": ("meeting_id", "source_index"),
     "capture.gap": ("meeting_id", "source_index", "start_ms", "end_ms"),
     "search.reindex": ("idempotency_key",),

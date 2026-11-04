@@ -30,20 +30,20 @@ def pcm16k(pcm: bytes, sample_rate: int) -> bytes:
     samples.frombytes(pcm)
     if sys.byteorder != "little":
         samples.byteswap()
+    # A finite float32 sum is always finite in double precision: one C pass instead of per-sample.
     require(
-        all(math.isfinite(value) for value in samples),
+        math.isfinite(sum(samples)),
         "invalid_pcm",
         "Audio contains a non-finite sample.",
         status=422,
     )
-    output: array[float] = array("f")
-    half = _TAPS // 2
-    for center in range(0, len(samples), 3):
-        low = max(0, center - half)
-        high = min(len(samples), center + half + 1)
-        output.append(
-            sum(samples[index] * _FIR[index - center + half] for index in range(low, high))
-        )
+    # Zero-padded edges; one C-level dot product per output. A per-sample Python loop held the
+    # GIL for ~50 ms per second of audio and stalled the engine loop during live meetings.
+    pad = array("f", bytes(4 * (_TAPS // 2)))
+    padded = pad + samples + pad
+    output = array(
+        "f", [math.sumprod(padded[c : c + _TAPS], _FIR) for c in range(0, len(samples), 3)]
+    )
     if sys.byteorder != "little":
         output.byteswap()
     return output.tobytes()

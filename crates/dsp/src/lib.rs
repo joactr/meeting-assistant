@@ -179,6 +179,10 @@ impl Segmenter {
     pub fn cursor(&self) -> u64 {
         self.position + self.accumulator.len() as u64
     }
+    /// Start sample and length of the utterance still being spoken, for live captions.
+    pub fn open(&self) -> Option<(u64, usize)> {
+        (!self.active.is_empty()).then_some((self.start, self.active.len()))
+    }
     pub fn reset(&mut self, start_sample: u64) {
         self.accumulator.clear();
         self.pre.clear();

@@ -2798,11 +2798,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -2947,11 +2942,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -3105,11 +3095,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -3249,11 +3234,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -3391,11 +3371,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -3544,11 +3519,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -3686,11 +3656,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -3849,11 +3814,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -3991,11 +3951,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -4142,11 +4097,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -4412,11 +4362,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -5722,11 +5667,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -5873,11 +5813,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -6015,11 +5950,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -6168,11 +6098,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -6319,11 +6244,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -6468,11 +6388,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -6977,162 +6892,6 @@
       "title": "CommandPayload",
       "type": "object"
     },
-    "digest.delivery.configure": {
-      "additionalProperties": true,
-      "properties": {
-        "aliases": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Aliases",
-          "type": "array"
-        },
-        "apply": {
-          "default": false,
-          "title": "Apply",
-          "type": "boolean"
-        },
-        "assignees": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Assignees",
-          "type": "array"
-        },
-        "authorize_duplicate_risk": {
-          "default": false,
-          "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
-        "calendar_ids": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Calendar Ids",
-          "type": "array"
-        },
-        "create_distinct": {
-          "default": false,
-          "title": "Create Distinct",
-          "type": "boolean"
-        },
-        "enabled": {
-          "default": false,
-          "title": "Enabled",
-          "type": "boolean"
-        },
-        "expected_revision": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Expected Revision"
-        },
-        "labels": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Labels",
-          "type": "array"
-        },
-        "priority": {
-          "default": 0,
-          "title": "Priority",
-          "type": "integer"
-        },
-        "profile_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Profile Id"
-        },
-        "project_id": {
-          "title": "Project Id",
-          "type": "string"
-        },
-        "project_mapping": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Project Mapping",
-          "type": "object"
-        },
-        "read": {
-          "default": false,
-          "title": "Read",
-          "type": "boolean"
-        },
-        "recipients": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Recipients",
-          "type": "array"
-        },
-        "reminder_minutes": {
-          "default": 5,
-          "maximum": 1440,
-          "minimum": 0,
-          "title": "Reminder Minutes",
-          "type": "integer"
-        },
-        "reminders_enabled": {
-          "default": false,
-          "title": "Reminders Enabled",
-          "type": "boolean"
-        },
-        "repositories": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Repositories",
-          "type": "array"
-        },
-        "retry": {
-          "default": false,
-          "title": "Retry",
-          "type": "boolean"
-        },
-        "reviewed": {
-          "default": false,
-          "title": "Reviewed",
-          "type": "boolean"
-        },
-        "transport": {
-          "title": "Transport",
-          "type": "string"
-        },
-        "weekday": {
-          "default": 4,
-          "maximum": 6,
-          "minimum": 0,
-          "title": "Weekday",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "transport",
-        "project_id"
-      ],
-      "title": "DigestDeliveryConfigurePayload",
-      "type": "object"
-    },
     "digest.delivery.reconcile": {
       "additionalProperties": true,
       "properties": {
@@ -7158,11 +6917,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -7309,11 +7063,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -7467,11 +7216,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -7611,11 +7355,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -7753,11 +7492,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -7906,11 +7640,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -8057,11 +7786,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -8206,11 +7930,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -10428,11 +10147,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -10577,11 +10291,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -10730,11 +10439,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -10881,11 +10585,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -11025,11 +10724,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -11167,11 +10861,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -11322,11 +11011,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -11481,11 +11165,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -11632,11 +11311,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -11781,11 +11455,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -11937,11 +11606,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -17571,11 +17235,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -17720,11 +17379,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -17875,11 +17529,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -18024,11 +17673,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -18958,11 +18602,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -19107,11 +18746,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "blocks": {
@@ -27363,11 +26997,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -27505,11 +27134,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {
@@ -27651,11 +27275,6 @@
           "title": "Authorize Duplicate Risk",
           "type": "boolean"
         },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
-          "type": "boolean"
-        },
         "calendar_ids": {
           "items": {
             "type": "string"
@@ -27793,11 +27412,6 @@
         "authorize_duplicate_risk": {
           "default": false,
           "title": "Authorize Duplicate Risk",
-          "type": "boolean"
-        },
-        "automatic": {
-          "default": false,
-          "title": "Automatic",
           "type": "boolean"
         },
         "calendar_ids": {

@@ -201,3 +201,103 @@ async def test_diarization_after_cold_start_covers_the_meetings_first_audio(
         writer.close()
         await pipeline.close()
         w.close()
+
+
+async def test_live_captions_wait_for_headroom_and_never_outlive_their_final(
+    tmp_path: Path,
+) -> None:
+    w = Workspace(tmp_path / "workspace" / "workspace.sqlite3")
+    pipeline = AudioPipeline(w, "ab" * 32)
+    meeting = w.dispatch("meetings.create", {"title": "Captions", "source": "system"})["item"]
+    meeting = w.put(
+        "meetings",
+        meeting["id"],
+        {
+            "capture_epoch": 1,
+            "config_snapshot": {**meeting["config_snapshot"], "asr_policy": {"task": "asr"}},
+        },
+        expected_revision=meeting["revision"],
+    )
+    source = w.put(
+        "capture_sources",
+        new_id(),
+        {
+            "meeting_id": meeting["id"],
+            "source_kind": "system",
+            "device_key": "synthetic",
+            "display_name": "Captions",
+            "epoch": 1,
+            "state": "active",
+            "source_index": 0,
+        },
+    )
+    gate = asyncio.Event()
+
+    class Inference:
+        async def transcribe(self, _pcm: bytes, *, origin_ms: int, chunk_id: str, **_: object):
+            if chunk_id == "live":
+                await gate.wait()
+            return [{"text": f"{chunk_id} words", "start_ms": origin_ms, "end_ms": origin_ms + 500}]
+
+    ingested: list[dict] = []
+    live: list[tuple[str, dict]] = []
+
+    async def ingest(operation: str, payload: dict) -> dict:
+        assert operation == "transcript.ingest"
+        ingested.append(payload)
+        if payload.get("is_final") is False:
+            w.interim_ids[(payload["source_id"], payload["provider_stream_id"], "live")] = "cap"
+        return {}
+
+    w.inference = Inference()  # type: ignore[assignment]
+    w.adispatch = ingest  # type: ignore[method-assign]
+    w.emit_live = lambda kind, data, **_: live.append((kind, data))  # type: ignore[method-assign]
+    pcm = struct.pack("<960f", *([0.1] * 960))
+    port = await pipeline.start()
+    _, writer = await asyncio.open_connection("127.0.0.1", port)
+    span = {"capture_epoch": 1, "source_index": 0}
+    try:
+        writer.write(
+            bytes.fromhex("ab" * 32)
+            + b"".join(
+                HEADER.pack(44 + len(pcm), 1, 1, 0, s, 1, 0, 48000, 1, 1, 960, (s - 1) * 20_000_000)
+                + pcm
+                for s in range(1, 501)  # 10 s
+            )
+        )
+        await writer.drain()
+        for _ in range(500):
+            if pipeline.last_sequences.get((1, 0)) == 500:
+                break
+            await asyncio.sleep(0.01)
+        # Transcription speed is unknown until a final has been measured: no caption yet.
+        assert pipeline.partial({**span, "start_ms": 0, "end_ms": 1500}) == {"accepted": False}
+        await pipeline.utterance({**span, "start_ms": 0, "end_ms": 2000, "utterance_id": "u1"})
+        await asyncio.gather(*pipeline.tasks)
+        # A caption is shown live, never stored as a final line.
+        assert pipeline.partial({**span, "start_ms": 3000, "end_ms": 4500}) == {"accepted": True}
+        gate.set()
+        await pipeline.partials[(1, 0)]
+        caption = ingested[-1]
+        assert caption["is_final"] is False and caption["text"] == "live words"
+        # A final accepted while a caption pass runs makes that caption stale: it is dropped,
+        # and the final clears the caption already on screen.
+        gate.clear()
+        assert pipeline.partial({**span, "start_ms": 3000, "end_ms": 5500}) == {"accepted": True}
+        await asyncio.sleep(0)
+        await pipeline.utterance({**span, "start_ms": 3000, "end_ms": 6000, "utterance_id": "u2"})
+        await asyncio.gather(*pipeline.tasks)
+        gate.set()
+        if task := pipeline.partials.get((1, 0)):
+            await task
+        assert [p["text"] for p in ingested] == ["u1 words", "live words", "u2 words"]
+        assert live == [
+            (
+                "transcript.utterance_final",
+                {"id": "cap", "source_id": source["id"], "filtered": True},
+            )
+        ]
+    finally:
+        writer.close()
+        await pipeline.close()
+        w.close()

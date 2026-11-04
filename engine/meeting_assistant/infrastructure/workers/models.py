@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import os
+import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
@@ -37,6 +38,10 @@ FAMILIES = {
     "azure-speech": "azure-speech",
 }
 
+# Workers never unload themselves; the engine releases them after this long unused, and
+# never while a meeting is live (a silent stretch must not cost a cold start).
+IDLE_SECONDS = 300
+
 
 class ModelRuntime:
     def __init__(
@@ -46,13 +51,14 @@ class ModelRuntime:
         secret_resolver: Callable[[str], str | Awaitable[str]],
         *,
         public_key: bytes | None = None,
+        meeting_live: Callable[[], bool] = lambda: False,
     ) -> None:
         self.install_root, self.registry, self.secret_resolver = (
             install_root,
             registry,
             secret_resolver,
         )
-        self.public_key = public_key
+        self.public_key, self.meeting_live = public_key, meeting_live
         self.developer_registry = launch_registry(install_root.parent)
         # Per profile: a cold speaker-model start (~80s) must not block a running ASR worker.
         self.locks: dict[str, asyncio.Lock] = {}
@@ -60,6 +66,25 @@ class ModelRuntime:
         # Runtime ids whose installed pack failed signature/integrity checks; only an explicit
         # user download replaces them (never ensure_ready).
         self.damaged: set[str] = set()
+        self._reaper: asyncio.Task[None] | None = None
+
+    async def _release_idle(self) -> None:
+        while self.registry.worker_runtimes:
+            await asyncio.sleep(60)
+            if self.meeting_live():
+                continue
+            for profile, worker in list(self.registry.worker_runtimes.items()):
+                starting = self.locks.get(profile)
+                if (
+                    worker.lock.locked()
+                    or (starting is not None and starting.locked())
+                    or time.monotonic() - worker.last_used < IDLE_SECONDS
+                ):
+                    continue
+                self.registry.worker_runtimes.pop(profile, None)
+                self.grants.pop(profile, None)
+                await worker.close()
+        self._reaper = None
 
     def installed_manifest(self, identity: str) -> tuple[str, dict[str, Any]] | None:
         """(revision, runtime manifest) of the active pack, whatever its revision; no hashing."""
@@ -275,6 +300,8 @@ class ModelRuntime:
             await worker.start(model_dir, caps.fingerprint, options)
             self.registry.worker_runtimes[profile.id] = worker
             self.grants[profile.id] = {"runtime": runtime_dir, "model": model_dir}
+            if self._reaper is None:
+                self._reaper = asyncio.create_task(self._release_idle())
             return worker
 
     def state(self, profile_id: str) -> str:

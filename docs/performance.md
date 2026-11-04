@@ -27,6 +27,10 @@ be advertised as two-second captions from speech onset. Measure warm/cold
 startup separately and keep unavailable optional inference out of basic
 keyword/library timing.
 
+While speech is still open, a provisional caption of it refreshes about once a
+second, only when the measured ASR cost keeps each pass under a second; it is
+shown, never stored, and dropped once the final line lands.
+
 Long-running capture needs clock-drift, discontinuity and backlog evidence for
 independent sources. Resource pressure must become visible health/lag or an
 explicit capture pause/gap, never silent dropped final captions or hidden audio

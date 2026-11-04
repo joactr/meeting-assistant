@@ -20,7 +20,6 @@ from .common import (
     required,
     save,
 )
-from .delivery import DeliveryService
 
 
 def local_boundary(day: date, hour: int, minute: int, zone: ZoneInfo) -> datetime:
@@ -190,9 +189,8 @@ def render_digest(
 
 
 class DigestService:
-    def __init__(self, workspace: Workspace, delivery: DeliveryService) -> None:
+    def __init__(self, workspace: Workspace) -> None:
         self.workspace = workspace
-        self.delivery = delivery
         self._locks: dict[str, asyncio.Lock] = {}
 
     @staticmethod
@@ -243,14 +241,6 @@ class DigestService:
         except (ValueError, TypeError):
             fail("invalid_schedule", "Use a weekday from 0 (Monday) to 6 and local HH:MM")
         old = self.workspace.get("digest_schedules", project_id)
-        delivery_ids = payload.get("delivery_ids", [])
-        for identity in delivery_ids:
-            settings = existing(self.workspace, "delivery_settings", identity)
-            if settings.get("project_id") != project_id or not settings.get("automatic"):
-                fail(
-                    "invalid_delivery",
-                    "Scheduled delivery requires a reviewed automatic destination in this project",
-                )
         rule: dict[str, Any] = {
             "id": project_id,
             "project_id": project_id,
@@ -258,7 +248,6 @@ class DigestService:
             "weekday": weekday,
             "time": clock,
             "timezone": timezone,
-            "delivery_ids": delivery_ids,
             "policy": payload.get("policy"),
             "last_success_boundary": (old or {}).get("last_success_boundary"),
         }
@@ -406,7 +395,7 @@ class DigestService:
             return {"item": item}
         latest = existing(self.workspace, "digest_schedules", rule["id"])
         if latest["revision"] != rule["revision"]:
-            return {"item": item, "schedule_changed": True, "delivery_skipped": True}
+            return {"item": item, "schedule_changed": True}
         if latest.get("last_success_boundary") != iso(end):
             save(
                 self.workspace,
@@ -419,19 +408,6 @@ class DigestService:
                 },
                 latest,
             )
-        delivery_ids: list[str] = rule.get("delivery_ids", []) if not item.get("stale") else []
-        for delivery_id in delivery_ids:
-            try:
-                await self.delivery.send({"run_id": item["id"], "delivery_id": delivery_id})
-            except Exception as error:
-                self.workspace.emit(
-                    "digest.delivery.failed",
-                    {
-                        "run_id": item["id"],
-                        "delivery_id": delivery_id,
-                        "code": getattr(error, "code", "delivery_failed"),
-                    },
-                )
         return {"item": item}
 
     async def _generate(

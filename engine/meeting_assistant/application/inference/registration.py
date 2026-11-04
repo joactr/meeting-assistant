@@ -51,6 +51,10 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
         service.registry,
         workspace.resolve_secret,
         public_key=public_key,
+        meeting_live=lambda: any(
+            workspace.list("meetings", {"state": state}, limit=1)
+            for state in ("starting", "recording", "paused", "stopping")
+        ),
     )
     service.model_runtime = runtime
     catalog = CatalogService(

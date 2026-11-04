@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import struct
+import time
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager, suppress
@@ -43,6 +44,7 @@ class WorkerClient:
         self._buffers: dict[str, SharedMemory] = {}
         self.capabilities: dict[str, Any] | None = None
         self.model_fingerprint: str | None = None
+        self.last_used = time.monotonic()
 
     async def start(
         self,
@@ -115,7 +117,8 @@ class WorkerClient:
                     else None,
                     "model_fingerprint": model_fingerprint,
                     "options": options or {},
-                    "residency_seconds": (options or {}).get("residency_seconds", 300),
+                    # Never self-unload: ModelRuntime releases idle workers outside meetings.
+                    "residency_seconds": 0,
                 },
                 timeout=self.startup_timeout,
             )
@@ -153,9 +156,6 @@ class WorkerClient:
                 if not 0 < size <= MAX_CONTROL_BYTES:
                     raise ValueError("Invalid worker control frame")
                 frame: dict[str, Any] = json.loads(await self.process.stdout.readexactly(size))
-                if frame.get("type") == "unloaded":
-                    self.capabilities, self.model_fingerprint = None, None
-                    continue
                 request_id = frame.get("id")
                 future = self._pending.pop(request_id, None) if request_id is not None else None
                 if future is None or future.done():
@@ -234,6 +234,7 @@ class WorkerClient:
                 if cancellation:
                     cancellation.cancel()
                 self._pending.pop(request_id, None)
+                self.last_used = time.monotonic()
 
     @asynccontextmanager
     async def pcm(self, pcm_float32: bytes, sample_rate: int) -> AsyncGenerator[dict[str, Any]]:

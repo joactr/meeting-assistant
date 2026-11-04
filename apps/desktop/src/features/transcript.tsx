@@ -34,7 +34,7 @@ export function Transcript({ meetingId, recording }: { meetingId: string; record
   const loadedUntil = query.hasNextPage ? number(rows[rows.length - 1]?.start_ms) : Infinity;
   const timeline: RecordData[] = [...rows, ...items(gaps.data).filter((gap) => !gap.acknowledged && number(gap.start_ms) <= loadedUntil).map((gap): RecordData => ({ ...gap, id: `gap:${id(gap)}`, kind: 'gap' }))].sort((a, b) => number(a.start_ms) - number(b.start_ms));
   const combined = { ...query, data: { items: timeline } };
-  return <Panel><InterimCaptions meetingId={meetingId} recording={recording} finalRows={rows} /><AsyncView query={combined}>{() => <TranscriptRows meetingId={meetingId} rows={timeline} recording={recording} />}</AsyncView>{query.hasNextPage && <button disabled={query.isFetchingNextPage} onClick={() => { void query.fetchNextPage(); }}>{query.isFetchingNextPage ? 'Loading…' : 'Load more'}</button>}</Panel>;
+  return <Panel><AsyncView query={combined}>{() => <TranscriptRows meetingId={meetingId} rows={timeline} recording={recording} />}</AsyncView><InterimCaptions meetingId={meetingId} recording={recording} finalRows={rows} />{query.hasNextPage && <button disabled={query.isFetchingNextPage} onClick={() => { void query.fetchNextPage(); }}>{query.isFetchingNextPage ? 'Loading…' : 'Load more'}</button>}</Panel>;
 }
 
 function InterimCaptions({ meetingId, recording, finalRows }: { meetingId: string; recording: boolean; finalRows: RecordData[] }) {

@@ -27,7 +27,6 @@ class CommandPayload(BaseModel):
     profile_id: str | None = None
     reviewed: bool = False
     authorize_duplicate_risk: bool = False
-    automatic: bool = False
     enabled: bool = False
     apply: bool = False
     create_distinct: bool = False
@@ -117,7 +116,6 @@ REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
     "digest.run": ("project_id",),
     "digest.history": (),
     "digest.inbox": (),
-    "digest.delivery.configure": ("transport", "project_id"),
     "digest.delivery.send": ("run_id", "delivery_id"),
     "digest.delivery.reconcile": ("id",),
     "delivery.list": (),
@@ -156,7 +154,7 @@ class ConnectedWorkflows:
         self.issues = IssueService(workspace, http)
         self.notes = NotesService(workspace)
         self.delivery = DeliveryService(workspace)
-        self.digest = DigestService(workspace, self.delivery)
+        self.digest = DigestService(workspace)
         self._task: asyncio.Task[None] | None = None
         self._stop = asyncio.Event()
 
@@ -211,7 +209,8 @@ class ConnectedWorkflows:
                     "id": "G06",
                     "enabled": True,
                     "execution": "local_running_process",
-                    "delivery": ["local", "slack", "smtp"],
+                    "scheduled_delivery": "local_inbox",
+                    "manual_delivery": ["local", "slack", "smtp"],
                     "catchup": "coalesced",
                     "remote_exactly_once": False,
                 },
@@ -292,7 +291,6 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
         "digest.run": connected.digest.run,
         "digest.history": connected.digest.history,
         "digest.inbox": connected.digest.inbox,
-        "digest.delivery.configure": connected.delivery.configure,
         "digest.delivery.send": connected.delivery.send,
         "digest.delivery.reconcile": connected.delivery.reconcile,
         "delivery.list": connected.delivery.list,

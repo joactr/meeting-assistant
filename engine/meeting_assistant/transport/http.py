@@ -25,6 +25,7 @@ PRIVATE_OPERATIONS = frozenset(
     {
         "meetings.acknowledge",
         "capture.utterance",
+        "capture.partial",
         "capture.source_event",
         "capture.gap",
         "media.commit",

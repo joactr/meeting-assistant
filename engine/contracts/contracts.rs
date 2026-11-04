@@ -82,7 +82,6 @@ pub const OPERATION_IDS: &[&str] = &[
     "delivery.test",
     "diagnostics.export",
     "diagnostics.get",
-    "digest.delivery.configure",
     "digest.delivery.reconcile",
     "digest.delivery.send",
     "digest.history",
