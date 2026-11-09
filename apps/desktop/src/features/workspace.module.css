@@ -190,6 +190,24 @@ span.timestamp {
   }
 }
 
+.speakerInput {
+  width: 14rem;
+  min-height: 28px;
+  padding: 0 var(--space-xs);
+  font: 500 var(--text-sm) / 1.2 var(--font-display);
+}
+
+.findBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.findBar input {
+  flex: 0 1 20rem;
+}
+
 .lowConfidence {
   color: var(--color-warning);
 }

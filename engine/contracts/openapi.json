@@ -20237,15 +20237,8 @@
                     ],
                     "default": null,
                     "title": "Temporary Decode Consent"
-                  },
-                  "title": {
-                    "title": "Title",
-                    "type": "string"
                   }
                 },
-                "required": [
-                  "title"
-                ],
                 "title": "MeetingsCreatePayload",
                 "type": "object"
               }

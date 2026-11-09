@@ -120,7 +120,8 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
     r["settings.save"] = settings_save
 
     def create_meeting(p: dict[str, Any]) -> dict[str, Any]:
-        title = str(p.get("title", "")).strip()
+        # No title given: name it after when it started, so a meeting needs no typing.
+        title = str(p.get("title") or "").strip() or datetime.now().strftime("Meeting %d %b %H:%M")
         require(
             0 < len(title) <= 300,
             "invalid_title",
@@ -142,10 +143,12 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             selected = task_policy(w, task, {"project_id": project, "config_snapshot": config})
             if selected:
                 config[task + "_policy"] = selected
-        language = p.get("language")
+        # Explicit choices win; otherwise Settings (capture.meeting_language / capture.mode).
+        language = p.get("language") or config.pop("meeting_language", None)
+        config.pop("meeting_language", None)
         if language and language != "auto":
             config["meeting_language"] = language
-        config["source"] = p.get("source", config.get("source", "both"))
+        config["source"] = p.get("source") or config.get("mode") or "both"
         require(
             config["source"] in ("mic", "system", "both", "file", "text"),
             "invalid_source",

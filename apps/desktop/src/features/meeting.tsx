@@ -81,6 +81,7 @@ function MeetingActions({ meeting }: { meeting: RecordData }) {
   const bind = (name: Exclude<MeetingDialog, null>) => ({ open: dialog === name, onOpenChange: (open: boolean) => setDialog(open ? name : null) });
   return <>
     <button onClick={() => setDialog('export')}>Export…</button>
+    {meeting.state === 'complete' && <CopySummary meeting={meeting} />}
     <ActionMenu label="More meeting actions" actions={[
       { label: 'Edit details…', onSelect: () => setDialog('edit') },
       { label: 'Speakers…', onSelect: () => setDialog('speakers') },
@@ -93,6 +94,19 @@ function MeetingActions({ meeting }: { meeting: RecordData }) {
     <EditResource operation="meetings.update" row={meeting} label="Edit meeting" fields={[{ name: 'title', label: 'Title', required: true }, { name: 'project_id', label: 'Project', type: 'select', options: [{ value: '', label: 'No project' }, ...items(projects.data).map((row) => ({ value: id(row), label: label(row) }))] }]} {...bind('edit')} />
     <ConfirmCommand trigger="Delete meeting…" title="Delete meeting?" message="Deletes the transcript, notes and audio. Anything already sent elsewhere stays." operation="meetings.delete" payload={{ id: id(meeting), expected_revision: revision(meeting), confirm: true }} onSuccess={() => { void navigate({ to: '/' }); }} {...bind('delete')} />
   </>;
+}
+
+/** The same text as "Copy email" (summary, decisions, actions), one click away. */
+function CopySummary({ meeting }: { meeting: RecordData }) {
+  const copy = useMutation({
+    mutationFn: async () => {
+      const result = await request('export.create', { meeting_id: id(meeting), expected_revision: revision(meeting), format: 'email', include_transcript: false });
+      if (typeof result.text !== 'string' || !result.text.trim()) throw new Error('There is no summary to copy yet.');
+      await nativeRequest('clipboard_share', { request: { operation: 'copy', text: result.text, recipients: [], subject: text(meeting.title) } });
+    },
+  });
+  useEffect(() => { if (!copy.isSuccess) return; const timer = setTimeout(copy.reset, 2000); return () => clearTimeout(timer); }, [copy.isSuccess]);
+  return <><button data-testid="copy-summary" disabled={copy.isPending} onClick={() => copy.mutate()}>{copy.isSuccess ? 'Copied' : 'Copy summary'}</button>{copy.error && <ErrorNotice error={copy.error} />}</>;
 }
 
 const STAGES: Record<string, string> = { drain: 'Finish the transcript', final_diarization: 'Tell speakers apart', final_analysis: 'Summary, actions and topics', minutes: 'Minutes', memory: 'Project memory', index: 'Search index' };
@@ -122,7 +136,7 @@ export function ExportControls({ meeting, open: controlledOpen, onOpenChange }: 
   const exportOperation = useMutation({
     mutationFn: async (share: 'save' | 'copy' | 'mailto') => {
       await flushDrafts();
-      const grant = share === 'save' ? await nativeRequest('file_grant', { purpose: 'export' }) : null;
+      const grant = share === 'save' ? await nativeRequest('file_grant', { purpose: 'export', fileName: `${text(meeting.title) || 'Meeting'}.${{ markdown: 'md', pdf: 'pdf', srt: 'srt', json: 'json' }[format] ?? format}` }) : null;
       if (grant?.cancelled === true) return { cancelled: true };
       const result = await request('export.create', { meeting_id: id(meeting), expected_revision: revision(meeting), format: share === 'save' ? format : 'email', include_transcript: share === 'save' && includeTranscript, ...(grant ? { file_grant: grant.grant_id ?? '' } : {}) });
       if (share !== 'save') {

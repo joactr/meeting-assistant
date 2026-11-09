@@ -9,7 +9,7 @@ import { useNativeResource, useResource } from '../lib/queries';
 import { useInterface } from '../lib/ui-store';
 import { item, number, object, text, type RecordData } from '../lib/data';
 import { buttonClass, Details, ErrorNotice, Modal, Notice, Toolbar } from '../components/ui';
-import { LibraryPage, NewMeeting } from '../features/library';
+import { LibraryPage, NewMeeting, StartNow } from '../features/library';
 import { MeetingPage } from '../features/meeting';
 import { ProjectsPage } from '../features/projects';
 import { FollowupsPage, SearchPage } from '../features/knowledge';
@@ -123,7 +123,9 @@ function Shell() {
       if (modifier && event.key.toLowerCase() === 'k') { event.preventDefault(); void flushDrafts().then(() => navigate({ to: '/search' })).catch(setError); }
       else if (modifier && event.key === ',') { event.preventDefault(); void flushDrafts().then(() => navigate({ to: '/settings' })).catch(setError); }
       else if (modifier && event.shiftKey && event.key.toLowerCase() === 's') { event.preventDefault(); window.dispatchEvent(new Event('meeting-save-minutes')); }
-      else if (!editable && modifier && event.shiftKey && event.key.toLowerCase() === 'm') { event.preventDefault(); const button = document.querySelector<HTMLButtonElement>('[data-testid="stop-meeting"], [data-testid="start-meeting"]'); if (button) button.click(); else document.querySelector<HTMLButtonElement>('[data-testid="new-meeting"]')?.click(); }
+      else if (!editable && modifier && event.shiftKey && event.key.toLowerCase() === 'm') { event.preventDefault(); const button = document.querySelector<HTMLButtonElement>('[data-testid="stop-meeting"], [data-testid="start-meeting"]'); if (button) button.click(); else document.querySelector<HTMLButtonElement>('[data-testid="start-now"]')?.click(); }
+      else if (!editable && modifier && event.shiftKey && event.key.toLowerCase() === 'b') { event.preventDefault(); window.dispatchEvent(new Event('meeting-mark-moment')); }
+      else if (modifier && !event.shiftKey && event.key.toLowerCase() === 'f' && document.querySelector('[aria-label="Meeting transcript"]')) { event.preventDefault(); window.dispatchEvent(new Event('transcript-find')); }
       else if (!editable && event.key === '?') { event.preventDefault(); setShortcutsOpen(true); }
     };
     window.addEventListener('keydown', shortcuts);
@@ -148,13 +150,13 @@ function Shell() {
     <header className={styles.bar}>
       <Link className={styles.brand} to="/" onClick={(event) => followLink(event, '/')}>Meeting Assistant</Link>
       <nav className={styles.nav} aria-label="Main navigation">{navigation.map((entry) => <Link key={entry.to} to={entry.to} onClick={(event) => followLink(event, entry.to)} className={`${styles.navLink} ${current(entry.to) ? styles.active : ''}`} aria-current={current(entry.to) ? 'page' : undefined}>{entry.label}</Link>)}</nav>
-      <div className={styles.actions}><button type="button" className={styles.iconButton} aria-label="Keyboard shortcuts" onClick={() => setShortcutsOpen(true)}><Keyboard size={18} aria-hidden="true" /></button><NewMeeting trigger={<><Plus size={16} aria-hidden="true" />New meeting</>} /></div>
+      <div className={styles.actions}><button type="button" className={styles.iconButton} aria-label="Keyboard shortcuts" onClick={() => setShortcutsOpen(true)}><Keyboard size={18} aria-hidden="true" /></button><StartNow /><NewMeeting trigger={<><Plus size={16} aria-hidden="true" />New meeting</>} /></div>
     </header>
     {!nativeAvailable() && <div className={styles.banner} role="status">Recording, providers, files and playback need the desktop app.</div>}
     {captureMissing && <div className={styles.banner} role="status">Recording is unavailable because the capture host did not start.</div>}
     {(workspace.isError || Boolean(error)) && <div className={styles.errors}>{workspace.isError && <ErrorNotice error={workspace.error} retry={() => { void workspace.refetch(); }} />}{Boolean(error) && <ErrorNotice error={error}><button type="button" onClick={() => setError(undefined)}>Dismiss</button></ErrorNotice>}</div>}
     <main id="workspace-content" className={styles.content} tabIndex={-1}><Outlet /></main>
-  </div><QuitGuard /><UpdatePrompt /><Modal open={shortcutsOpen} onOpenChange={setShortcutsOpen} title="Keyboard shortcuts"><dl><dt>Search</dt><dd><kbd>{mod}K</kbd></dd><dt>Start or stop</dt><dd><kbd>{mod}Shift+M</kbd></dd><dt>Save minutes</dt><dd><kbd>{mod}Shift+S</kbd></dd><dt>Settings</dt><dd><kbd>{mod},</kbd></dd><dt>This list</dt><dd><kbd>?</kbd></dd><dt>Edit a line</dt><dd>Double-click or Enter, Shift+Enter for a new line</dd></dl></Modal></>;
+  </div><QuitGuard /><UpdatePrompt /><Modal open={shortcutsOpen} onOpenChange={setShortcutsOpen} title="Keyboard shortcuts"><dl><dt>Search</dt><dd><kbd>{mod}K</kbd></dd><dt>Start, stop, or start a new meeting</dt><dd><kbd>{mod}Shift+M</kbd></dd><dt>Mark the last line important</dt><dd><kbd>{mod}Shift+B</kbd></dd><dt>Find in transcript</dt><dd><kbd>{mod}F</kbd>, then Enter / Shift+Enter</dd><dt>Save minutes</dt><dd><kbd>{mod}Shift+S</kbd></dd><dt>Settings</dt><dd><kbd>{mod},</kbd></dd><dt>This list</dt><dd><kbd>?</kbd></dd><dt>Edit a line</dt><dd>Double-click or Enter, Shift+Enter for a new line</dd><dt>Rename a speaker</dt><dd>Click their name</dd></dl></Modal></>;
 }
 
 const rootRoute = createRootRoute({ component: Shell });

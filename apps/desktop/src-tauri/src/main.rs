@@ -156,8 +156,27 @@ async fn media_playback(
         .map_err(Into::into)
 }
 #[tauri::command]
-async fn file_grant(host: tauri::State<'_, Host>, purpose: String) -> Result<Value, NativeError> {
-    let dialog = rfd::AsyncFileDialog::new().set_title("Meeting Assistant — explicit file access");
+async fn file_grant(
+    host: tauri::State<'_, Host>,
+    purpose: String,
+    file_name: Option<String>,
+) -> Result<Value, NativeError> {
+    let mut dialog =
+        rfd::AsyncFileDialog::new().set_title("Meeting Assistant — explicit file access");
+    if let Some(name) = file_name {
+        // Suggested name only; the user still picks (or edits) the destination.
+        let name: String = name
+            .chars()
+            .map(|c| {
+                if r#"<>:"/\|?*"#.contains(c) || c.is_control() {
+                    '_'
+                } else {
+                    c
+                }
+            })
+            .collect();
+        dialog = dialog.set_file_name(name.trim());
+    }
     let file = match purpose.as_str() {
         "import_audio" => {
             dialog

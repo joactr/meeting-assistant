@@ -8,6 +8,7 @@ import { AsyncView, Badge, buttonClass, CommandButton, CommandForm, Details, Emp
 import { VirtualList } from '../components/virtual-list';
 import { PrepareEvent } from './connections';
 import { GetStarted, useGetStarted } from './providers';
+import { useInterface } from '../lib/ui-store';
 import styles from './workspace.module.css';
 
 export const LANGUAGES = [['en', 'English'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'], ['pt', 'Portuguese'], ['nl', 'Dutch'], ['ca', 'Catalan'], ['pl', 'Polish'], ['ja', 'Japanese'], ['zh', 'Chinese'], ['ko', 'Korean'], ['ar', 'Arabic'], ['hi', 'Hindi'], ['ru', 'Russian']] as const;
@@ -18,12 +19,23 @@ export function NewMeeting({ trigger = 'New meeting' }: { trigger?: ReactNode })
   const setup = useResource('setup.status');
   const languageSelectable = object(setup.data?.asr).language_selectable === true;
   return <Modal open={open} onOpenChange={setOpen} trigger={<button data-testid="new-meeting" className={buttonClass.primary}>{trigger}</button>} title="New meeting"><CommandForm operation="meetings.create" fields={[
-    { name: 'title', label: 'Meeting name', required: true },
+    { name: 'title', label: 'Meeting name (optional)' },
     { name: 'project_id', label: 'Project', type: 'select', advanced: true, options: [{ value: '', label: 'No project' }, ...items(projects.data).map((row) => ({ value: id(row), label: label(row) }))] },
-    ...(languageSelectable ? [{ name: 'language', label: 'Language', type: 'select' as const, advanced: true, value: '', options: [{ value: '', label: 'Detect automatically' }, ...LANGUAGES.map(([value, name]) => ({ value, label: name }))] }] : []),
-    { name: 'source', label: 'Capture', type: 'select', advanced: true, value: 'both', options: [{ value: 'both', label: 'Microphone and computer audio' }, { value: 'mic', label: 'Microphone only' }, { value: 'system', label: 'Computer audio only' }] },
+    ...(languageSelectable ? [{ name: 'language', label: 'Language', type: 'select' as const, advanced: true, value: '', options: [{ value: '', label: 'As in Settings' }, { value: 'auto', label: 'Detect automatically' }, ...LANGUAGES.map(([value, name]) => ({ value, label: name }))] }] : []),
+    { name: 'source', label: 'Capture', type: 'select', advanced: true, value: '', options: [{ value: '', label: 'As in Settings' }, { value: 'both', label: 'Microphone and computer audio' }, { value: 'mic', label: 'Microphone only' }, { value: 'system', label: 'Computer audio only' }] },
     { name: 'pre_briefing', label: 'Agenda', type: 'textarea', advanced: true },
   ]} mapPayload={(payload) => { const { pre_briefing, ...meeting } = payload; return { ...meeting, config: { human_agenda: pre_briefing ?? '' } }; }} submit="Create meeting" onSuccess={(result) => { const meeting = item(result); setOpen(false); void navigate({ to: '/meeting/$meetingId', params: { meetingId: id(meeting) } }); }} /></Modal>;
+}
+
+/** Creates a meeting named after the current time and starts it with the Settings devices. */
+export function StartNow() {
+  const navigate = useNavigate();
+  const setAutoStart = useInterface((state) => state.setAutoStart);
+  const create = useMutation({
+    mutationFn: () => request('meetings.create', {}),
+    onSuccess: (result) => { const meetingId = id(item(result)); setAutoStart(meetingId); void navigate({ to: '/meeting/$meetingId', params: { meetingId } }); },
+  });
+  return <><button data-testid="start-now" disabled={!nativeAvailable() || create.isPending} onClick={() => create.mutate()}>{create.isPending ? 'Starting…' : 'Start meeting now'}</button>{create.error && <ErrorNotice error={create.error} />}</>;
 }
 
 export function ImportMeeting() {

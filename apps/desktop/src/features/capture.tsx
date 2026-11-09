@@ -4,8 +4,8 @@ import { listen } from '@tauri-apps/api/event';
 import { ApplicationError, nativeAvailable, nativeRequest, request } from '../lib/bridge';
 import { flushDrafts } from '../lib/drafts';
 import { useNativeResource, useResource } from '../lib/queries';
-import { array, clock, id, items, label, number, object, revision, text, type RecordData } from '../lib/data';
-import { AsyncView, Badge, buttonClass, CommandButton, CommandForm, Details, EditResource, Empty, ErrorNotice, FieldInput, Modal, Notice, Panel, Toolbar, useOpenState } from '../components/ui';
+import { array, clock, id, item, items, label, number, object, revision, text, type RecordData } from '../lib/data';
+import { AsyncView, Badge, buttonClass, CommandButton, CommandForm, Details, EditResource, Empty, ErrorNotice, Modal, Notice, Panel, Toolbar, useOpenState } from '../components/ui';
 import { SetupLink } from './providers';
 import { useInterface } from '../lib/ui-store';
 import styles from './workspace.module.css';
@@ -15,17 +15,26 @@ export function CaptureControls({ meeting }: { meeting: RecordData }) {
   const setPanel = useInterface((state) => state.setPanel);
   const [startOpen, setStartOpen] = useState(false);
   const [stopOpen, setStopOpen] = useState(false);
-  const [mic, setMic] = useState('');
-  const [system, setSystem] = useState('');
-  const [recordAudio, setRecordAudio] = useState(false);
   const [vocabularyReviewed, setVocabularyReviewed] = useState(false);
   const intent = useRef<{ operation: string; payload: RecordData } | null>(null);
-  const devices = useNativeResource('audio_devices', {}, startOpen);
-  const vocabulary = useResource('meetings.vocabulary_check', { meeting_id: id(meeting) }, startOpen);
+  const state = text(meeting.state, 'draft');
+  // Devices and recording come from Settings; starting asks nothing unless vocabulary needs review.
+  const draft = state === 'draft';
+  const devices = useNativeResource('audio_devices', {}, draft);
+  const settings = useResource('settings.get', {}, draft);
+  const vocabulary = useResource('meetings.vocabulary_check', { meeting_id: id(meeting) }, draft);
   const acknowledgementKey = text(vocabulary.data?.acknowledgement_key);
   const config = object(meeting.config_snapshot);
   const sourceMode = text(config.source, 'both');
-  const state = text(meeting.state, 'draft');
+  const stored = item(settings.data);
+  const saved = object(stored.nonsecret_settings ?? stored.settings);
+  const recordAudio = object(saved.recording).enabled === true;
+  const deviceRows = items(devices.data).length ? items(devices.data) : array(devices.data?.devices);
+  // A saved device that is gone (unplugged) falls back to the Windows default.
+  const pick = (kind: string, key: unknown) => text(deviceRows.find((row) => row.kind === kind && key && row.key === key)?.key) || text(deviceRows.find((row) => row.kind === kind && row.is_default)?.key);
+  const micKey = pick('mic', object(saved.capture).microphone_device_key);
+  const systemKey = pick('system', object(saved.capture).system_device_key);
+  const missing = [sourceMode !== 'system' && !micKey && 'microphone', sourceMode !== 'mic' && !systemKey && 'computer audio'].filter(Boolean);
   const command = useMutation({
     mutationFn: async (operation: 'start' | 'pause' | 'resume' | 'stop') => {
       await flushDrafts();
@@ -38,30 +47,33 @@ export function CaptureControls({ meeting }: { meeting: RecordData }) {
     },
     onSuccess: async (_result, operation) => { intent.current = null; setStartOpen(false); setStopOpen(false); if (operation === 'stop') setPanel('Outcomes'); await client.invalidateQueries({ queryKey: ['engine'] }); },
   });
-  const deviceRows = items(devices.data).length ? items(devices.data) : array(devices.data?.devices);
-  const micKey = mic || text(deviceRows.find((row) => row.kind === 'mic' && row.is_default)?.key);
-  const systemKey = system || text(deviceRows.find((row) => row.kind === 'system' && row.is_default)?.key);
-  const options = (kind: string) => [{ value: '', label: 'Choose device' }, ...deviceRows.filter((row) => row.kind === kind).map((row) => ({ value: text(row.key), label: row.is_default ? `${text(row.name)} (Windows default)` : text(row.name) }))];
   const omittedTerms = vocabulary.data?.omitted;
   const omitted = Array.isArray(omittedTerms) ? omittedTerms.map((term) => typeof term === 'string' ? term : label(object(term))) : [];
+  const ready = devices.isSuccess && settings.isSuccess && vocabulary.isSuccess && missing.length === 0;
+  const autoStart = useInterface((s) => s.autoStart);
+  const setAutoStart = useInterface((s) => s.setAutoStart);
+  const begin = (): void => { if (omitted.length > 0) setStartOpen(true); else command.mutate('start'); };
+  useEffect(() => {
+    if (autoStart !== id(meeting) || !draft) return;
+    // Missing devices: stop waiting and let the notice below explain.
+    if (devices.isSuccess && missing.length > 0) { setAutoStart(null); return; }
+    if (ready) { setAutoStart(null); begin(); }
+  }, [autoStart, ready, draft, devices.isSuccess, missing.length]);
   const failure = command.error ? <ErrorNotice error={command.error}>{command.error instanceof ApplicationError && command.error.code === 'asr_unavailable' && <SetupLink />}</ErrorNotice> : null;
   return <>
     {/* Only states that can act get a control: processing, stopping, starting and complete show none. */}
     <Toolbar>
-      {state === 'draft' && <button data-testid="start-meeting" className={buttonClass.primary} onClick={() => setStartOpen(true)} disabled={!nativeAvailable()}>Start meeting</button>}
+      {state === 'draft' && <button data-testid="start-meeting" className={buttonClass.primary} onClick={begin} disabled={!nativeAvailable() || !ready || command.isPending}>{command.isPending && !startOpen ? 'Starting…' : 'Start meeting'}</button>}
       {state === 'recording' && <button disabled={command.isPending} onClick={() => command.mutate('pause')}>Pause</button>}
       {state === 'paused' && <button disabled={command.isPending} onClick={() => command.mutate('resume')}>Resume</button>}
       {(state === 'recording' || state === 'paused') && <button data-testid="stop-meeting" className={buttonClass.primary} disabled={command.isPending} onClick={() => setStopOpen(true)}>Stop meeting</button>}
       {(state === 'interrupted' || state === 'attention_required') && <button data-testid="stop-meeting" className={buttonClass.primary} disabled={command.isPending} onClick={() => command.mutate('stop')}>{state === 'interrupted' ? 'Finish and process' : 'Try again'}</button>}
     </Toolbar>
+    {draft && devices.isSuccess && missing.length > 0 && <Notice danger>No {missing.join(' or ')} found. Connect one or choose it in Settings.</Notice>}
     {failure}
-    <Modal open={startOpen} onOpenChange={setStartOpen} title="Ready to capture?"><AsyncView query={devices}>{() => <>
-      {sourceMode !== 'system' && <FieldInput field={{ name: 'mic', label: 'Microphone', type: 'select', options: options('mic') }} value={micKey} onChange={(value) => { setMic(text(value)); intent.current = null; }} />}
-      {sourceMode !== 'mic' && <FieldInput field={{ name: 'system', label: 'System audio', type: 'select', options: options('system') }} value={systemKey} onChange={(value) => { setSystem(text(value)); intent.current = null; }} />}
-      <label className={styles.check}><input type="checkbox" checked={recordAudio} onChange={(event) => { setRecordAudio(event.target.checked); intent.current = null; }} />Keep the audio recording</label>
-      {omitted.length > 0 && <><Notice>Some vocabulary terms will not be used for this meeting: {omitted.join(', ')}</Notice><label className={styles.check}><input type="checkbox" checked={vocabularyReviewed} onChange={(event) => { setVocabularyReviewed(event.target.checked); intent.current = null; }} />I’ve reviewed the omitted terms</label></>}
-      <button className={buttonClass.primary} disabled={command.isPending || (sourceMode !== 'system' && !micKey) || (sourceMode !== 'mic' && !systemKey) || (omitted.length > 0 && !vocabularyReviewed)} onClick={() => command.mutate('start')}>{command.isPending ? 'Starting…' : 'Start'}</button>
-    </>}</AsyncView>
+    <Modal open={startOpen} onOpenChange={setStartOpen} title="Ready to capture?">
+      <Notice>Some vocabulary terms will not be used for this meeting: {omitted.join(', ')}</Notice><label className={styles.check}><input type="checkbox" checked={vocabularyReviewed} onChange={(event) => { setVocabularyReviewed(event.target.checked); intent.current = null; }} />I’ve reviewed the omitted terms</label>
+      <button className={buttonClass.primary} disabled={command.isPending || !vocabularyReviewed} onClick={() => command.mutate('start')}>{command.isPending ? 'Starting…' : 'Start'}</button>
     {failure}</Modal>
     <Modal open={stopOpen} onOpenChange={setStopOpen} title="Stop this meeting?"><Toolbar><button className={buttonClass.primary} disabled={command.isPending} onClick={() => command.mutate('stop')}>{command.isPending ? 'Stopping…' : 'Stop'}</button><button onClick={() => setStopOpen(false)}>Keep going</button></Toolbar>
     {command.error && <ErrorNotice error={command.error} />}</Modal>

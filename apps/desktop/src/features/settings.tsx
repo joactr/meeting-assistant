@@ -16,6 +16,7 @@ import styles from './workspace.module.css';
 const groups: { id: string; title: string; notice?: string; fields: Field[] }[] = [
   { id: 'capture', title: 'Capture', fields: [
     { name: 'mode', label: 'Capture', type: 'select', value: 'both', options: [{ value: 'both', label: 'Microphone and computer audio' }, { value: 'mic', label: 'Microphone only' }, { value: 'system', label: 'Computer audio only' }] },
+    { name: 'meeting_language', label: 'Meeting language', type: 'select', value: 'auto', options: [{ value: 'auto', label: 'Detect automatically' }, ...LANGUAGES.map(([value, name]) => ({ value, label: name }))] },
     { name: 'microphone_device_key', label: 'Microphone', type: 'select' },
     { name: 'system_device_key', label: 'Computer audio', type: 'select' },
     { name: 'vad_threshold', label: 'Speech detection sensitivity (0 to 1)', type: 'number', value: .5, min: 0, max: 1 },

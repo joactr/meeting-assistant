@@ -57,6 +57,27 @@ def ingest(
     )["item"]
 
 
+def test_create_meeting_defaults_come_from_settings(workspace: Workspace) -> None:
+    revision = workspace.get("workspace_settings", "workspace")["revision"]
+    workspace.dispatch(
+        "settings.save",
+        {
+            "expected_revision": revision,
+            "settings": {"capture": {"mode": "mic", "meeting_language": "es"}},
+        },
+    )
+    meeting = workspace.dispatch("meetings.create", {})["item"]
+    config = meeting["config_snapshot"]
+    assert meeting["title"].startswith("Meeting ")
+    assert (config["source"], config["meeting_language"]) == ("mic", "es")
+    explicit = workspace.dispatch(
+        "meetings.create", {"title": " Plan ", "source": "both", "language": "auto"}
+    )["item"]
+    assert explicit["title"] == "Plan"
+    assert explicit["config_snapshot"]["source"] == "both"
+    assert "meeting_language" not in explicit["config_snapshot"]
+
+
 def test_p15_manual_text_survives_late_provider_and_search_removes_old_text(
     workspace: Workspace,
 ) -> None:

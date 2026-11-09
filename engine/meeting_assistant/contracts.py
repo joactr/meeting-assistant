@@ -112,7 +112,7 @@ FIELD_TYPES.update(
     {"person_id": str, "meeting_speaker_id": str, "confirm": bool, "source_stopped": bool}
 )
 CORE_REQUIRED = {
-    "meetings.create": ("title",),
+    "meetings.create": (),
     "meetings.get": ("id",),
     "meetings.update": ("id", "expected_revision"),
     "meetings.delete": ("id", "expected_revision"),
