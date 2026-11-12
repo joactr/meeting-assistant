@@ -50,7 +50,10 @@ export function humanize(value: unknown): string {
 
 export function clock(milliseconds: unknown): string {
   const seconds = Math.max(0, Math.floor(number(milliseconds) / 1000));
-  return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
+  const pad = (value: number) => value.toString().padStart(2, '0');
+  const hours = Math.floor(seconds / 3600);
+  const rest = `${pad(Math.floor((seconds % 3600) / 60))}:${pad(seconds % 60)}`;
+  return hours ? `${hours}:${rest}` : rest;
 }
 
 export function date(value: unknown): string {

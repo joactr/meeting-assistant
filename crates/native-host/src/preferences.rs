@@ -44,7 +44,9 @@ pub struct Preferences {
     pub tray_enabled: bool,
     pub always_on_top: bool,
     pub theme: String,
-    pub sidebar_collapsed: bool,
+    /// Retained only so stored preferences keep deserializing; no longer used or written.
+    #[serde(rename = "sidebar_collapsed", skip_serializing)]
+    _sidebar_collapsed: bool,
     pub selected_tabs: serde_json::Value,
     pub window: Window,
     pub updates: Updates,
@@ -54,9 +56,9 @@ impl Default for Preferences {
         Self {
             schema_version: 1,
             tray_enabled: false,
-            always_on_top: true,
+            always_on_top: false,
             theme: "system".into(),
-            sidebar_collapsed: false,
+            _sidebar_collapsed: false,
             selected_tabs: serde_json::json!({}),
             window: Window::default(),
             updates: Updates::default(),

@@ -84,10 +84,19 @@
 }
 
 .banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-md);
   padding: var(--space-xs) var(--edge);
   background: var(--color-paper-2);
   color: var(--color-ink);
   font-size: var(--text-sm);
+}
+
+.banner button {
+  min-height: 0;
+  padding: 0 var(--space-sm);
 }
 
 .content {
@@ -109,8 +118,10 @@
   padding: var(--space-xs) var(--edge) 0;
 }
 
+/* Narrow windows: the nav keeps every destination visible; `?` still opens the shortcuts list. */
 @media (max-width: 60rem) {
-  .brand {
+  .brand,
+  .actions .iconButton {
     display: none;
   }
 }
@@ -122,6 +133,15 @@
 
   .nav {
     gap: var(--space-md);
+  }
+
+  .collapsible {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 

@@ -94,7 +94,7 @@ class Workspace(Store):
                     {
                         "state": "interrupted",
                         "health": "degraded",
-                        "interrupted_reason": "Engine ended before capture preservation. Unacknowledged audio is unavailable when recording was disabled.",
+                        "interrupted_reason": "The app closed while this meeting was recording. Everything transcribed before then is kept; the last moments may be missing.",
                     },
                     expected_revision=current["revision"],
                 )

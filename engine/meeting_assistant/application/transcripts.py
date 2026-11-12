@@ -506,7 +506,7 @@ def register_transcripts(w: Workspace, r: CommandRegistry) -> None:
             require(
                 p["capture_epoch"] == meeting["capture_epoch"],
                 "capture_epoch_conflict",
-                "Result belongs to an obsolete capture epoch.",
+                "This result belongs to an earlier recording session.",
             )
         key = (
             str(p.get("source_id", "")),

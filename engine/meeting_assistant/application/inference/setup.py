@@ -15,6 +15,7 @@ from ...infrastructure.providers.contracts import (
     is_loopback,
     normalize_endpoint,
 )
+from ...infrastructure.providers.llm import http_message
 from ...infrastructure.providers.registry import DESCRIPTORS, resolve_capabilities
 from ...infrastructure.workers.models import FAMILIES
 from ..routing import task_policy
@@ -163,11 +164,11 @@ async def setup_models(
         body: dict[str, Any] = response.json()
     except httpx.HTTPStatusError as exc:
         code = "invalid_input" if exc.response.status_code in (401, 403) else "unavailable"
-        raise ProviderError(
-            code, f"Provider refused the model list ({exc.response.status_code})"
-        ) from exc
+        raise ProviderError(code, http_message("", exc.response.status_code)) from exc
     except (httpx.HTTPError, ValueError) as exc:
-        raise ProviderError("unavailable", "Could not reach the provider to list models") from exc
+        raise ProviderError(
+            "unavailable", "Couldn't reach the AI provider to list its models."
+        ) from exc
     rows: list[dict[str, Any]] = body.get("models" if adapter == "ollama" else "data") or []
     items: list[dict[str, Any]] = []
     for row in rows:

@@ -1,17 +1,18 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { nativeAvailable, nativeRequest, request } from '../lib/bridge';
 import { useNativeResource, useResource } from '../lib/queries';
 import { updatePreferences } from '../lib/preferences';
-import { array, id, item, items, label, number, object, revision, text, type RecordData } from '../lib/data';
+import { array, humanize, id, item, items, label, number, object, revision, text, type Json, type RecordData } from '../lib/data';
 import { AsyncView, Badge, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, ErrorNotice, FieldInput, Grid, Modal, Notice, Panel, TabSet, Toolbar, type Field } from '../components/ui';
 import { FilterDisclosure } from '../components/controls';
+import { LANGUAGES } from './library';
 import styles from './workspace.module.css';
 
 /** Settings tab labels in order; the tab set persists its selection under their joined key. */
-export const settingsTabs = ['Transcription & AI', 'Audio', 'Meetings', 'Privacy & data', 'App'];
+export const settingsTabs = ['Transcription & AI', 'Audio', 'Meetings', 'Integrations', 'Privacy & data', 'App'];
 
 /** Opens Settings on the Transcription & AI tab. */
 export function SetupLink({ children = 'Set up transcription' }: { children?: ReactNode }) {
@@ -27,6 +28,10 @@ export function SetupLink({ children = 'Set up transcription' }: { children?: Re
 
 const taskLabels: Record<string, string> = { asr: 'Transcription', diarization: 'Speakers', cues: 'Live suggestions', summary: 'Summary', actions: 'Actions', topics: 'Topics', artifacts: 'Artifacts', minutes: 'Minutes', briefings: 'Briefings', ask: 'Ask', digest: 'Digest', embeddings: 'Search by meaning', general: 'All AI tasks' };
 const taskLabel = (task: string): string => taskLabels[task] ?? task;
+
+const profileName = (profile: RecordData): string => text(profile.name) || text(profile.model_id) || label(profile);
+const connectionName = (profile: RecordData, connections: RecordData[]): string => { const connection = connections.find((candidate) => id(candidate) === profile.connection_id); return connection ? label(connection) : ''; };
+const profileLabel = (profile: RecordData, connections: RecordData[]): string => { const connection = connectionName(profile, connections); return connection ? `${profileName(profile)} (${connection})` : profileName(profile); };
 
 function profileFields(connections: RecordData[]): Field[] {
   return [
@@ -44,12 +49,13 @@ export function SecureSecret({ label: promptLabel, onStored, action = 'Save cred
   return <div><button type="button" disabled={!nativeAvailable() || command.isPending} onClick={() => command.mutate()}>{command.isPending ? 'Waiting…' : action}</button>{Boolean(command.error) && <ErrorNotice error={command.error} />}</div>;
 }
 
-/** API key field: hidden text with a show toggle; stored by the engine on blur. */
-export function SecretInput({ label: fieldLabel, onStored }: { label: string; onStored: (reference: string) => void }) {
+/** API key field: hidden text with a show toggle; stored by the engine on blur. `saved` = a key is already stored; leaving it empty keeps it. */
+export function SecretInput({ label: fieldLabel, onStored, saved = false }: { label: string; onStored: (reference: string) => void; saved?: boolean }) {
   const [value, setValue] = useState('');
   const [shown, setShown] = useState(false);
+  const inputId = useId();
   const store = useMutation({ mutationFn: (secret: string) => request('secrets.store', { value: secret }), onSuccess: (result) => onStored(text(result.secret_ref)) });
-  return <label>{fieldLabel}<span className={styles.secret}><input type={shown ? 'text' : 'password'} autoComplete="off" spellCheck={false} value={value} onChange={(event) => setValue(event.target.value)} onBlur={() => { if (value.trim()) store.mutate(value); }} /><button type="button" aria-label={shown ? 'Hide' : 'Show'} onClick={() => setShown(!shown)}>{shown ? <EyeOff size={16} /> : <Eye size={16} />}</button></span>{Boolean(store.error) && <ErrorNotice error={store.error} />}</label>;
+  return <div><label htmlFor={inputId}>{fieldLabel}</label><span className={styles.secret}><input id={inputId} type={shown ? 'text' : 'password'} autoComplete="off" spellCheck={false} placeholder={saved ? 'API key saved' : undefined} value={value} onChange={(event) => setValue(event.target.value)} onBlur={() => { if (value.trim()) store.mutate(value); }} /><button type="button" aria-label={`${shown ? 'Hide' : 'Show'} ${fieldLabel}`} onClick={() => setShown(!shown)}>{shown ? <EyeOff size={16} /> : <Eye size={16} />}</button></span>{Boolean(store.error) && <ErrorNotice error={store.error} />}</div>;
 }
 
 export function ProviderSettings() {
@@ -58,22 +64,38 @@ export function ProviderSettings() {
   const profiles = useResource('entity.list', { collection: 'model_profiles' });
   const policies = useResource('entity.list', { collection: 'task_policies' });
   return <TabSet tabs={[
-    { label: 'Connections', content: <><Panel title="Connections"><AsyncView query={connections}>{(data) => items(data).length === 0 ? <Empty title="No connections" /> : items(data).map((row) => <article key={id(row)} className={styles.actionRow}><div><strong>{label(row)}</strong><p>{text(row.endpoint ?? row.base_url, 'Local runtime')}</p><Details value={row} title="Details" /></div><Toolbar><ConnectionTest connection={row} profiles={items(profiles.data)} /><EditResource operation="entity.update" row={row} fixed={{ collection: 'provider_connections' }} fields={[{ name: 'display_name', label: 'Name', required: true }, { name: 'endpoint', label: 'Endpoint (no credentials in URL)' }, { name: 'region', label: 'Region', advanced: true }, { name: 'deployment', label: 'Azure deployment', advanced: true }]} label="Edit" /><ConfirmCommand trigger="Remove connection" title="Remove connection?" message="Tasks using this connection must finish first. Saved credentials stay in the vault." operation="entity.delete" payload={{ collection: 'provider_connections', id: id(row), expected_revision: revision(row) }} /></Toolbar></article>)}</AsyncView></Panel><NewConnection descriptors={items(descriptors.data)} /></> },
-    { label: 'Model profiles', content: <Panel title="Model profiles" actions={<ModelProfileCreation connections={items(connections.data)} />}><AsyncView query={profiles}>{(data) => items(data).length === 0 ? <Empty title="No model profiles" /> : items(data).map((row) => <article key={id(row)} className={styles.actionRow}><div><strong>{label(row)}</strong><p>{text(row.model_id)}</p><Details value={row} title="Details" /></div><Toolbar><EditResource operation="entity.update" row={row} fixed={{ collection: 'model_profiles' }} fields={profileFields(items(connections.data))} label="Edit" /><ConfirmCommand trigger="Delete profile" title="Delete profile?" message="Tasks using this profile must finish first." operation="entity.delete" payload={{ collection: 'model_profiles', id: id(row), expected_revision: revision(row) }} /></Toolbar></article>)}</AsyncView></Panel> },
-    { label: 'Task routing', content: <Panel title="Task routing" actions={<Modal trigger={<button>Add task policy</button>} title="Add task routing"><CommandForm operation="entity.create" fixed={{ collection: 'task_policies' }} fields={taskPolicyFields(items(profiles.data))} /></Modal>}><AsyncView query={policies}>{(data) => items(data).length === 0 ? <Empty title="No task routing" /> : items(data).map((row) => <article key={id(row)} className={styles.actionRow}><div><strong>{taskLabel(text(row.task))}</strong><p>{label(items(profiles.data).find((profile) => id(profile) === text(row.model_profile_id)) ?? {})}</p><Details value={row} title="Details" /></div><EditResource operation="entity.update" row={row} fixed={{ collection: 'task_policies' }} fields={taskPolicyFields(items(profiles.data))} label="Edit" /></article>)}</AsyncView></Panel> },
+    { label: 'Connections', content: <><Panel title="Connections"><AsyncView query={connections}>{(data) => items(data).length === 0 ? <Empty title="No connections" /> : items(data).map((row) => <article key={id(row)} className={styles.actionRow}><div><strong>{label(row)}</strong><p>{text(row.endpoint ?? row.base_url, 'Local runtime')}</p><Details value={row} title="Details" /></div><Toolbar><ConnectionTest connection={row} profiles={items(profiles.data)} /><ConnectionEdit row={row} /><ConfirmCommand trigger="Remove connection" title="Remove connection?" message="Tasks using this connection must finish first. Saved credentials stay in the vault." operation="entity.delete" payload={{ collection: 'provider_connections', id: id(row), expected_revision: revision(row) }} /></Toolbar></article>)}</AsyncView></Panel><NewConnection descriptors={items(descriptors.data)} /></> },
+    { label: 'Model profiles', content: <Panel title="Model profiles" actions={<ModelProfileCreation connections={items(connections.data)} />}><AsyncView query={profiles}>{(data) => items(data).length === 0 ? <Empty title="No model profiles" /> : items(data).map((row) => <article key={id(row)} className={styles.actionRow}><div><strong>{profileName(row)}</strong><p>{[text(row.name) ? text(row.model_id) : '', connectionName(row, items(connections.data))].filter(Boolean).join(' · ')}</p><Details value={row} title="Details" /></div><Toolbar><EditResource operation="entity.update" row={{ ...row, name: profileName(row) }} fixed={{ collection: 'model_profiles' }} fields={profileFields(items(connections.data))} label="Edit model profile" /><ConfirmCommand trigger="Delete profile" title="Delete profile?" message="Tasks using this profile must finish first." operation="entity.delete" payload={{ collection: 'model_profiles', id: id(row), expected_revision: revision(row) }} /></Toolbar></article>)}</AsyncView></Panel> },
+    { label: 'Task routing', content: <Panel title="Task routing" actions={<TaskRouting profiles={items(profiles.data)} connections={items(connections.data)} />}><AsyncView query={policies}>{(data) => items(data).length === 0 ? <Empty title="No task routing" /> : items(data).map((row) => { const assigned = items(profiles.data).find((profile) => id(profile) === text(row.model_profile_id)); return <article key={id(row)} className={styles.actionRow}><div><strong>{taskLabel(text(row.task))}</strong><p>{assigned ? profileLabel(assigned, items(connections.data)) : 'Profile not found'}</p><Details value={row} title="Details" /></div><TaskRouting row={row} profiles={items(profiles.data)} connections={items(connections.data)} /></article>; })}</AsyncView></Panel> },
   ]} />;
 }
 
-function taskPolicyFields(profiles: RecordData[]): Field[] {
+function taskPolicyFields(profiles: RecordData[], connections: RecordData[], row?: RecordData): Field[] {
+  const current = (name: string, fallback: Json): Json => row?.[name] ?? fallback;
+  const saved = text(row?.language);
+  const languages = [{ value: '', label: 'Same as the meeting' }, ...LANGUAGES.map(([value, name]) => ({ value: value as string, label: name as string }))];
+  // 'auto' is the old spelling of "same as the meeting".
+  const language = saved === 'auto' ? '' : saved;
   return [
-    { name: 'task', label: 'Task', type: 'select', value: 'summary', options: Object.keys(taskLabels).map((value) => ({ value, label: taskLabel(value) })) },
-    { name: 'model_profile_id', label: 'Model profile', type: 'select', required: true, options: [{ value: '', label: 'Select a model profile' }, ...profiles.map((profile) => ({ value: id(profile), label: label(profile) }))] },
-    { name: 'language', label: 'Output language', value: 'auto', advanced: true },
-    { name: 'deadline_ms', label: 'Deadline (milliseconds)', type: 'number', value: 60000, min: 1000, max: 1800000, advanced: true },
-    { name: 'token_limit', label: 'Maximum output tokens', type: 'number', value: 4096, min: 1, max: 32768, advanced: true },
-    { name: 'fallback_ids', label: 'Fallback profile IDs (JSON array)', type: 'json', value: [], advanced: true },
-    { name: 'budget_limit', label: 'Max cost per task (0 = no cap)', type: 'number', value: 0, min: 0, advanced: true },
+    { name: 'task', label: 'Task', type: 'select', value: current('task', 'summary'), options: Object.keys(taskLabels).map((value) => ({ value, label: taskLabel(value) })) },
+    { name: 'model_profile_id', label: 'Model profile', type: 'select', required: true, value: current('model_profile_id', ''), options: [{ value: '', label: 'Select a model profile' }, ...profiles.map((profile) => ({ value: id(profile), label: profileLabel(profile, connections) }))] },
+    { name: 'language', label: 'Output language', type: 'select', value: language, options: language && !languages.some((option) => option.value === language) ? [...languages, { value: language, label: language }] : languages, advanced: true },
+    { name: 'deadline_ms', label: 'Deadline (seconds)', type: 'number', value: number(row?.deadline_ms, 60000) / 1000, min: 1, max: 1800, advanced: true },
+    { name: 'token_limit', label: 'Maximum output tokens', type: 'number', value: current('token_limit', 4096), min: 1, max: 32768, advanced: true },
+    { name: 'budget_limit', label: 'Max cost per task (0 = no cap)', type: 'number', value: current('budget_limit', 0), min: 0, advanced: true },
   ];
+}
+
+/** Add or edit a task route. Fallbacks are ticked in order and sent as the same id array; the deadline is shown in seconds and sent in milliseconds. */
+function TaskRouting({ row, profiles, connections }: { row?: RecordData; profiles: RecordData[]; connections: RecordData[] }) {
+  const [fallbacks, setFallbacks] = useState<string[]>(() => (Array.isArray(row?.fallback_ids) ? row.fallback_ids : []).map((value) => text(value)));
+  const others = profiles.filter((profile) => id(profile) !== text(row?.model_profile_id));
+  const title = row ? 'Edit task routing' : 'Add task routing';
+  return <Modal trigger={<button>{title}</button>} title={title}>
+    <CommandForm operation={row ? 'entity.update' : 'entity.create'} fixed={{ collection: 'task_policies', ...(row ? { id: row.id ?? '', expected_revision: row.revision ?? 1 } : {}) }} fields={taskPolicyFields(profiles, connections, row)} mapPayload={(payload) => ({ ...payload, deadline_ms: typeof payload.deadline_ms === 'number' ? Math.round(payload.deadline_ms * 1000) : payload.deadline_ms ?? null, fallback_ids: fallbacks.filter((fallback) => fallback !== payload.model_profile_id) })}>
+      {others.length > 0 && <fieldset><legend>Fallback profiles (tried in the order ticked)</legend>{others.map((profile) => <label key={id(profile)} className={styles.check}><input type="checkbox" checked={fallbacks.includes(id(profile))} onChange={(event) => setFallbacks(event.target.checked ? [...fallbacks, id(profile)] : fallbacks.filter((fallback) => fallback !== id(profile)))} />{profileLabel(profile, connections)}</label>)}</fieldset>}
+    </CommandForm>
+  </Modal>;
 }
 
 const FIXED_HOSTS: Record<string, string> = { openai: 'api.openai.com', openrouter: 'openrouter.ai' };
@@ -96,39 +118,51 @@ export function LlmSetup() {
   const client = useQueryClient();
   const ollama = object(status.data?.ollama);
   const adapters = descriptors.filter((descriptor) => Array.isArray(descriptor.roles) && descriptor.roles.includes('llm')).map(id).sort((a, b) => Number(b === 'ollama') - Number(a === 'ollama'));
+  const connections = items(useResource('entity.list', { collection: 'provider_connections' }).data);
+  const profiles = items(useResource('entity.list', { collection: 'model_profiles' }).data);
+  const active = object(status.data?.llm);
+  const activeProfile = profiles.find((profile) => id(profile) === text(active.profile_id));
+  const activeConnection = connections.find((connection) => id(connection) === activeProfile?.connection_id);
   const [choice, setChoice] = useState('');
-  const [model, setModel] = useState('');
-  const [endpoint, setEndpoint] = useState('');
+  const [model, setModel] = useState<string | null>(null);
+  const [endpoint, setEndpoint] = useState<string | null>(null);
   const [secretRef, setSecretRef] = useState('');
   const [contextWindow, setContextWindow] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
-  const adapter = choice || (ollama.available === true ? 'ollama' : adapters.find((candidate) => candidate !== 'ollama') ?? 'ollama');
+  const adapter = choice || text(active.adapter) || (ollama.available === true ? 'ollama' : adapters.find((candidate) => candidate !== 'ollama') ?? 'ollama');
+  const onActive = adapter === text(active.adapter);
+  const modelValue = model ?? (onActive ? text(active.model_id) : '');
+  const endpointValue = endpoint ?? (onActive ? text(activeConnection?.endpoint) : '');
   const isOllama = adapter === 'ollama';
   const needsEndpoint = adapter === 'openai-compatible' || adapter === 'azure-openai';
-  const canList = isOllama || Boolean(secretRef && (adapter === 'openrouter' || adapter === 'openai' || (adapter === 'openai-compatible' && endpoint)));
-  const listed = useResource('setup.models', { adapter, ...(needsEndpoint && endpoint ? { endpoint } : {}), ...(!isOllama && secretRef ? { secret_ref: secretRef } : {}) }, canList);
+  // The saved key is a vault reference; reuse it only for the same provider and endpoint so it never goes to another host.
+  const savedRef = onActive && !isOllama && (!needsEndpoint || endpointValue === text(activeConnection?.endpoint)) ? text(activeConnection?.secret_ref) : '';
+  const keyRef = secretRef || savedRef;
+  const canList = isOllama || Boolean(keyRef && (adapter === 'openrouter' || adapter === 'openai' || (adapter === 'openai-compatible' && endpointValue)));
+  const listed = useResource('setup.models', { adapter, ...(needsEndpoint && endpointValue ? { endpoint: endpointValue } : {}), ...(!isOllama && keyRef ? { secret_ref: keyRef } : {}) }, canList);
   const available = items(listed.data);
-  const picked = available.find((row) => id(row) === model)?.context_length;
-  const windowValue = contextWindow ?? (typeof picked === 'number' ? String(picked) : isOllama ? '' : '128000');
-  const destination = consentHost(adapter, endpoint);
+  const picked = available.find((row) => id(row) === modelValue)?.context_length;
+  const savedWindow = onActive && model === null && typeof activeProfile?.context_window === 'number' ? String(activeProfile.context_window) : undefined;
+  const windowValue = contextWindow ?? savedWindow ?? (typeof picked === 'number' ? String(picked) : isOllama ? '' : '128000');
+  const destination = consentHost(adapter, endpointValue);
   const save = useMutation({
-    mutationFn: () => request('setup.llm', { adapter, model, ...(needsEndpoint ? { endpoint } : {}), ...(!isOllama && secretRef ? { secret_ref: secretRef } : {}), ...(windowValue ? { context_window: Number(windowValue) } : {}), ...(destination ? { accepted_destination: agreed } : {}) }),
+    mutationFn: () => request('setup.llm', { adapter, model: modelValue, ...(needsEndpoint ? { endpoint: endpointValue } : {}), ...(!isOllama && keyRef ? { secret_ref: keyRef } : {}), ...(windowValue ? { context_window: Number(windowValue) } : {}), ...(destination ? { accepted_destination: agreed } : {}) }),
     onSuccess: async () => { await client.invalidateQueries({ queryKey: ['engine'] }); },
   });
   const choose = (value: string): void => { setChoice(value); setModel(''); setEndpoint(''); setSecretRef(''); setContextWindow(null); setAgreed(false); save.reset(); };
   return <Panel title="AI for summaries" actions={status.data?.llm_ready === true ? <Badge tone="success">Ready</Badge> : undefined}>
     {adapters.length > 0 && <form className={styles.settingsForm} onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>
       <FieldInput field={{ name: 'provider', label: 'Provider', type: 'select', options: adapters.map((value) => ({ value, label: value === 'ollama' && ollama.available === true ? 'ollama (running on this computer)' : value === 'openrouter' ? 'OpenRouter' : value === 'openai-compatible' ? 'OpenAI-compatible endpoint' : value })) }} value={adapter} onChange={(value) => choose(text(value))} />
-      {needsEndpoint && <FieldInput field={{ name: 'endpoint', label: 'Endpoint', required: true }} value={endpoint} onChange={(value) => setEndpoint(text(value))} />}
-      {!isOllama && <SecretInput label="API key" onStored={setSecretRef} />}
-      <FieldInput field={{ name: 'model', label: 'Model', required: true, ...(canList && available.length > 0 ? { suggestions: available.map(id) } : {}) }} value={model} onChange={(value) => setModel(text(value))} />
+      {needsEndpoint && <FieldInput field={{ name: 'endpoint', label: 'Endpoint', required: true }} value={endpointValue} onChange={(value) => setEndpoint(text(value))} />}
+      {!isOllama && <SecretInput label="API key" saved={Boolean(savedRef) && !secretRef} onStored={setSecretRef} />}
+      <FieldInput field={{ name: 'model', label: 'Model', required: true, ...(canList && available.length > 0 ? { suggestions: available.map(id) } : {}) }} value={modelValue} onChange={(value) => setModel(text(value))} />
       {canList && listed.isLoading && <p>Loading models…</p>}
       {canList && Boolean(listed.error) && <ErrorNotice error={listed.error} />}
       <FilterDisclosure title="Advanced"><FieldInput field={{ name: 'context_window', label: 'Context window (tokens)', type: 'number', min: 1 }} value={windowValue} onChange={(value) => setContextWindow(text(value))} /></FilterDisclosure>
       {Boolean(save.error) && <ErrorNotice error={save.error} />}
       {save.isSuccess && <Notice>AI for summaries is set up.</Notice>}
       {destination && <label className={styles.check}><input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} />Send meeting data to {destination}</label>}
-      <button type="submit" disabled={!nativeAvailable() || !model || (Boolean(destination) && !agreed) || save.isPending}>{save.isPending ? 'Saving…' : 'Save'}</button>
+      <button type="submit" disabled={!nativeAvailable() || !modelValue || (Boolean(destination) && !agreed) || save.isPending}>{save.isPending ? 'Saving…' : 'Save'}</button>
     </form>}
   </Panel>;
 }
@@ -154,6 +188,22 @@ function ConnectionTest({ connection, profiles }: { connection: RecordData; prof
   return <Modal trigger={<button>Test…</button>} title="Test connection"><p>Destination: {text(connection.endpoint, 'Selected local runtime')}</p><CommandForm operation="providers.test" fixed={{ connection_id: id(connection) }} fields={[{ name: 'profile_id', label: 'Model profile', type: 'select', required: true, options: [{ value: '', label: 'Choose model profile' }, ...profiles.filter((profile) => profile.connection_id === id(connection)).map((profile) => ({ value: id(profile), label: label(profile) }))] }]} submit="Test" confirm="Send a test request to this destination." onSuccess={(data) => setResult(item(data))} />{result && <Details value={result} title="Details" />}</Modal>;
 }
 
+/** Where a connection sends data: the destination fingerprint the engine stores in consents (connection_value in policies.py). */
+export function destinationOf(connection: RecordData): string {
+  return text(object(connection.nonsecret_settings).destination_fingerprint ?? connection.destination_fingerprint ?? connection.endpoint);
+}
+
+/** Edit name, endpoint and options, and replace the API key (a new vault reference, as in Add connection). */
+function ConnectionEdit({ row }: { row: RecordData }) {
+  const [secretRef, setSecretRef] = useState('');
+  const keyless = text(row.auth_kind, 'none') === 'none';
+  const fields: Field[] = [{ name: 'display_name', label: 'Name', required: true }, { name: 'endpoint', label: 'Endpoint (no credentials in URL)' }, { name: 'region', label: 'Region', advanced: true }, { name: 'deployment', label: 'Azure deployment', advanced: true }];
+  return <Modal trigger={<button>Edit</button>} title="Edit">
+    {!text(row.endpoint).startsWith('local://') && <SecretInput label="Replace API key" saved={Boolean(row.secret_ref)} onStored={setSecretRef} />}
+    <CommandForm operation="entity.update" fixed={{ collection: 'provider_connections', id: row.id ?? '', expected_revision: row.revision ?? 1, ...(secretRef ? { secret_ref: secretRef, ...(keyless ? { auth_kind: 'bearer' } : {}) } : {}) }} fields={fields.map((field) => ({ ...field, value: row[field.name] }))} />
+  </Modal>;
+}
+
 const downloading = (entry: RecordData): boolean => ['downloading', 'extracting'].includes(text(object(entry.download).state));
 const mib = (bytes: number): string => (bytes / 1024 / 1024).toFixed(0);
 
@@ -172,18 +222,20 @@ function useCatalog() {
 
 export function ModelSettings() {
   const catalog = useCatalog();
+  const status = useResource('setup.status');
+  const used = aiRows.map(([role]) => text(object(status.data?.[role]).model_id)).filter(Boolean);
   return <Panel title="Models & runtime" actions={<ModelArchiveImport templates={items(catalog.data)} />}><AsyncView query={catalog}>{(data) => {
     // Runtimes are fetched with their model.
-    const visible = items(data).filter((row) => row.role !== 'runtime');
-    return visible.length === 0 ? <Empty title="No models yet" /> : <Grid>{visible.map((row) => <ModelCard key={id(row)} entry={row} />)}</Grid>;
+    const visible = items(data).filter((row) => row.role !== 'runtime').sort((a, b) => Number(b.installed === true) - Number(a.installed === true));
+    return visible.length === 0 ? <Empty title="No models yet" /> : <Grid>{visible.map((row) => <ModelCard key={id(row)} entry={row} inUse={used.includes(id(row))} />)}</Grid>;
   }}</AsyncView></Panel>;
 }
 
 const modelBytes = (entry: RecordData): number => typeof entry.bytes === 'number' ? entry.bytes : array(entry.files).reduce((total, file) => total + (typeof file.bytes === 'number' ? file.bytes : 0), 0);
 
-function ModelCard({ entry }: { entry: RecordData }) {
+function ModelCard({ entry, inUse }: { entry: RecordData; inUse: boolean }) {
   const license = object(entry.license);
-  return <Panel title={label(entry)} actions={<><Badge>{aiRows.find(([role]) => role === entry.role)?.[1] ?? text(entry.role)}</Badge>{entry.gpu === true && <Badge>GPU</Badge>}{entry.installed === true && <Badge>Installed</Badge>}</>}><dl><dt>Download</dt><dd>{(modelBytes(entry) / 1024 / 1024).toFixed(1)} MiB</dd><dt>License</dt><dd>{text(license.spdx ?? entry.license_spdx, 'Review license details')}</dd></dl>{entry.installed === true ? <ConfirmCommand trigger="Delete" title={`Delete ${label(entry)}?`} message="Removes this model from this computer." operation="catalog.delete" payload={{ id: id(entry), confirmed: true, revision: text(entry.revision) }} /> : <ModelDownload entry={entry} />}</Panel>;
+  return <Panel title={label(entry)} actions={<><Badge>{aiRows.find(([role]) => role === entry.role)?.[1] ?? humanize(entry.role)}</Badge>{entry.gpu === true && <Badge>GPU</Badge>}{entry.installed === true && <Badge>Installed</Badge>}</>}><dl><dt>{entry.installed === true ? 'Size' : 'Download'}</dt><dd>{(modelBytes(entry) / 1024 / 1024).toFixed(1)} MiB</dd><dt>License</dt><dd>{text(license.spdx ?? entry.license_spdx, 'Review license details')}</dd></dl>{entry.installed === true ? (inUse ? <Badge tone="success">In use</Badge> : <ConfirmCommand trigger="Delete" title={`Delete ${label(entry)}?`} message="Removes this model from this computer." operation="catalog.delete" payload={{ id: id(entry), confirmed: true, revision: text(entry.revision) }} />) : <ModelDownload entry={entry} />}</Panel>;
 }
 
 /** License review and download; the engine also switches the model's task to it. */
@@ -221,7 +273,7 @@ function ModelList({ role, current }: { role: string; current: string }) {
   return <AsyncView query={catalog} isEmpty={!items(catalog.data).some((row) => row.role === role)} empty={<Empty title="No models for this component" />}>{(data) => items(data).filter((row) => row.role === role).sort((a, b) => Number(b.installed === true) - Number(a.installed === true)).map((row) => <ModelRow key={id(row)} entry={row} current={current} />)}</AsyncView>;
 }
 
-const aiRows = [['asr', 'Transcription'], ['diarization', 'Speaker labels'], ['llm', 'Summaries, actions & minutes']] as const;
+const aiRows = [['asr', 'Transcription', 'transcription model'], ['diarization', 'Speaker labels', 'speaker labels model'], ['llm', 'Summaries, actions & minutes', 'summaries model']] as const;
 
 /** Speaker model worker state from setup.status (`stopped | loading | ready`). */
 export const speakerStateLabel = (state: string): string => state === 'ready' ? 'Ready' : state === 'loading' ? 'Loading…' : 'Not running';
@@ -229,10 +281,10 @@ export const speakerStateLabel = (state: string): string => state === 'ready' ? 
 /** What transcription, speaker labels and summaries currently use, each with a Change button. The one place the speaker model state shows. */
 export function AiSettings() {
   const status = useResource('setup.status', {}, true, (data) => text(object(data?.diarization).state) === 'loading');
-  return <Panel title="Transcription & AI"><AsyncView query={status}>{(data) => aiRows.map(([role, title]) => {
+  return <Panel><AsyncView query={status}>{(data) => aiRows.map(([role, title, noun]) => {
     const choice = data[role] ? object(data[role]) : null;
     const speakerState = role === 'diarization' ? text(choice?.state) : '';
-    return <article key={role} className={styles.aiRow}><div><span className={styles.aiTitle}>{title}</span><strong>{choice ? <>{text(choice.label)} <Badge>{choice.gpu === true ? 'GPU' : text(choice.adapter)}</Badge>{speakerState && <> <Badge tone={speakerState === 'ready' ? 'success' : 'neutral'}>{speakerStateLabel(speakerState)}</Badge></>}</> : 'Not set up'}</strong></div><Modal trigger={<button>{choice ? 'Change' : 'Set up'}</button>} title={title}>{role === 'llm' ? <LlmSetup /> : <ModelList role={role} current={text(choice?.model_id, '')} />}</Modal></article>;
+    return <article key={role} className={styles.aiRow}><div><span className={styles.aiTitle}>{title}</span><strong>{choice ? <>{text(choice.label)}{(choice.gpu === true || text(choice.adapter) !== text(choice.label)) && <> <Badge>{choice.gpu === true ? 'GPU' : text(choice.adapter)}</Badge></>}{speakerState && <> <Badge tone={speakerState === 'ready' ? 'success' : 'neutral'}>{speakerStateLabel(speakerState)}</Badge></>}</> : 'Not set up'}</strong></div><Modal trigger={<button aria-label={`${choice ? 'Change' : 'Set up'} ${noun}`}>{choice ? 'Change' : 'Set up'}</button>} title={title}>{role === 'llm' ? <LlmSetup /> : <ModelList role={role} current={text(choice?.model_id, '')} />}</Modal></article>;
   })}</AsyncView></Panel>;
 }
 
@@ -323,7 +375,7 @@ function ModelProfileCreation({ connections }: { connections: RecordData[] }) {
   return <Modal trigger={<button>Add model profile</button>} title="Add model profile">
     <FieldInput field={{ name: 'catalog_model', label: 'Model', type: 'select', options: [{ value: '', label: 'Enter a model ID manually' }, ...items(catalog.data).filter((entry) => entry.role !== 'runtime').map((entry) => ({ value: id(entry), label: label(entry) }))] }} value={selectedId} onChange={(value) => { setSelectedId(text(value)); setRuntimeId(''); }} />
     {selected && <Details title="Details" value={selected} />}
-    {selected && <FieldInput field={{ name: 'runtime_descriptor', label: 'Runtime', type: 'select', options: [{ value: '', label: 'Choose runtime' }, ...runtimes.map((entry) => ({ value: id(entry), label: entry.host_check ? `${label(entry)} (GPU)` : label(entry) }))] }} value={runtime} onChange={(value) => setRuntimeId(text(value))} />}
+    {selected && <FilterDisclosure title="Advanced"><FieldInput field={{ name: 'runtime_descriptor', label: 'Runtime', type: 'select', options: [{ value: '', label: 'Choose runtime' }, ...runtimes.map((entry) => ({ value: id(entry), label: entry.host_check ? `${label(entry)} (GPU)` : label(entry) }))] }} value={runtime} onChange={(value) => setRuntimeId(text(value))} /></FilterDisclosure>}
     <CommandForm key={`${selectedId || 'manual'}:${runtime}`} operation="entity.create" fixed={{ collection: 'model_profiles', ...(selectedId ? { model_id: selectedId } : {}) }} fields={fields} />
   </Modal>;
 }

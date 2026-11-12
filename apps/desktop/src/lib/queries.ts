@@ -9,7 +9,6 @@ export function useResource(operationId: string, payload: Payload = {}, enabled 
     queryFn: () => request(operationId, payload),
     enabled: enabled && nativeAvailable(),
     staleTime: 10_000,
-    retry: false,
     refetchInterval: (query) => poll?.(query.state.data) ? 1000 : false,
   });
 }
@@ -31,7 +30,6 @@ export function useNativeResource(operation: string, args: Payload = {}, enabled
     queryFn: () => nativeRequest<RecordData>(operation, args),
     enabled: enabled && nativeAvailable(),
     staleTime: 15_000,
-    retry: false,
   });
 }
 
@@ -57,6 +55,5 @@ export function useMeetingMedia(meetingId: string, enabled = true) {
     },
     enabled: enabled && nativeAvailable(),
     staleTime: 10_000,
-    retry: false,
   });
 }

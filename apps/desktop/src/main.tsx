@@ -1,6 +1,7 @@
 import { Component, StrictMode, type ErrorInfo, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { engineStarting } from './lib/bridge';
 import { RouterProvider } from '@tanstack/react-router';
 import { router } from './app/router';
 import '@fontsource-variable/mona-sans/standard.css';
@@ -17,7 +18,9 @@ class RenderBoundary extends Component<{ children: ReactNode }, { error: Error |
   }
 }
 
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: true, gcTime: 300_000 }, mutations: { retry: false } } });
+// A query that hits the engine before it has started stays loading and retries instead of failing.
+// ponytail: ~4 min of retries; a stuck engine then surfaces its real error.
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: (count, error) => engineStarting(error) && count < 120, retryDelay: (count) => Math.min(500 * 2 ** count, 2000), refetchOnWindowFocus: true, gcTime: 300_000 }, mutations: { retry: false } } });
 const root = document.getElementById('root');
 if (!root) throw new Error('Desktop root element is missing.');
 createRoot(root).render(<StrictMode><RenderBoundary><QueryClientProvider client={queryClient}><RouterProvider router={router} /></QueryClientProvider></RenderBoundary></StrictMode>);

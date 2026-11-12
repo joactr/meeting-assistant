@@ -4,7 +4,7 @@ import { nativeAvailable, nativeRequest } from '../lib/bridge';
 import { flushDrafts } from '../lib/drafts';
 import { useNativeResource, useResource } from '../lib/queries';
 import { updatePreferences } from '../lib/preferences';
-import { id, item, items, object, revision, text, type Payload, type RecordData } from '../lib/data';
+import { id, item, items, label, object, revision, text, type Json, type Payload, type RecordData } from '../lib/data';
 import { AsyncView, Badge, CommandForm, ConfirmCommand, Details, Empty, ErrorNotice, FieldInput, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, type Field } from '../components/ui';
 import { AudioMeters } from './capture';
 import { CalendarSettings, IntegrationSettings } from './connections';
@@ -13,49 +13,51 @@ import { PrivacySettings } from './privacy';
 import { LANGUAGES } from './library';
 import styles from './workspace.module.css';
 
-const groups: { id: string; title: string; notice?: string; fields: Field[] }[] = [
-  { id: 'capture', title: 'Capture', fields: [
-    { name: 'mode', label: 'Capture', type: 'select', value: 'both', options: [{ value: 'both', label: 'Microphone and computer audio' }, { value: 'mic', label: 'Microphone only' }, { value: 'system', label: 'Computer audio only' }] },
+const groups: { id: string; key?: string; title: string; advancedTitle?: string; notice?: string; fields: Field[] }[] = [
+  { id: 'capture', title: 'Capture', advancedTitle: 'Capture tuning', fields: [
+    { name: 'mode', label: 'Record from', type: 'select', value: 'both', options: [{ value: 'both', label: 'Microphone and computer audio' }, { value: 'mic', label: 'Microphone only' }, { value: 'system', label: 'Computer audio only' }] },
     { name: 'meeting_language', label: 'Meeting language', type: 'select', value: 'auto', options: [{ value: 'auto', label: 'Detect automatically' }, ...LANGUAGES.map(([value, name]) => ({ value, label: name }))] },
     { name: 'microphone_device_key', label: 'Microphone', type: 'select' },
     { name: 'system_device_key', label: 'Computer audio', type: 'select' },
     { name: 'vad_threshold', label: 'Speech detection sensitivity (0 to 1)', type: 'number', value: .5, min: 0, max: 1 },
-    { name: 'pre_roll_ms', label: 'Audio kept before speech starts (ms)', type: 'number', value: 300, min: 0, max: 2000 },
-    { name: 'post_silence_ms', label: 'Silence before a line ends (ms)', type: 'number', value: 400, min: 0, max: 3000 },
-    { name: 'minimum_true_speech_ms', label: 'Shortest speech to transcribe (ms)', type: 'number', value: 250, min: 0, max: 2000 },
-    { name: 'maximum_utterance_ms', label: 'Longest single line (ms)', type: 'number', value: 12000, min: 1000, max: 30000 },
+    { name: 'pre_roll_ms', label: 'Audio kept before speech starts (seconds)', type: 'number', value: 300, min: 0, max: 2000 },
+    { name: 'post_silence_ms', label: 'Silence before a line ends (seconds)', type: 'number', value: 400, min: 0, max: 3000 },
+    { name: 'minimum_true_speech_ms', label: 'Shortest speech to transcribe (seconds)', type: 'number', value: 250, min: 0, max: 2000 },
+    { name: 'maximum_utterance_ms', label: 'Longest single line (seconds)', type: 'number', value: 12000, min: 1000, max: 30000 },
     { name: 'noise_suppression', label: 'Reduce microphone background noise', type: 'checkbox', value: false },
     { name: 'echo_cancellation', label: 'Cancel speaker echo (run calibration first)', type: 'checkbox', value: false },
     { name: 'source_failure_policy', label: 'If a device disconnects', type: 'select', value: 'warn', options: [{ value: 'warn', label: 'Keep going and show a warning' }, { value: 'pause', label: 'Pause the meeting' }] },
   ] },
-  { id: 'recording', title: 'Recording', notice: 'Recording is off by default. Get everyone\'s consent first.', fields: [
+  { id: 'recording', title: 'Recording', advancedTitle: 'Recording limits', notice: 'Recording is off by default. Get everyone\'s consent first.', fields: [
     { name: 'enabled', label: 'Keep meeting audio', type: 'checkbox', value: false },
-    { name: 'retain_days', label: 'Delete kept audio after', type: 'select', value: '7', options: [{ value: '1', label: '1 day' }, { value: '7', label: '7 days' }, { value: '30', label: '30 days' }, { value: 'forever', label: 'Never (delete manually)' }] },
-    { name: 'byte_cap', label: 'Total audio storage limit (bytes)', type: 'number', value: 10737418240, min: 104857600 },
-    { name: 'max_import_bytes', label: 'Largest audio file to import (bytes)', type: 'number', value: 2147483648, min: 1024 },
+    { name: 'retain_days', label: 'Delete kept audio after', type: 'select', value: '7', disabledWhen: (values) => values.enabled !== true, options: [{ value: '1', label: '1 day' }, { value: '7', label: '7 days' }, { value: '30', label: '30 days' }, { value: 'forever', label: 'Never (delete manually)' }] },
+    { name: 'byte_cap', label: 'Total audio storage limit (GB)', type: 'number', value: 10737418240, min: 104857600 },
+    { name: 'max_import_bytes', label: 'Largest audio file to import (MB)', type: 'number', value: 2147483648, min: 1024 },
     { name: 'max_import_seconds', label: 'Longest audio file to import (seconds)', type: 'number', value: 28800, min: 1 },
   ] },
-  { id: 'analysis', title: 'Summaries & language', fields: [
+  { id: 'analysis', title: 'Summaries & language', advancedTitle: 'Summary timing', fields: [
     { name: 'output_language', label: 'Summary language', type: 'select', value: 'auto', options: [{ value: 'auto', label: 'Same as the meeting' }, ...LANGUAGES.map(([value, name]) => ({ value, label: name }))] },
     { name: 'topic_sentiment', label: 'Show the tone of each topic', type: 'checkbox', value: false },
-    { name: 'live_cues_enabled', label: 'Live suggestions during meetings', type: 'checkbox', value: true },
-    { name: 'question_detection_enabled', label: 'Detect questions', type: 'checkbox', value: true },
     { name: 'rolling_summary_seconds', label: 'Update live summary every (seconds)', type: 'number', value: 60, min: 60 },
     { name: 'checkpoint_seconds', label: 'Update topics and outcomes every (seconds)', type: 'number', value: 300, min: 60 },
   ] },
-  { id: 'speakers', title: 'Speakers', fields: [
+  { id: 'during', key: 'analysis', title: 'During meetings', fields: [
+    { name: 'live_cues_enabled', label: 'Live suggestions during meetings', type: 'checkbox', value: true },
+    { name: 'question_detection_enabled', label: 'Detect questions', type: 'checkbox', value: true },
+  ] },
+  { id: 'speakers', title: 'Speakers', advancedTitle: 'Speaker matching', fields: [
     { name: 'diarization_enabled', label: 'Tell speakers apart', type: 'checkbox', value: false },
     { name: 'voice_profiles_enabled', label: 'Recognise returning speakers by voice', type: 'checkbox', value: false },
     { name: 'match_threshold', label: 'Voice match strictness (0 to 1)', type: 'number', value: .45, min: 0, max: 1 },
   ] },
-  { id: 'retrieval', title: 'Search', fields: [
+  { id: 'retrieval', title: 'Search', advancedTitle: 'Search tuning', fields: [
     { name: 'mode', label: 'Default search', type: 'select', value: 'keyword', options: [{ value: 'keyword', label: 'Exact words' }, { value: 'semantic', label: 'Meaning' }, { value: 'hybrid', label: 'Both' }] },
     { name: 'semantic_enabled', label: 'Enable search by meaning', type: 'checkbox', value: false },
-    { name: 'embedding_profile_id', label: 'Search model profile ID' },
+    { name: 'embedding_profile_id', label: 'Search model', type: 'select' },
     { name: 'chunk_tokens', label: 'Passage size (tokens)', type: 'number', value: 256, min: 32, max: 512 },
     { name: 'overlap_tokens', label: 'Passage overlap (tokens)', type: 'number', value: 32, min: 0, max: 128 },
   ] },
-  { id: 'jobs', title: 'Background processing', fields: [
+  { id: 'jobs', title: 'Background processing', advancedTitle: 'Processing limits', fields: [
     { name: 'max_concurrent_inference', label: 'AI tasks at once', type: 'number', value: 1, min: 1, max: 4 },
     { name: 'queue_limit', label: 'Maximum queued tasks', type: 'number', value: 100, min: 1, max: 1000 },
     { name: 'worker_startup_seconds', label: 'Model start timeout (seconds)', type: 'number', value: 120, min: 1, max: 600 },
@@ -79,11 +81,12 @@ export function SettingsPage() {
   const panels: Record<string, ReactNode> = {
     'Transcription & AI': <><AiSettings /><details className={styles.advanced}><summary>Models and providers</summary><ModelSettings /><ProviderSettings /></details></>,
     'Audio': <><AudioSettings /><SettingsGroup groupId="capture" /><SettingsGroup groupId="recording" /></>,
-    'Meetings': <><SettingsGroup groupId="analysis" /><SettingsGroup groupId="speakers" /><Profiles /><SettingsGroup groupId="retrieval" /><SettingsGroup groupId="exports" /><CalendarSettings /><IntegrationSettings /></>,
+    'Meetings': <><SettingsGroup groupId="analysis" /><SettingsGroup groupId="during" /><SettingsGroup groupId="speakers" /><Profiles /><SettingsGroup groupId="retrieval" /><SettingsGroup groupId="exports" /></>,
+    'Integrations': <><CalendarSettings /><IntegrationSettings /></>,
     'Privacy & data': <><SettingsGroup groupId="privacy" /><PrivacySettings /></>,
     'App': <><WindowSettings /><UpdatesSettings /><details className={styles.advanced}><summary>Advanced</summary>{groups.map((group) => <SettingsGroup key={group.id} groupId={group.id} advancedOnly />)}</details><About /></>,
   };
-  return <><PageHeader title="Settings" /><TabSet tabs={settingsTabs.map((label) => ({ label, content: panels[label] }))} /></>;
+  return <><PageHeader title="Settings" /><TabSet label="Settings sections" tabs={settingsTabs.map((label) => ({ label, content: panels[label] }))} /></>;
 }
 
 const credits = [
@@ -97,43 +100,60 @@ const credits = [
 ];
 
 function About() {
-  return <Panel title="About"><h3>Model credits</h3><ul>{credits.map(([name, author, license, source]) => <li key={name}><strong>{name}</strong>: {author}. License: {license}. Source: <code>{source}</code></li>)}</ul><p>Runtimes: faster-whisper (MIT), sherpa-onnx (Apache-2.0), fermion-research (Apache-2.0) with PyTorch (BSD-3-Clause), pyannote.audio (MIT), ONNX Runtime (MIT). The optional GPU Whisper pack includes NVIDIA cuBLAS, cuDNN and NVRTC under NVIDIA's license terms (not MIT), shipped inside the pack. The optional Azure Speech pack uses Microsoft's Speech SDK license.</p></Panel>;
+  const version = text(item(useResource('workspace.status').data).build_id);
+  return <Panel title="About">{version && <p>Version {version}</p>}<h3>Model credits</h3><ul>{credits.map(([name, author, license, source]) => <li key={name}><strong>{name}</strong>: {author}. License: {license}. Source: <code>{source}</code></li>)}</ul><p>Runtimes: faster-whisper (MIT), sherpa-onnx (Apache-2.0), fermion-research (Apache-2.0) with PyTorch (BSD-3-Clause), pyannote.audio (MIT), ONNX Runtime (MIT). The optional GPU Whisper pack includes NVIDIA cuBLAS, cuDNN and NVRTC under NVIDIA's license terms (not MIT), shipped inside the pack. The optional Azure Speech pack uses Microsoft's Speech SDK license.</p></Panel>;
 }
+
+/** Settings stored in bytes or milliseconds but shown as GB, MB or seconds; the engine still gets its own units. */
+const units: Record<string, number> = { 'capture.pre_roll_ms': 1000, 'capture.post_silence_ms': 1000, 'capture.minimum_true_speech_ms': 1000, 'capture.maximum_utterance_ms': 1000, 'recording.byte_cap': 2 ** 30, 'recording.max_import_bytes': 2 ** 20 };
 
 function SettingsGroup({ groupId, advancedOnly = false }: { groupId: string; advancedOnly?: boolean }) {
   const query = useResource('settings.get');
   const devices = useNativeResource('audio_devices', {}, groupId === 'capture');
   const group = groups.find((candidate) => candidate.id === groupId);
+  const profiles = useResource('entity.list', { collection: 'model_profiles' }, groupId === 'retrieval');
   const deviceOptions = (kind: string) => [{ value: '', label: 'Automatic (Windows default)' }, ...items(devices.data).filter((row) => row.kind === kind).map((row) => ({ value: text(row.key), label: row.is_default ? `${text(row.name)} (Windows default)` : text(row.name) }))];
   const fields = (group?.fields.filter((field) => (advanced[`${groupId}.${field.name}`] === true) === advancedOnly) ?? []).map((field) => field.name === 'microphone_device_key' || field.name === 'system_device_key' ? { ...field, options: deviceOptions(field.name === 'microphone_device_key' ? 'mic' : 'system') } : field);
   if (!group || fields.length === 0) return null;
-  return <Panel title={group.title}><AsyncView query={query}>{(data) => { const saved = item(data); const settings = object(saved.nonsecret_settings ?? saved.settings); const values = object(settings[groupId]); return <>{group.notice && !advancedOnly && <Notice>{group.notice}</Notice>}<CommandForm key={`${groupId}:${revision(saved)}`} operation="settings.save" fixed={{ expected_revision: revision(saved) }} fields={fields.map((field) => ({ ...field, value: values[field.name] ?? field.value }))} mapPayload={(payload) => { const { expected_revision, ...changes } = payload; const merged = { ...values, ...changes }; if (groupId === 'recording' && 'retain_days' in merged) merged.retain_days = merged.retain_days === 'forever' ? null : Number(merged.retain_days); return { expected_revision: expected_revision ?? 1, settings: { [groupId]: merged } }; }} submit="Save" /></>; }}</AsyncView></Panel>;
+  const embeddingProfiles = items(profiles.data).filter((profile) => profile.role === 'embeddings');
+  const shown = (field: Field, value: Json): Field => {
+    const scale = units[`${groupId}.${field.name}`];
+    if (scale) return { ...field, value: typeof value === 'number' ? value / scale : value, min: field.min === undefined ? undefined : field.min / scale, max: field.max === undefined ? undefined : field.max / scale };
+    if (field.name === 'embedding_profile_id') return { ...field, value, options: [{ value: '', label: 'None' }, ...embeddingProfiles.map((profile) => ({ value: id(profile), label: label(profile) })), ...(text(value) && !embeddingProfiles.some((profile) => id(profile) === text(value)) ? [{ value: text(value), label: text(value) }] : [])] };
+    return { ...field, value };
+  };
+  return <Panel title={advancedOnly ? group.advancedTitle ?? group.title : group.title}><AsyncView query={query}>{(data) => { const saved = item(data); const settings = object(saved.nonsecret_settings ?? saved.settings); const values = object(settings[group.key ?? groupId]); return <>{group.notice && !advancedOnly && <Notice>{group.notice}</Notice>}<CommandForm key={`${groupId}:${revision(saved)}`} operation="settings.save" fixed={{ expected_revision: revision(saved) }} fields={fields.map((field) => shown(field, values[field.name] ?? field.value ?? null))} mapPayload={(payload) => { const { expected_revision, ...changes } = payload; for (const field of fields) { const scale = units[`${groupId}.${field.name}`]; const value = changes[field.name]; if (scale && typeof value === 'number') changes[field.name] = Math.round(value * scale); } const merged = { ...values, ...changes }; if (groupId === 'recording' && 'retain_days' in merged) merged.retain_days = merged.retain_days === 'forever' ? null : Number(merged.retain_days); return { expected_revision: expected_revision ?? 1, settings: { [group.key ?? groupId]: merged } }; }} submit="Save" /></>; }}</AsyncView></Panel>;
 }
 
 function AudioSettings() {
   const devices = useNativeResource('audio_devices');
-  return <Panel title="Audio devices"><AsyncView query={devices}>{(data) => <><Toolbar><AudioTest devices={items(data)} /><AudioCalibration devices={items(data)} /></Toolbar><details className={styles.disclosure}><summary>{items(data).length} devices</summary><div className={styles.deviceGrid}>{items(data).map((row) => <section key={text(row.key)}><strong>{text(row.name)}</strong><Badge>{row.kind === 'system' ? 'computer audio' : 'microphone'}</Badge>{row.available === false && <Notice danger>Device unavailable.</Notice>}</section>)}</div></details></>}</AsyncView></Panel>;
+  const settings = item(useResource('settings.get').data);
+  const capture = object(object(settings.nonsecret_settings ?? settings.settings).capture);
+  return <Panel title="Audio devices"><AsyncView query={devices}>{(data) => { const rows = items(data); const saved = (kind: string, key: unknown) => text(key) || text(rows.find((row) => row.kind === kind && row.is_default)?.key); const preset = { mic: saved('mic', capture.microphone_device_key), system: saved('system', capture.system_device_key) }; return <><Toolbar><AudioTest devices={rows} preset={preset} mode={text(capture.mode, 'both')} /><AudioCalibration devices={rows} preset={preset} /></Toolbar><details className={styles.disclosure}><summary>{rows.length} devices</summary><div className={styles.deviceGrid}>{rows.map((row) => <section key={text(row.key)}><strong>{text(row.name)}</strong><Badge>{row.kind === 'system' ? 'computer audio' : 'microphone'}</Badge>{row.available === false && <Notice danger>Device unavailable.</Notice>}</section>)}</div></details></>; }}</AsyncView></Panel>;
 }
 
-function AudioTest({ devices }: { devices: RecordData[] }) {
+function AudioTest({ devices, preset, mode }: { devices: RecordData[]; preset: { mic: string; system: string }; mode: string }) {
   const [open, setOpen] = useState(false);
-  const [deviceKey, setDeviceKey] = useState('');
+  const [picked, setPicked] = useState('');
+  const deviceKey = picked || (mode === 'system' ? preset.system : preset.mic || preset.system);
+  const kinds = mode === 'mic' ? ['mic'] : mode === 'system' ? ['system'] : ['mic', 'system'];
   const [lease, setLease] = useState<RecordData | null>(null);
   const openRef = useRef(open); openRef.current = open;
   const start = useMutation({ mutationFn: () => nativeRequest('audio_test_start', { deviceKey }), onSuccess: async (result) => { if (openRef.current) setLease(result); else await nativeRequest('audio_test_stop'); } });
   const stop = useMutation({ mutationFn: () => nativeRequest('audio_test_stop'), onSuccess: () => setLease(null) });
   useEffect(() => () => { if (nativeAvailable()) void nativeRequest('audio_test_stop').catch(() => undefined); }, []);
-  return <Modal open={open} onOpenChange={(next) => { setOpen(next); if (!next && nativeAvailable()) stop.mutate(); }} trigger={<button>Test audio…</button>} title="Test audio"><FieldInput field={{ name: 'device', label: 'Device', type: 'select', required: true, options: [{ value: '', label: 'Choose device' }, ...devices.map((device) => ({ value: text(device.key), label: text(device.name) }))] }} value={deviceKey} onChange={(value) => setDeviceKey(text(value))} /><AudioMeters /><Toolbar><button disabled={!deviceKey || start.isPending || !!lease} onClick={() => start.mutate()}>Start test</button><button disabled={!lease || stop.isPending} onClick={() => stop.mutate()}>Stop test</button>{lease && <Badge tone="success">Testing…</Badge>}</Toolbar>{(start.error || stop.error) && <ErrorNotice error={start.error ?? stop.error} />}</Modal>;
+  return <Modal open={open} onOpenChange={(next) => { setOpen(next); if (!next && nativeAvailable()) stop.mutate(); }} trigger={<button>Test audio…</button>} title="Test audio"><FieldInput field={{ name: 'device', label: 'Device', type: 'select', required: true, options: [{ value: '', label: 'Choose device' }, ...devices.filter((device) => kinds.includes(text(device.kind))).map((device) => ({ value: text(device.key), label: device.kind === 'system' ? `${text(device.name)} (computer audio)` : text(device.name) }))] }} value={deviceKey} disabled={!!lease} onChange={(value) => setPicked(text(value))} /><AudioMeters /><Toolbar><button disabled={!deviceKey || start.isPending || stop.isPending} onClick={() => (lease ? stop.mutate() : start.mutate())}>{lease ? 'Stop test' : 'Start test'}</button>{lease && <Badge tone="success">Testing…</Badge>}</Toolbar>{(start.error || stop.error) && <ErrorNotice error={start.error ?? stop.error} />}</Modal>;
 }
 
-function AudioCalibration({ devices }: { devices: RecordData[] }) {
-  const [mic, setMic] = useState('');
-  const [system, setSystem] = useState('');
+function AudioCalibration({ devices, preset }: { devices: RecordData[]; preset: { mic: string; system: string } }) {
+  const [picked, setPicked] = useState({ mic: '', system: '' });
+  const mic = picked.mic || preset.mic;
+  const system = picked.system || preset.system;
   const run = useMutation({ mutationFn: async () => { await nativeRequest('audio_test_stop'); return nativeRequest('audio_calibrate', { request: { mic_key: mic, system_key: system, seconds: 5 } }); } });
   const options = (kind: string) => [{ value: '', label: 'Choose device' }, ...devices.filter((device) => device.kind === kind).map((device) => ({ value: text(device.key), label: text(device.name) }))];
   return <Modal trigger={<button>Calibrate echo…</button>} title="Echo calibration" description="Play audio through your speakers. Measures 5 seconds; nothing is saved.">
-    <FieldInput field={{ name: 'mic', label: 'Microphone', type: 'select', options: options('mic') }} value={mic} onChange={(value) => setMic(text(value))} />
-    <FieldInput field={{ name: 'system', label: 'Computer audio', type: 'select', options: options('system') }} value={system} onChange={(value) => setSystem(text(value))} />
+    <FieldInput field={{ name: 'mic', label: 'Microphone', type: 'select', options: options('mic') }} value={mic} onChange={(value) => setPicked((current) => ({ ...current, mic: text(value) }))} />
+    <FieldInput field={{ name: 'system', label: 'Computer audio', type: 'select', options: options('system') }} value={system} onChange={(value) => setPicked((current) => ({ ...current, system: text(value) }))} />
     <button disabled={!nativeAvailable() || !mic || !system || run.isPending} onClick={() => run.mutate()}>{run.isPending ? 'Measuring…' : 'Measure'}</button>
     {run.error && <ErrorNotice error={run.error} />}
     {run.data && <><Badge tone={run.data.passed === true ? 'success' : 'warning'}>{run.data.passed === true ? 'Calibration passed' : 'Echo cancellation unavailable'}</Badge><Details title="Details" value={run.data} /></>}
@@ -153,10 +173,12 @@ export function WindowSettings() {
 }
 
 function NativePreferences({ saved }: { saved: RecordData }) {
-  const [values, setValues] = useState<Payload>({ theme: saved.theme ?? 'system', tray_enabled: saved.tray_enabled ?? false, always_on_top: saved.always_on_top ?? true, sidebar_collapsed: saved.sidebar_collapsed ?? false });
+  const [values, setValues] = useState<Payload>({ theme: saved.theme ?? 'system', tray_enabled: saved.tray_enabled ?? false, always_on_top: saved.always_on_top ?? false });
   const client = useQueryClient();
   const save = useMutation({ mutationFn: () => updatePreferences(values), onSuccess: async () => { document.documentElement.dataset.theme = text(values.theme); await client.invalidateQueries({ queryKey: ['native'] }); } });
-  return <form className={styles.settingsForm} onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>{[{ name: 'theme', label: 'Theme', type: 'select' as const, options: [{ value: 'system', label: 'Match Windows' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }] }, { name: 'always_on_top', label: 'Always on top', type: 'checkbox' as const }, { name: 'tray_enabled', label: 'Tray icon', type: 'checkbox' as const }].map((field) => <FieldInput key={field.name} field={field} value={values[field.name] ?? false} onChange={(value) => setValues((current) => ({ ...current, [field.name]: value }))} />)}<button disabled={save.isPending || !nativeAvailable()} type="submit">Save</button>{save.error && <ErrorNotice error={save.error} />}{save.isSuccess && <Notice>Saved.</Notice>}</form>;
+  const theme = useMutation({ mutationFn: (value: string) => updatePreferences({ theme: value }), onSuccess: () => client.invalidateQueries({ queryKey: ['native'] }) });
+  const change = (name: string, value: Json) => { setValues((current) => ({ ...current, [name]: value })); if (name === 'theme') { document.documentElement.dataset.theme = text(value); if (nativeAvailable()) theme.mutate(text(value)); } };
+  return <form className={styles.settingsForm} onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>{[{ name: 'theme', label: 'Theme', type: 'select' as const, options: [{ value: 'system', label: 'Match Windows' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }] }, { name: 'always_on_top', label: 'Always on top', type: 'checkbox' as const }, { name: 'tray_enabled', label: 'Tray icon', type: 'checkbox' as const }].map((field) => <FieldInput key={field.name} field={field} value={values[field.name] ?? false} onChange={(value) => change(field.name, value)} />)}<button disabled={save.isPending || !nativeAvailable()} type="submit">Save</button>{(save.error || theme.error) && <ErrorNotice error={save.error ?? theme.error} />}{save.isSuccess && <Notice>Saved.</Notice>}</form>;
 }
 
 export function UpdatesSettings() {
@@ -172,7 +194,7 @@ export function UpdatesSettings() {
     await flushDrafts();
     return nativeRequest(operation === 'check' ? 'update_check' : 'update_install');
   }, onSuccess: setStatus });
-  return <Panel title="Updates"><label className={styles.check}><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />Check for updates automatically</label><label className={styles.check}><input type="checkbox" checked={privacy} onChange={(event) => setPrivacy(event.target.checked)} />Privacy mode (no update requests)</label><Toolbar><button disabled={!nativeAvailable() || update.isPending} onClick={() => update.mutate('save')}>Save</button><button disabled={!nativeAvailable() || !consent || privacy || update.isPending} onClick={() => update.mutate('check')}>Check now</button><Modal trigger={<button disabled={!status || update.isPending}>Install…</button>} title="Install update?"><Details title="Details" value={status} /><button disabled={!nativeAvailable() || update.isPending} onClick={() => update.mutate('install')}>Install update</button><PrepareExit cancelOnly /></Modal><PrepareExit /></Toolbar>{update.error && <ErrorNotice error={update.error} />}{status && <Details title="Details" value={status} />}<Diagnostics /></Panel>;
+  return <Panel title="Updates"><label className={styles.check}><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />Check for updates automatically</label><label className={styles.check}><input type="checkbox" checked={privacy} onChange={(event) => setPrivacy(event.target.checked)} />Privacy mode (no update requests)</label><Toolbar><button disabled={!nativeAvailable() || update.isPending} onClick={() => update.mutate('save')}>Save</button><button disabled={!nativeAvailable() || !consent || privacy || update.isPending} onClick={() => update.mutate('check')}>Check now</button><Modal trigger={<button disabled={!status || update.isPending} title={status ? undefined : 'Check for updates first'}>Install…</button>} title="Install update?"><Details title="Details" value={status} /><button disabled={!nativeAvailable() || update.isPending} onClick={() => update.mutate('install')}>Install update</button><PrepareExit cancelOnly /></Modal><PrepareExit /></Toolbar>{update.error && <ErrorNotice error={update.error} />}{status && <Details title="Details" value={status} />}<Diagnostics /></Panel>;
 }
 
 function Diagnostics() {
@@ -181,7 +203,9 @@ function Diagnostics() {
 }
 
 export function PrepareExit({ cancelOnly = false }: { cancelOnly?: boolean }) {
+  const client = useQueryClient();
+  const pending = Boolean(item(useResource('workspace.status').data).shutdown_reservation);
   const [result, setResult] = useState<RecordData | null>(null);
-  const exit = useMutation({ mutationFn: async () => { await flushDrafts(); return nativeRequest('prepare_exit', { cancel: cancelOnly }); }, onSuccess: setResult });
-  return <span><button disabled={!nativeAvailable() || exit.isPending} onClick={() => exit.mutate()}>{cancelOnly ? 'Cancel quit' : 'Safe quit'}</button>{exit.error && <ErrorNotice error={exit.error} />}{result && <Details value={result} title="Details" />}</span>;
+  const exit = useMutation({ mutationFn: async (cancel: boolean) => { await flushDrafts(); return nativeRequest('prepare_exit', { cancel }); }, onSuccess: async (data) => { setResult(data); await client.invalidateQueries({ queryKey: ['engine'] }); } });
+  return <span>{!cancelOnly && <button disabled={!nativeAvailable() || exit.isPending} onClick={() => exit.mutate(false)}>Quit</button>}{pending && <button disabled={!nativeAvailable() || exit.isPending} onClick={() => exit.mutate(true)}>Cancel quit</button>}{exit.error && <ErrorNotice error={exit.error} />}{result && <Details value={result} title="Details" />}</span>;
 }

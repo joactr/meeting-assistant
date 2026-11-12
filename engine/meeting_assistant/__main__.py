@@ -225,7 +225,7 @@ async def serve(args: argparse.Namespace, configuration: JSONDocument) -> int:
                         meeting["id"],
                         {
                             "state": "interrupted",
-                            "interrupted_reason": "Shutdown could not receive native preservation acknowledgement.",
+                            "interrupted_reason": "The app closed before the recording could be stopped cleanly. Everything transcribed before then is kept; the last moments may be missing.",
                         },
                         expected_revision=current["revision"],
                     )

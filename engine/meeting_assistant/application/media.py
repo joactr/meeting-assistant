@@ -539,7 +539,7 @@ def register_media(w: Workspace, r: CommandRegistry) -> None:
                     mid,
                     {
                         "state": "attention_required",
-                        "interrupted_reason": "Audio import needs review; persisted transcript, if any, is retained.",
+                        "interrupted_reason": "The audio import needs review. Any transcript already created is kept.",
                     },
                     expected_revision=current["revision"],
                 )

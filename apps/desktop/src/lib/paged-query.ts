@@ -10,6 +10,5 @@ export function useCursorResource(operationId: string, payload: Payload) {
     getNextPageParam: (lastPage) => text(lastPage.next_cursor) || undefined,
     enabled: nativeAvailable(),
     staleTime: 10_000,
-    retry: false,
   });
 }

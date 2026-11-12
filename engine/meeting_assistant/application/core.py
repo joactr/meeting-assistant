@@ -329,7 +329,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             require(
                 prior["request_hash"] == fingerprint(p),
                 "idempotency_conflict",
-                "Lifecycle key reused with different payload.",
+                "This request was already used with different settings. Try again.",
             )
             return json.loads(prior["response_json"])
         if operation == "start":
@@ -374,7 +374,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             require(
                 w.native_gateway is not None,
                 "native_unavailable",
-                "Live capture requires the native host.",
+                "Recording is only available in the desktop app.",
                 status=503,
             )
             require(
@@ -510,7 +510,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                             "health": "degraded",
                             "interrupted_reason": exc.message
                             if isinstance(exc, AppError)
-                            else "Native capture failed.",
+                            else "Recording could not start.",
                         },
                         expected_revision=current["revision"],
                     )
@@ -538,7 +538,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             require(
                 w.native_gateway is not None,
                 "native_unavailable",
-                "Native capture acknowledgement is required.",
+                "Recording is only available in the desktop app.",
                 status=503,
             )
             epoch = (
@@ -569,7 +569,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                 ack.get("acknowledged") is True
                 or ack.get("state") in ("paused", "active", "recording"),
                 "capture_unacknowledged",
-                "Native source boundary is not acknowledged.",
+                "The recorder did not confirm the change. Try again.",
                 status=503,
             )
             if w.audio_pipeline is not None:
@@ -668,7 +668,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                 or ack.get("acknowledged") is True
                 or (ack.get("state") == "stopped" and "boundary_sequences" in ack),
                 "capture_not_preserved",
-                "Stop requires explicit native drained acknowledgement.",
+                "The recorder has not finished saving the audio yet. Try stopping again.",
                 status=503,
                 retryable=True,
             )

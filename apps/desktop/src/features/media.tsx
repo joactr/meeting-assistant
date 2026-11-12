@@ -4,6 +4,7 @@ import { nativeAvailable, nativeRequest } from '../lib/bridge';
 import { useMeetingMedia, useResource } from '../lib/queries';
 import { clock, id, items, label, number, object, revision, text, type RecordData } from '../lib/data';
 import { AsyncView, Badge, CommandForm, ConfirmCommand, Details, Empty, ErrorNotice, FieldInput, Modal, Notice, Panel, Toolbar } from '../components/ui';
+import { channel } from './capture';
 import styles from './workspace.module.css';
 
 export function ReplayPanel({ meetingId, recording }: { meetingId: string; recording: boolean }) {
@@ -26,14 +27,14 @@ export function ReplayPanel({ meetingId, recording }: { meetingId: string; recor
   const toggle = (): void => control.mutate({ operation: state.playing ? 'pause' : 'play', position_ms: number(state.position_ms, number(chosen?.start_ms)), speed });
   return <Panel title="Retained audio" actions={recording ? <Badge>Paused while recording</Badge> : null}>
     <AsyncView query={media}>{() => playable.length === 0 ? <Empty title="Audio unavailable" /> : <div role="region" aria-label="Native audio player" className={styles.player} tabIndex={0} onFocus={() => setFocused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false); }} onKeyDown={(event) => { if (event.key === ' ' && !['INPUT', 'SELECT', 'BUTTON', 'TEXTAREA'].includes((event.target as HTMLElement).tagName)) { event.preventDefault(); if (mediaId && !recording) toggle(); } }}>
-      <FieldInput field={{ name: 'media', label: 'Track', type: 'select', options: [{ value: '', label: 'Choose track' }, ...playable.map((row) => ({ value: id(row), label: `${text(row.source_kind)}, ${clock(row.start_ms)} to ${clock(row.end_ms)}` }))] }} value={mediaId} onChange={(value) => { setMediaId(text(value)); control.reset(); }} />
+      <FieldInput field={{ name: 'media', label: 'Track', type: 'select', options: [{ value: '', label: 'Choose track' }, ...playable.map((row) => ({ value: id(row), label: `${channel(row.source_kind)}, ${clock(row.start_ms)} to ${clock(row.end_ms)}` }))] }} value={mediaId} onChange={(value) => { setMediaId(text(value)); control.reset(); }} />
       <Toolbar>
         <button disabled={!mediaId || recording || control.isPending} onClick={toggle}>{state.playing ? 'Pause' : 'Play'}</button>
         <label>Speed<select value={speed} disabled={!mediaId || recording} onChange={(event) => { const value = Number(event.target.value); setSpeed(value); control.mutate({ operation: 'speed', speed: value }); }}>{[.75, 1, 1.25, 1.5, 2].map((value) => <option key={value} value={value}>{value}×</option>)}</select></label>
         <span>{clock(state.position_ms)} / {clock(timelineEnd)}</span>
       </Toolbar>
       <label>Seek<input type="range" aria-label="Replay position" min={0} max={Math.max(timelineEnd, 1)} value={number(state.position_ms)} disabled={!mediaId || recording} onChange={(event) => control.mutate({ operation: 'seek', position_ms: Number(event.target.value) })} /></label>
-      <Toolbar>{['mic', 'system'].map((source) => <label className={styles.check} key={source}><input type="checkbox" checked={!muted.includes(source)} disabled={!mediaId || recording} onChange={(event) => { const next = event.target.checked ? muted.filter((entry) => entry !== source) : [...muted, source]; setMuted(next); control.mutate({ operation: 'sources', muted_sources: next }); }} />{source} audible</label>)}</Toolbar>
+      <Toolbar>{['mic', 'system'].map((source) => <label className={styles.check} key={source}><input type="checkbox" checked={!muted.includes(source)} disabled={!mediaId || recording} onChange={(event) => { const next = event.target.checked ? muted.filter((entry) => entry !== source) : [...muted, source]; setMuted(next); control.mutate({ operation: 'sources', muted_sources: next }); }} />{channel(source)} audible</label>)}</Toolbar>
       {chosen && <Details value={chosen} />}
     </div>}</AsyncView>
     {(control.error || player.error) && <ErrorNotice error={control.error ?? player.error} />}

@@ -282,7 +282,7 @@ class AudioPipeline:
         require(
             bool(packets),
             "audio_unavailable",
-            "No retained or bounded-window audio is available for diarization.",
+            "No audio is available to identify speakers.",
             status=503,
         )
         # From the end of the last labelled window, so audio a failed or cold-start window
@@ -312,7 +312,7 @@ class AudioPipeline:
         require(
             bool(packets),
             "audio_unavailable",
-            "Utterance audio is no longer in the bounded memory window.",
+            "This speech's audio is no longer in memory, so it could not be transcribed.",
             status=503,
         )
         packets = [
@@ -339,7 +339,7 @@ class AudioPipeline:
         require(
             start_frame >= first_frame - 3,
             "audio_range_missing",
-            "Speech start was evicted from the bounded memory window.",
+            "The start of this speech was already dropped from memory, so it could not be transcribed.",
             status=503,
         )
         offset = max(0, start_frame - first_frame)
@@ -348,7 +348,7 @@ class AudioPipeline:
         require(
             len(pcm) >= max(4, count * 4 - 3840),
             "audio_range_missing",
-            "Utterance audio range is incomplete; a gap is recorded instead of fabricated speech.",
+            "Part of this speech's audio is missing, so a gap is marked instead.",
             status=503,
         )
         return pcm, rate
@@ -426,7 +426,7 @@ class AudioPipeline:
         require(
             w.inference is not None and bool(policy),
             "asr_unavailable",
-            "Selected ASR profile/runtime is not ready.",
+            "The selected speech-to-text model is not ready.",
             status=503,
         )
         assert w.inference is not None
@@ -513,7 +513,7 @@ class AudioPipeline:
         require(
             source is not None,
             "audio_epoch",
-            "Utterance belongs to an unavailable capture source.",
+            "This audio source is no longer recording.",
             status=409,
         )
         assert source is not None
@@ -635,7 +635,7 @@ def register_capture(w: Workspace, r: CommandRegistry) -> None:
         require(
             w.audio_pipeline is not None,
             "audio_unavailable",
-            "Audio ingress is not running.",
+            "Audio capture is not running.",
             status=503,
         )
         assert w.audio_pipeline is not None
@@ -647,7 +647,7 @@ def register_capture(w: Workspace, r: CommandRegistry) -> None:
         require(
             w.audio_pipeline is not None,
             "audio_unavailable",
-            "Audio ingress is not running.",
+            "Audio capture is not running.",
             status=503,
         )
         assert w.audio_pipeline is not None
@@ -710,7 +710,7 @@ def register_capture(w: Workspace, r: CommandRegistry) -> None:
         require(
             meeting["config_snapshot"].get("recording", False),
             "recording_disabled",
-            "Durable audio is disabled for this meeting.",
+            "Audio saving is turned off for this meeting.",
             status=403,
         )
         relative = "media/" + p["relative_path"]

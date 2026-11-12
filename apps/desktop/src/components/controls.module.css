@@ -75,6 +75,15 @@
   margin-left: auto;
 }
 
+/* Narrow: the toggle takes its own row instead of trailing the last field. */
+@media (max-width: 760px) {
+  .disclosureBar > .disclosureToggle {
+    flex: 0 0 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+}
+
 .disclosureToggle {
   justify-self: start;
   border-color: transparent;
@@ -105,6 +114,11 @@
 
 .disclosurePanel[hidden] {
   display: none;
+}
+
+.disclosurePanel > button {
+  justify-self: start;
+  align-self: end;
 }
 
 .picker {
@@ -224,6 +238,18 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+.segmentedField {
+  display: grid;
+  gap: var(--space-2xs);
+  justify-items: start;
+  min-width: 0;
+}
+
+.segmentedLabel {
+  color: var(--color-ink);
+  font: 500 var(--text-sm) / 1.3 var(--font-body);
 }
 
 .segmented {

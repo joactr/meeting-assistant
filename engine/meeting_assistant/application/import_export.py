@@ -9,7 +9,7 @@ import shutil
 import sqlite3
 import tempfile
 import zipfile
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, cast
 
@@ -29,6 +29,18 @@ def snapshot(w: Workspace, meeting_id: str) -> JSONDocument:
         run = active_run(w, meeting_id)
         utterances = all_items(w, "utterances", {"run_id": run["id"]})
         utterances.sort(key=lambda u: (u["start_ms"], u["id"]))
+        # Latest assignment wins (manual reassignments are written last).
+        speaker_of = {
+            row[0]: row[1]
+            for row in w.connection.execute(
+                "SELECT a.utterance_id,a.speaker_id FROM speaker_assignments a"
+                " JOIN meeting_speakers s ON s.id=a.speaker_id WHERE s.meeting_id=?"
+                " ORDER BY a.created_at,a.id",
+                (meeting_id,),
+            ).fetchall()
+        }
+        for utterance in utterances:
+            utterance["speaker_id"] = speaker_of.get(utterance["id"])
         return {
             "schema_version": 1,
             "meeting": meeting,
@@ -49,86 +61,120 @@ def snapshot(w: Workspace, meeting_id: str) -> JSONDocument:
         }
 
 
+def clock(ms: int) -> str:
+    minutes, seconds = divmod(max(0, ms) // 1000, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}:{minutes:02}:{seconds:02}" if hours else f"{minutes:02}:{seconds:02}"
+
+
+def duration(ms: int) -> str:
+    minutes, seconds = divmod(max(0, ms) // 1000, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours} h {minutes} min"
+    return f"{minutes} min {seconds} s" if minutes else f"{seconds} s"
+
+
 def markdown(
     data: JSONDocument, include_transcript: bool = False, *, email_only: bool = False
 ) -> str:
+    """Readable meeting text for people: local date, plain durations, no empty sections."""
     m = data["meeting"]
-    start = datetime.fromtimestamp((m.get("started_at") or m["created_at"]) / 1000, UTC).isoformat()
-    lines: list[str] = [
-        f"# {m['title']}",
-        "",
-        f"Date: {start}",
-        f"Duration: {m['elapsed_ms'] // 1000} seconds",
-        f"Transcript revision: {m['transcript_revision']}; human-note revision: {m['note_revision']}",
-        "",
-    ]
-    if data["speakers"]:
-        lines += [
-            "Attendees / speaker labels: " + ", ".join(s["display_name"] for s in data["speakers"]),
-            "",
-        ]
+    start = datetime.fromtimestamp((m.get("started_at") or m["created_at"]) / 1000).astimezone()
+    when = f"{start.day} {start:%b %Y, %H:%M}"
+    if m.get("elapsed_ms"):
+        when += " · " + duration(m["elapsed_ms"])
+    lines: list[str] = [f"# {m['title']}", "", when, ""]
+    names = {s["id"]: s["display_name"] for s in data["speakers"]}
+    spoke = {u.get("speaker_id") for u in data["transcript"]}
+    people = [s["display_name"] for s in data["speakers"] if s["id"] in spoke] or list(
+        names.values()
+    )
+    if people:
+        lines += ["Speakers: " + ", ".join(people), ""]
+
+    def section(title: str, body: list[str]) -> None:
+        if body:
+            lines.extend(["## " + title, "", *body, ""])
+
     approved = data.get("approved_minutes")
     if approved:
-        for section in approved.get("sections", []):
-            lines += ["## " + section.get("title", "Section"), "", section.get("text", ""), ""]
-            if section.get("human_note"):
-                lines += ["Human note: " + section["human_note"], ""]
-            if section.get("source"):
-                lines += ["Source: " + str(section["source"]), ""]
+        for part in approved.get("sections", []):
+            body = [part.get("text", "")]
+            if part.get("human_note"):
+                body += ["", "Note: " + part["human_note"]]
+            if part.get("source"):
+                body += ["", "Source: " + str(part["source"])]
+            section(part.get("title", "Section"), body)
     else:
         for result in data["results"]:
             if result["kind"] in (("summary",) if email_only else ("summary", "minutes")):
                 payload: object = result["payload"]
-                lines += [
-                    "## " + result["kind"].title(),
-                    "",
-                    cast(JSONDocument, payload).get(
-                        "text",
+                section(
+                    result["kind"].title(),
+                    [
                         cast(JSONDocument, payload).get(
-                            "summary", canonical(cast(JSONDocument, payload))
-                        ),
-                    )
-                    if isinstance(payload, dict)
-                    else str(payload),
-                    "",
-                ]
+                            "text",
+                            cast(JSONDocument, payload).get(
+                                "summary", canonical(cast(JSONDocument, payload))
+                            ),
+                        )
+                        if isinstance(payload, dict)
+                        else str(payload)
+                    ],
+                )
     if not email_only:
-        lines += ["## Decisions and outcomes", ""]
-        for item in data["artifacts"]:
-            lines += [
-                "- ["
-                + item["kind"]
-                + "] "
-                + item["title"]
-                + (": " + item["description"] if item.get("description") else "")
-            ]
-    lines += ["", "## Actions", ""]
-    for action in data["actions"]:
-        if action["status"] == "dismissed":
-            continue
-        lines += [
+        section(
+            "Decisions and outcomes",
+            [
+                f"- {item['kind'].replace('_', ' ').capitalize()}: {item['title']}"
+                + (" — " + item["description"] if item.get("description") else "")
+                for item in data["artifacts"]
+            ],
+        )
+    section(
+        "Actions",
+        [
             "- ["
             + ("x" if action["status"] == "done" else " ")
             + "] "
             + action["description"]
             + (" — " + action["assignee_text"] if action.get("assignee_text") else "")
             + (" (due " + action["due_date"] + ")" if action.get("due_date") else "")
-        ]
-    lines += ["", "## Important moments", ""]
+            for action in data["actions"]
+            if action["status"] != "dismissed"
+        ],
+    )
+    moments: list[str] = []
     for moment in data["important_moments"]:
         if moment["include_in_minutes"]:
-            lines += [
-                f"- [{moment['start_ms'] // 1000}s] {moment['label']}: “{moment['quote_snapshot']}”",
-                ("  Human note: " + moment["note"]) if moment["note"] else "",
-            ]
-    if not email_only and data["notes"]:
-        lines += ["", "## Human notes (not independently verified transcript claims)", ""]
-        for note in sorted(data["notes"], key=lambda n: (n["ordinal"], n["id"])):
-            lines += ["### " + note["heading"], "", note["body_markdown"], ""]
+            who = f"{moment['label']}: " if moment["label"] else ""
+            moments.append(f"- {clock(moment['start_ms'])} {who}“{moment['quote_snapshot']}”")
+            if moment["note"]:
+                moments.append("  Note: " + moment["note"])
+    section("Important moments", moments)
+    if not email_only:
+        section(
+            "Notes",
+            [
+                line
+                for note in sorted(data["notes"], key=lambda n: (n["ordinal"], n["id"]))
+                for line in (["### " + note["heading"], ""] if note["heading"] else [])
+                + [note["body_markdown"], ""]
+            ],
+        )
     if include_transcript and not email_only:
-        lines += ["", "## Transcript (explicitly included)", ""]
-        for utterance in data["transcript"]:
-            lines += [f"[{utterance['start_ms'] // 1000}s] " + utterance["text"], ""]
+        section(
+            "Transcript",
+            [
+                f"**{clock(u['start_ms'])}**"
+                + (f" {names[u['speaker_id']]}:" if u.get("speaker_id") in names else "")
+                + " "
+                + u["text"]
+                + "\n"
+                for u in data["transcript"]
+            ],
+        )
     return "\n".join(lines).rstrip() + "\n"
 
 

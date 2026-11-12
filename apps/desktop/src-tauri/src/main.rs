@@ -93,11 +93,27 @@ async fn audio_test_stop(host: tauri::State<'_, Host>) -> Result<Value, NativeEr
 async fn native_preferences_get(host: tauri::State<'_, Host>) -> Result<Value, NativeError> {
     Ok(serde_json::to_value(&host.prefs.lock().await.value).map_err(anyhow::Error::from)?)
 }
-fn apply_preferences(app: &tauri::AppHandle, prefs: &Preferences) -> Result<()> {
+/// `geometry` restores the saved window size and position; only startup does that. Later
+/// preference writes (tab choice, theme) must not snap a maximized or resized window back.
+fn apply_preferences(app: &tauri::AppHandle, prefs: &Preferences, geometry: bool) -> Result<()> {
     let window = app
         .get_webview_window("main")
         .context("main window missing")?;
     window.set_always_on_top(prefs.always_on_top)?;
+    if geometry {
+        restore_geometry(&window, prefs)?;
+    }
+    window.set_theme(match prefs.theme.as_str() {
+        "light" => Some(tauri::Theme::Light),
+        "dark" => Some(tauri::Theme::Dark),
+        _ => None,
+    })?;
+    if let Some(tray) = app.tray_by_id("status") {
+        tray.set_visible(prefs.tray_enabled)?;
+    }
+    Ok(())
+}
+fn restore_geometry(window: &tauri::WebviewWindow, prefs: &Preferences) -> Result<()> {
     window.set_size(tauri::LogicalSize::new(
         prefs.window.width,
         prefs.window.height,
@@ -119,14 +135,6 @@ fn apply_preferences(app: &tauri::AppHandle, prefs: &Preferences) -> Result<()> 
             window.set_position(tauri::PhysicalPosition::new(x, y))?;
         }
     }
-    window.set_theme(match prefs.theme.as_str() {
-        "light" => Some(tauri::Theme::Light),
-        "dark" => Some(tauri::Theme::Dark),
-        _ => None,
-    })?;
-    if let Some(tray) = app.tray_by_id("status") {
-        tray.set_visible(prefs.tray_enabled)?;
-    }
     Ok(())
 }
 #[tauri::command]
@@ -137,10 +145,10 @@ async fn native_preferences_set(
 ) -> Result<Value, NativeError> {
     let mut store = host.prefs.lock().await;
     let old = store.value.clone();
-    if let Err(error) =
-        apply_preferences(&app, &preferences).and_then(|_| store.persist(preferences.clone()))
+    if let Err(error) = apply_preferences(&app, &preferences, false)
+        .and_then(|_| store.persist(preferences.clone()))
     {
-        let _ = apply_preferences(&app, &old);
+        let _ = apply_preferences(&app, &old, false);
         return Err(error.into());
     }
     Ok(serde_json::to_value(preferences).map_err(anyhow::Error::from)?)
@@ -559,7 +567,7 @@ fn configure(app: &mut tauri::App) -> Result<()> {
     let initial = tauri::async_runtime::block_on(async {
         app.state::<Host>().prefs.lock().await.value.clone()
     });
-    apply_preferences(app.handle(), &initial)?;
+    apply_preferences(app.handle(), &initial, true)?;
     spawn_update_checks(app.handle().clone());
     let apphandle = app.handle().clone();
     tauri::async_runtime::spawn(async move {

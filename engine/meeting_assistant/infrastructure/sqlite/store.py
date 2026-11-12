@@ -170,7 +170,7 @@ class Store:
                         "privacy": {"network_disabled": False},
                         "output_language": "auto",
                         "tray": False,
-                        "always_on_top": True,
+                        "always_on_top": False,
                     },
                 },
             )

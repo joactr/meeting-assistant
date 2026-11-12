@@ -2,13 +2,17 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { request } from '../lib/bridge';
 import { useResource } from '../lib/queries';
-import { array, id, item, items, label, text, type Payload, type RecordData } from '../lib/data';
+import { array, clock, humanize, id, item, items, label, text, type Payload, type RecordData } from '../lib/data';
 import { Bookmark } from 'lucide-react';
 import { FilterDisclosure, MeetingPicker, Segmented } from '../components/controls';
 import { AsyncView, Badge, buttonClass, CommandForm, Details, EditResource, Empty, ErrorNotice, FieldInput, Modal, Notice, PageHeader, Panel, Toolbar } from '../components/ui';
+import { Link } from '@tanstack/react-router';
+import { useInterface } from '../lib/ui-store';
 import { ActionRow, Citation, CitedResult } from './outcomes';
 import { VirtualList } from '../components/virtual-list';
 import styles from './workspace.module.css';
+
+const PRIORITIES = ['low', 'normal', 'high', 'urgent'];
 
 export function FollowupsPage() {
   const [filters, setFilters] = useState<Payload>({ status: 'open', priority: '', assignee: '', meeting_id: '', project_id: '', from_date: '', to_date: '' });
@@ -16,6 +20,8 @@ export function FollowupsPage() {
   const [previous, setPrevious] = useState<(string | null)[]>([]);
   const query = useResource('followups.list', { ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== '')), limit: 50, ...(cursor ? { cursor } : {}) });
   const projects = useResource('projects.list');
+  const meetings = useResource('meetings.list', { limit: 100 });
+  const titles = new Map(items(meetings.data).map((meeting) => [id(meeting), label(meeting)]));
   const change = (key: string, value: Payload[string]): void => { setFilters((current) => ({ ...current, [key]: value })); setCursor(null); setPrevious([]); };
   const extra = ['priority', 'meeting_id', 'from_date', 'to_date'].filter((key) => filters[key] !== '').length;
   return <><PageHeader title="Follow-ups" /><Panel>
@@ -24,26 +30,28 @@ export function FollowupsPage() {
       <FieldInput field={{ name: 'project', label: 'Project', type: 'select', options: [{ value: '', label: 'All projects' }, ...items(projects.data).map((project) => ({ value: id(project), label: label(project) }))] }} value={filters.project_id ?? ''} onChange={(value) => change('project_id', value)} />
       <FieldInput field={{ name: 'assignee', label: 'Assignee' }} value={filters.assignee ?? ''} onChange={(value) => change('assignee', value)} />
     </>}>
-      <FieldInput field={{ name: 'priority', label: 'Priority', type: 'select', options: ['', 'low', 'normal', 'high', 'urgent'].map((value) => ({ value, label: value || 'Any priority' })) }} value={filters.priority ?? ''} onChange={(value) => change('priority', value)} />
+      <FieldInput field={{ name: 'priority', label: 'Priority', type: 'select', options: ['', ...PRIORITIES].map((value) => ({ value, label: humanize(value) || 'Any priority' })) }} value={filters.priority ?? ''} onChange={(value) => change('priority', value)} />
       <MeetingPicker title="Meeting" values={filters.meeting_id ? [text(filters.meeting_id)] : []} onChange={(values) => change('meeting_id', values[0] ?? '')} />
       <FieldInput field={{ name: 'from', label: 'From date', type: 'date' }} value={filters.from_date ?? ''} onChange={(value) => change('from_date', value)} />
       <FieldInput field={{ name: 'to', label: 'Through date', type: 'date' }} value={filters.to_date ?? ''} onChange={(value) => change('to_date', value)} />
     </FilterDisclosure>
     <AsyncView query={query}>{(data) => items(data).length === 0 ? <Empty title="No follow-ups match these filters" /> : <>
-      <VirtualList rows={items(data)} label="Follow-up results" estimate={76} render={(row) => row.kind === 'moment' || row.entity_type === 'important_moment' ? <ImportantFollowup row={row} /> : <ActionRow row={row} />} />
+      <VirtualList rows={items(data)} label="Follow-up results" estimate={76} render={(row) => row.kind === 'moment' || row.entity_type === 'important_moment' ? <ImportantFollowup row={row} titles={titles} /> : <ActionRow row={row} />} />
       {(previous.length > 0 || Boolean(data.next_cursor)) && <Toolbar><button disabled={!previous.length} onClick={() => { setCursor(previous[previous.length - 1] ?? null); setPrevious((current) => current.slice(0, -1)); }}>Previous page</button><button disabled={!data.next_cursor} onClick={() => { setPrevious((current) => [...current, cursor]); setCursor(text(data.next_cursor)); }}>Next page</button></Toolbar>}
     </>}</AsyncView>
   </Panel></>;
 }
 
-function ImportantFollowup({ row }: { row: RecordData }) {
+function ImportantFollowup({ row, titles }: { row: RecordData; titles: Map<string, string> }) {
+  const meetingId = text(row.meeting_id);
+  const meetingTitle = text(row.meeting_title) || titles.get(meetingId) || '';
   return <article className={styles.taskRow}>
     <Bookmark size={18} aria-hidden="true" className={styles.taskMark} />
     <div className={styles.taskBody}>
       <strong>{text(row.note ?? row.source_quote ?? row.quote)}</strong>
-      <div className={styles.taskMeta}><Badge>Important moment</Badge><span>{text(row.assignee, 'Unassigned')}</span><span>{text(row.priority, 'normal')}</span><span>{text(row.status, 'open')}</span><Citation source={row} /></div>
+      <div className={styles.taskMeta}><Badge>Important moment</Badge><span>{text(row.assignee, 'Unassigned')}</span><span>{humanize(text(row.priority, 'normal'))}</span><span>{humanize(text(row.status, 'open'))}</span>{meetingId && meetingTitle && <Link to="/meeting/$meetingId" params={{ meetingId }}>{meetingTitle}</Link>}<Citation source={row} /></div>
     </div>
-    <EditResource operation="moments.update" row={row} label="Update follow-up" fields={[{ name: 'note', label: 'Note', type: 'textarea' }, { name: 'status', label: 'Status', type: 'select', options: ['open', 'done', 'dismissed'].map((value) => ({ value, label: value })) }, { name: 'assignee', label: 'Assignee' }, { name: 'priority', label: 'Priority', type: 'select', options: ['low', 'normal', 'high'].map((value) => ({ value, label: value })) }]} />
+    <EditResource operation="moments.update" row={row} label="Update follow-up" fields={[{ name: 'note', label: 'Note', type: 'textarea' }, { name: 'status', label: 'Status', type: 'select', options: ['open', 'done', 'dismissed'].map((value) => ({ value, label: humanize(value) })) }, { name: 'assignee', label: 'Assignee' }, { name: 'priority', label: 'Priority', type: 'select', options: PRIORITIES.map((value) => ({ value, label: humanize(value) })) }]} />
   </article>;
 }
 
@@ -62,6 +70,20 @@ function Highlight({ value, terms }: { value: string; terms: string[] }) {
   if (!terms.length) return <>{value}</>;
   const parts = value.split(new RegExp(`(${terms.map(escapeExpression).join('|')})`, 'i'));
   return <>{parts.map((part, index) => index % 2 === 1 ? <mark key={index}>{part}</mark> : part)}</>;
+}
+
+/** The title links to the passage (same target as a citation); the time shows once, inside the link. */
+function SearchResult({ row, terms }: { row: RecordData; terms: string[] }) {
+  const select = useInterface((state) => state.selectUtterance);
+  const meetingId = text(row.meeting_id);
+  const utteranceId = text(row.utterance_id ?? row.source_utterance_id ?? row.start_utterance_id ?? row.source_id);
+  const title = text(row.meeting_title, 'Meeting passage');
+  const linked = Boolean(meetingId && utteranceId) && row.type !== 'human_note' && row.provenance !== 'Human note';
+  return <article className={styles.searchResult}>
+    <h3>{linked ? <Link to="/meeting/$meetingId" params={{ meetingId }} onClick={() => select(utteranceId)}>{title} at {clock(row.start_ms)}</Link> : title}</h3>
+    <p><Highlight value={excerpt(text(row.excerpt ?? row.text), terms)} terms={terms} /></p>
+    {linked ? (row.stale === true || row.stale === 1) && <Badge tone="warning">Out of date</Badge> : <Citation source={row} />}
+  </article>;
 }
 
 export function SearchPage() {
@@ -93,8 +115,8 @@ export function SearchPage() {
       <label className={styles.searchInput}>Query<input name="query" value={queryText} onChange={(event) => setQueryText(event.target.value)} placeholder="A phrase, decision, or question…" required autoFocus /></label>
       <div className={styles.searchActions}>
         <button type="submit" className={buttonClass.primary} disabled={!queryText.trim()}>Search</button>
-        <button type="button" disabled={!queryText.trim() || askRequest.isPending} onClick={() => submit(true)}>{askRequest.isPending ? 'Asking…' : 'Ask'}</button>
         <label className={styles.check}><input type="checkbox" checked={historicalConsent} onChange={(event) => setHistoricalConsent(event.target.checked)} />Let Ask send matching excerpts to your AI provider</label>
+        <button type="button" disabled={!queryText.trim() || !historicalConsent || askRequest.isPending} onClick={() => submit(true)}>{askRequest.isPending ? 'Asking…' : 'Ask'}</button>
       </div>
     </form>
     {/* Outside the form: portal dialogs bubble React submit events to their ancestor form. */}
@@ -111,7 +133,7 @@ export function SearchPage() {
     {currentQuery && !ask && <Panel title="Results"><AsyncView query={results}>{(data) => <>
       {data.retrieval_mode === 'keyword' && mode !== 'keyword' && <Notice>Meaning search isn't available yet; showing exact matches.</Notice>}
       {(Boolean(data.destination) || Boolean(data.fallback_reason ?? data.warning)) && <Toolbar>{Boolean(data.destination) && <Badge>Sent to: {text(data.destination)}</Badge>}{Boolean(data.fallback_reason ?? data.warning) && <Notice>{text(data.fallback_reason ?? data.warning)}</Notice>}</Toolbar>}
-      {items(data).length === 0 ? <Empty title="No matches" /> : <VirtualList label="Search results" rows={items(data)} estimate={130} render={(row) => <article className={styles.searchResult}><h3>{text(row.meeting_title, 'Meeting passage')}</h3><p><Highlight value={excerpt(text(row.excerpt ?? row.text), terms)} terms={terms} /></p><Citation source={row} /></article>} />}
+      {items(data).length === 0 ? <Empty title="No matches" /> : <><small>{items(data).length} result{items(data).length === 1 ? '' : 's'}{data.next_cursor ? ' on this page' : ''}</small><VirtualList label="Search results" rows={items(data)} estimate={130} render={(row) => <SearchResult row={row} terms={terms} />} /></>}
       {(previous.length > 0 || Boolean(data.next_cursor)) && <Toolbar><button disabled={!previous.length} onClick={() => { setCursor(previous[previous.length - 1] ?? null); setPrevious((values) => values.slice(0, -1)); }}>Previous results</button><button disabled={!data.next_cursor} onClick={() => { setPrevious((values) => [...values, cursor]); setCursor(text(data.next_cursor)); }}>Next results</button></Toolbar>}
     </>}</AsyncView></Panel>}
     {ask && <Panel title="Answer">{askRequest.isPending && <Notice>Searching…</Notice>}{askRequest.error && <ErrorNotice error={askRequest.error} retry={() => submit(true)} />}{askRequest.data && <AskAnswer answer={askRequest.data} />}</Panel>}

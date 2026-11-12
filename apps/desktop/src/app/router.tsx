@@ -14,6 +14,7 @@ import { MeetingPage } from '../features/meeting';
 import { ProjectsPage } from '../features/projects';
 import { FollowupsPage, SearchPage } from '../features/knowledge';
 import { SettingsPage } from '../features/settings';
+import { GetStarted, useGetStarted } from '../features/providers';
 import styles from './shell.module.css';
 
 type QuitState = { phase: 'working' } | { phase: 'blocked'; result: RecordData } | { phase: 'error'; error: unknown } | null;
@@ -104,6 +105,8 @@ function Shell() {
   const shortcutsOpen = useInterface((state) => state.shortcutsOpen);
   const setShortcutsOpen = useInterface((state) => state.setShortcutsOpen);
   const [error, setError] = useState<unknown>();
+  const setup = useResource('setup.status');
+  const [started, setStarted] = useGetStarted();
   const workspace = useResource('workspace.status');
   const preferences = useNativeResource('native_preferences_get');
   const savedPreferences = object(preferences.data?.preferences ?? preferences.data);
@@ -150,13 +153,15 @@ function Shell() {
     <header className={styles.bar}>
       <Link className={styles.brand} to="/" onClick={(event) => followLink(event, '/')}>Meeting Assistant</Link>
       <nav className={styles.nav} aria-label="Main navigation">{navigation.map((entry) => <Link key={entry.to} to={entry.to} onClick={(event) => followLink(event, entry.to)} className={`${styles.navLink} ${current(entry.to) ? styles.active : ''}`} aria-current={current(entry.to) ? 'page' : undefined}>{entry.label}</Link>)}</nav>
-      <div className={styles.actions}><button type="button" className={styles.iconButton} aria-label="Keyboard shortcuts" onClick={() => setShortcutsOpen(true)}><Keyboard size={18} aria-hidden="true" /></button><StartNow /><NewMeeting trigger={<><Plus size={16} aria-hidden="true" />New meeting</>} /></div>
+      <div className={styles.actions}><button type="button" className={styles.iconButton} aria-label="Keyboard shortcuts" title="Keyboard shortcuts" onClick={() => setShortcutsOpen(true)}><Keyboard size={18} aria-hidden="true" /></button><StartNow /><NewMeeting plain={pathname.startsWith('/meeting/')} trigger={<><Plus size={16} aria-hidden="true" /><span className={styles.collapsible}>New meeting</span></>} /></div>
     </header>
     {!nativeAvailable() && <div className={styles.banner} role="status">Recording, providers, files and playback need the desktop app.</div>}
     {captureMissing && <div className={styles.banner} role="status">Recording is unavailable because the capture host did not start.</div>}
+    {setup.data?.asr_ready === false && <div className={styles.banner} role="status">Transcription isn't set up yet.<button type="button" onClick={() => setStarted(true)}>Set up transcription</button></div>}
+    <GetStarted open={started} onOpenChange={setStarted} />
     {(workspace.isError || Boolean(error)) && <div className={styles.errors}>{workspace.isError && <ErrorNotice error={workspace.error} retry={() => { void workspace.refetch(); }} />}{Boolean(error) && <ErrorNotice error={error}><button type="button" onClick={() => setError(undefined)}>Dismiss</button></ErrorNotice>}</div>}
     <main id="workspace-content" className={styles.content} tabIndex={-1}><Outlet /></main>
-  </div><QuitGuard /><UpdatePrompt /><Modal open={shortcutsOpen} onOpenChange={setShortcutsOpen} title="Keyboard shortcuts"><dl><dt>Search</dt><dd><kbd>{mod}K</kbd></dd><dt>Start, stop, or start a new meeting</dt><dd><kbd>{mod}Shift+M</kbd></dd><dt>Mark the last line important</dt><dd><kbd>{mod}Shift+B</kbd></dd><dt>Find in transcript</dt><dd><kbd>{mod}F</kbd>, then Enter / Shift+Enter</dd><dt>Save minutes</dt><dd><kbd>{mod}Shift+S</kbd></dd><dt>Settings</dt><dd><kbd>{mod},</kbd></dd><dt>This list</dt><dd><kbd>?</kbd></dd><dt>Edit a line</dt><dd>Double-click or Enter, Shift+Enter for a new line</dd><dt>Rename a speaker</dt><dd>Click their name</dd></dl></Modal></>;
+  </div><QuitGuard /><UpdatePrompt /><Modal open={shortcutsOpen} onOpenChange={setShortcutsOpen} title="Keyboard shortcuts"><h3>Anywhere</h3><dl><dt>Search</dt><dd><kbd>{mod}K</kbd></dd><dt>Start, stop, or start a new meeting</dt><dd><kbd>{mod}Shift+M</kbd></dd><dt>Settings</dt><dd><kbd>{mod}Comma</kbd></dd><dt>This list</dt><dd><kbd>?</kbd></dd></dl><h3>On a meeting page</h3><dl><dt>Mark the last line important</dt><dd><kbd>{mod}Shift+B</kbd></dd><dt>Find in transcript</dt><dd><kbd>{mod}F</kbd>, then Enter / Shift+Enter</dd><dt>Export this meeting</dt><dd><kbd>{mod}Shift+S</kbd></dd></dl><h3>In the transcript</h3><dl><dt>Edit a line</dt><dd>Double-click or Enter, Shift+Enter for a new line</dd><dt>Rename a speaker</dt><dd>Click their name</dd></dl></Modal></>;
 }
 
 const rootRoute = createRootRoute({ component: Shell });

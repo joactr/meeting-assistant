@@ -16,6 +16,8 @@
 }
 
 .pageHeader h1 {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--text-display);
 }
 
@@ -24,6 +26,18 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-xs);
+}
+
+/* No visible title: the header is only the actions row, or nothing. */
+.compactHeader {
+  justify-content: flex-end;
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+.compactHeader .toolbar {
+  margin-bottom: var(--space-sm);
 }
 
 .panel {
@@ -120,6 +134,7 @@
 .empty {
   display: grid;
   gap: var(--space-xs);
+  justify-items: start;
   max-width: 52ch;
   padding: var(--space-xs) 0;
   color: var(--color-muted);
@@ -177,19 +192,26 @@
   position: fixed;
   inset: 0;
   z-index: var(--z-modal);
-  display: grid;
-  align-content: start;
-  gap: var(--space-md);
+  display: flex;
+  flex-direction: column;
   width: min(36rem, calc(100% - 2 * var(--space-md)));
   height: fit-content;
   max-height: min(85dvh, 48rem);
   margin: auto;
-  padding: var(--space-lg);
-  overflow-y: auto;
-  overscroll-behavior: contain;
   background: var(--color-sheet);
   box-shadow: var(--shadow-card);
   color: var(--color-ink-2);
+}
+
+/* The body scrolls; the close button stays put outside it. */
+.modalBody {
+  display: grid;
+  align-content: start;
+  gap: var(--space-md);
+  min-height: 0;
+  padding: var(--space-lg);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .modal h2 {
@@ -203,8 +225,8 @@
 }
 
 /* A dialog's own closing action sits at the trailing edge, also when a loaded view wraps it. */
-.modal > button:not(.close),
-.modal > .view > button:last-child {
+.modalBody > button,
+.modalBody > .view > button:last-child {
   display: flex;
   width: fit-content;
   margin-left: auto;
@@ -259,8 +281,8 @@
   min-width: 0;
 }
 
-.tabContent:focus-visible {
-  outline: none;
+.notice .details small {
+  display: block;
 }
 
 .form {

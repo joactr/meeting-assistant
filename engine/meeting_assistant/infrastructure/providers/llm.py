@@ -47,6 +47,20 @@ def safe_endpoint(endpoint: str) -> str:
     return endpoint.rstrip("/")
 
 
+def http_message(code: str, status: int) -> str:
+    if code == "quota":
+        return "The AI provider says your quota or credit is used up. Check your plan or billing."
+    if status in (401, 403):
+        return "The AI provider rejected the API key. Check it in Settings."
+    if status == 404:
+        return "The AI provider could not find that model. Check the model name in Settings."
+    if status == 429:
+        return "The AI provider is limiting requests right now. Try again in a little while."
+    if status >= 500:
+        return "The AI provider is unavailable right now. Try again later."
+    return f"The AI provider rejected the request (HTTP {status})."
+
+
 def http_error(response: httpx.Response) -> ProviderError:
     status = response.status_code
     code = {
@@ -89,7 +103,7 @@ def http_error(response: httpx.Response) -> ProviderError:
             pass
     return ProviderError(
         code,
-        f"Provider request failed (HTTP {status})",
+        http_message(code, status),
         retryable=retry,
         provider_code=provider_code,
         retry_after=retry_seconds,
@@ -119,20 +133,26 @@ async def json_request(
                 raise http_error(response)
             return response.json()
         except httpx.TimeoutException:
-            error = ProviderError("timeout", "Provider request timed out", retryable=True)
+            error = ProviderError(
+                "timeout", "The AI provider took too long to respond.", retryable=True
+            )
         except httpx.RequestError:
-            error = ProviderError("network", "Provider transport failed", retryable=True)
+            error = ProviderError(
+                "network", "Couldn't reach the AI provider. Check your connection.", retryable=True
+            )
         except ProviderError as exc:
             error = exc
         except (ValueError, KeyError) as exc:
-            raise ProviderError("invalid_output", "Provider returned invalid JSON") from exc
+            raise ProviderError(
+                "invalid_output", "The AI provider sent a response the app couldn't read."
+            ) from exc
         if attempt == retries or not error.retryable:
             raise error
         delay = max(error.retry_after or 0, 2**attempt + random.uniform(0, 0.2))
         if time.monotonic() + delay >= deadline:
             raise error
         await asyncio.sleep(delay)
-    raise ProviderError("network", "Provider request failed")
+    raise ProviderError("network", "Couldn't reach the AI provider.")
 
 
 async def sse(response: httpx.Response) -> AsyncIterator[tuple[str, dict[str, Any]]]:
@@ -150,13 +170,15 @@ async def sse(response: httpx.Response) -> AsyncIterator[tuple[str, dict[str, An
             try:
                 yield name, json.loads(raw)
             except ValueError as exc:
-                raise ProviderError("invalid_output", "Malformed provider stream frame") from exc
+                raise ProviderError(
+                    "invalid_output", "The AI provider sent a response the app couldn't read."
+                ) from exc
             name, data = "message", []
     if data and "\n".join(data) != "[DONE]":
         try:
             yield name, json.loads("\n".join(data))
         except ValueError as exc:
-            raise ProviderError("invalid_output", "Incomplete provider stream frame") from exc
+            raise ProviderError("invalid_output", "The AI provider's answer was cut off.") from exc
 
 
 class NativeLLM:
@@ -183,7 +205,9 @@ class NativeLLM:
     def headers(self) -> dict[str, str]:
         adapter = self.connection.adapter
         if self.connection.auth_scheme != "none" and not self.secret:
-            raise ProviderError("auth", "Selected connection has no available credential")
+            raise ProviderError(
+                "auth", "No API key is available for this provider. Add one in Settings."
+            )
         headers = {"Accept": "text/event-stream", "Content-Type": "application/json"}
         if adapter == "anthropic":
             headers["anthropic-version"] = self.connection.api_version or "2023-06-01"
@@ -198,7 +222,9 @@ class NativeLLM:
         elif self.secret:
             headers["Authorization"] = f"Bearer {self.secret}"
         elif self.connection.auth_scheme != "none":
-            raise ProviderError("auth", "Selected connection has no available credential")
+            raise ProviderError(
+                "auth", "No API key is available for this provider. Add one in Settings."
+            )
         return headers
 
     def payload(self, request: LLMRequest) -> tuple[str, dict[str, Any]]:
@@ -325,7 +351,7 @@ class NativeLLM:
                 async for name, frame in frames:
                     check_deadline(request.deadline, cancelled)
                     if "error" in frame or name == "error":
-                        raise ProviderError("network", "Provider stream reported an error")
+                        raise ProviderError("network", "The AI provider reported an error.")
                     events = self.normalize(name, frame)
                     for event in events:
                         if event.type == "text_delta":
@@ -337,38 +363,41 @@ class NativeLLM:
                             if event.data.get("truncated"):
                                 raise ProviderError(
                                     "invalid_output",
-                                    "Provider output was truncated by its output limit",
+                                    "The AI provider's answer was cut off by its length limit. Try a model with a larger output limit.",
                                 )
                         if event.type != "complete":
                             yield event
                 if refusal:
                     raise ProviderError(
-                        "provider_refusal", "Provider refused the requested analysis"
+                        "provider_refusal", "The AI provider declined this request."
                     )
                 if not complete:
-                    raise ProviderError("invalid_output", "Provider stream ended before completion")
+                    raise ProviderError(
+                        "invalid_output", "The AI provider stopped before finishing its answer."
+                    )
                 full_text = "".join(text)
                 if request.output_schema is not None:
                     try:
                         result = json.loads(full_text)
                     except ValueError as exc:
                         raise ProviderError(
-                            "invalid_output", "Completed provider output is not valid JSON"
+                            "invalid_output",
+                            "The AI provider's answer was not in the expected format.",
                         ) from exc
                     yield LLMEvent(type="structured_candidate", data={"result": result})
                 yield LLMEvent(type="complete", data={"text": full_text})
         except asyncio.CancelledError:
             raise ProviderError(
-                "cancelled", "Stopped locally; provider may continue processing"
+                "cancelled", "Stopped. The AI provider may keep working on it."
             ) from None
         except httpx.TimeoutException:
             raise ProviderError(
-                "timeout", "Provider stream deadline exceeded", retryable=True
+                "timeout", "The AI provider took too long to respond.", retryable=True
             ) from None
         except httpx.RequestError:
             raise ProviderError(
                 "network",
-                "Provider stream disconnected; no unacknowledged replay was attempted",
+                "The connection to the AI provider dropped. Try again.",
                 retryable=True,
             ) from None
 

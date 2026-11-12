@@ -116,7 +116,9 @@ class CloudSpeechSession:
             status = getattr(getattr(exc, "response", None), "status_code", None)
             raise ProviderError(
                 "auth" if status in {401, 403} else "network",
-                "Speech streaming connection failed",
+                "The speech provider rejected the API key. Check it in Settings."
+                if status in {401, 403}
+                else "Couldn't reach the speech provider. Check your connection.",
                 retryable=status not in {401, 403},
             ) from None
         self._receiver = asyncio.create_task(self._receive())
@@ -135,7 +137,7 @@ class CloudSpeechSession:
             async for raw in self.socket:
                 frame: dict[str, Any] = json.loads(raw)
                 if frame.get("type") in {"Error", "error"} or frame.get("error"):
-                    raise ProviderError("network", "Speech provider reported a stream error")
+                    raise ProviderError("network", "The speech provider reported an error.")
                 result = self.normalize(frame)
                 if result is not None:
                     await self._events.put(result)
@@ -151,7 +153,7 @@ class CloudSpeechSession:
             await self._events.put(exc)
         except Exception:
             await self._events.put(
-                ProviderError("network", "Speech stream ended unexpectedly", retryable=True)
+                ProviderError("network", "The speech connection dropped.", retryable=True)
             )
         finally:
             self._closed.set()
@@ -255,7 +257,7 @@ class CloudSpeechSession:
             await asyncio.wait_for(self._flushed.wait(), 20)
         except TimeoutError:
             raise ProviderError(
-                "timeout", "Speech provider did not acknowledge boundary flush", retryable=True
+                "timeout", "The speech provider did not respond in time.", retryable=True
             ) from None
         return {"acknowledged": True, "stream_id": self.stream_id}
 

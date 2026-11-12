@@ -340,7 +340,7 @@ def import_legacy(w: Workspace, path: Path, p: JSONDocument) -> JSONDocument:
                         "project_id": project,
                         "config_snapshot": sanitized,
                         "policy_hash": fingerprint(sanitized),
-                        "interrupted_reason": "Imported unfinished capture; preserved text can be finalized. Audio not present in the source is not recoverable."
+                        "interrupted_reason": "Imported from an unfinished recording. The saved text can be finished; audio missing from the old data can't be recovered."
                         if state == "interrupted"
                         else None,
                         "legacy_source_id": old_id(row),

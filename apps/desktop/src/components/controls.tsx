@@ -20,7 +20,7 @@ export function ActionMenu({ label: menuLabel, actions }: { label: string; actio
   const safe = actions.filter((action) => !action.danger);
   const danger = actions.filter((action) => action.danger);
   return <Menu.Root>
-    <Menu.Trigger asChild><button type="button" className={styles.iconButton} aria-label={menuLabel}><MoreHorizontal size={18} aria-hidden="true" /></button></Menu.Trigger>
+    <Menu.Trigger asChild><button type="button" className={styles.iconButton} aria-label={menuLabel} title={menuLabel}><MoreHorizontal size={18} aria-hidden="true" /></button></Menu.Trigger>
     <Menu.Portal><Menu.Content className={styles.menu} align="end" sideOffset={6}>
       {safe.map((action) => <Menu.Item key={action.label} className={styles.menuItem} disabled={action.disabled} onSelect={action.onSelect}>{action.label}</Menu.Item>)}
       {safe.length > 0 && danger.length > 0 && <Menu.Separator className={styles.menuSeparator} />}
@@ -106,10 +106,13 @@ export function MeetingPicker({ title, values, onChange, multiple = false, proje
 /** Single-choice filter rendered as a segmented control. Native radios keep arrow-key navigation and screen-reader semantics. */
 export function Segmented({ legend, value, options, onChange }: { legend: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void }) {
   const name = useId();
-  return <fieldset className={styles.segmented}>
-    <legend className={styles.srOnly}>{legend}</legend>
-    {options.map((option) => <label key={option.value} className={value === option.value ? styles.segmentActive : undefined}>
-      <input type="radio" name={name} value={option.value} checked={value === option.value} onChange={() => onChange(option.value)} />{option.label}
-    </label>)}
-  </fieldset>;
+  return <div className={styles.segmentedField}>
+    <span className={styles.segmentedLabel} aria-hidden="true">{legend}</span>
+    <fieldset className={styles.segmented}>
+      <legend className={styles.srOnly}>{legend}</legend>
+      {options.map((option) => <label key={option.value} className={value === option.value ? styles.segmentActive : undefined}>
+        <input type="radio" name={name} value={option.value} checked={value === option.value} onChange={() => onChange(option.value)} />{option.label}
+      </label>)}
+    </fieldset>
+  </div>;
 }
