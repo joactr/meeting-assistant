@@ -9,6 +9,7 @@ import { AsyncView, Badge, buttonClass, CommandForm, Details, EditResource, Empt
 import { Link } from '@tanstack/react-router';
 import { useInterface } from '../lib/ui-store';
 import { ActionRow, Citation, CitedResult } from './outcomes';
+import { NeedsLlm } from './providers';
 import { VirtualList } from '../components/virtual-list';
 import styles from './workspace.module.css';
 
@@ -27,7 +28,7 @@ export function FollowupsPage() {
   return <><PageHeader title="Follow-ups" /><Panel>
     <FilterDisclosure title="More filters" count={extra} bar={<>
       <Segmented legend="Status" value={text(filters.status)} onChange={(value) => change('status', value)} options={[{ value: 'open', label: 'Open' }, { value: 'in_progress', label: 'In progress' }, { value: 'done', label: 'Done' }, { value: '', label: 'All' }]} />
-      <FieldInput field={{ name: 'project', label: 'Project', type: 'select', options: [{ value: '', label: 'All projects' }, ...items(projects.data).map((project) => ({ value: id(project), label: label(project) }))] }} value={filters.project_id ?? ''} onChange={(value) => change('project_id', value)} />
+      <FieldInput field={{ name: 'project', label: 'Project', type: 'select', options: [{ value: '', label: 'All projects' }, ...items(projects.data).filter((project) => !project.archived_at).map((project) => ({ value: id(project), label: label(project) }))] }} value={filters.project_id ?? ''} onChange={(value) => change('project_id', value)} />
       <FieldInput field={{ name: 'assignee', label: 'Assignee' }} value={filters.assignee ?? ''} onChange={(value) => change('assignee', value)} />
     </>}>
       <FieldInput field={{ name: 'priority', label: 'Priority', type: 'select', options: ['', ...PRIORITIES].map((value) => ({ value, label: humanize(value) || 'Any priority' })) }} value={filters.priority ?? ''} onChange={(value) => change('priority', value)} />
@@ -93,7 +94,8 @@ export function SearchPage() {
   const [meetingIds, setMeetingIds] = useState<string[]>([]);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const [historicalConsent, setHistoricalConsent] = useState(false);
+  // Remembered on this computer: ticking it once is the user's standing permission, like the summaries consent.
+  const [historicalConsent, setHistoricalConsent] = useState(() => localStorage.getItem('ask-excerpt-consent') === '1');
   const [currentQuery, setCurrentQuery] = useState<Payload | null>(null);
   const [ask, setAsk] = useState(false);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -115,14 +117,14 @@ export function SearchPage() {
       <label className={styles.searchInput}>Query<input name="query" value={queryText} onChange={(event) => setQueryText(event.target.value)} placeholder="A phrase, decision, or question…" required autoFocus /></label>
       <div className={styles.searchActions}>
         <button type="submit" className={buttonClass.primary} disabled={!queryText.trim()}>Search</button>
-        <label className={styles.check}><input type="checkbox" checked={historicalConsent} onChange={(event) => setHistoricalConsent(event.target.checked)} />Let Ask send matching excerpts to your AI provider</label>
-        <button type="button" disabled={!queryText.trim() || !historicalConsent || askRequest.isPending} onClick={() => submit(true)}>{askRequest.isPending ? 'Asking…' : 'Ask'}</button>
+        <label className={styles.check}><input type="checkbox" checked={historicalConsent} onChange={(event) => { setHistoricalConsent(event.target.checked); localStorage.setItem('ask-excerpt-consent', event.target.checked ? '1' : '0'); }} />Let Ask send matching excerpts to your AI provider</label>
+        <NeedsLlm><button type="button" disabled={!queryText.trim() || !historicalConsent || askRequest.isPending} onClick={() => submit(true)}>{askRequest.isPending ? 'Asking…' : 'Ask'}</button></NeedsLlm>
       </div>
     </form>
     {/* Outside the form: portal dialogs bubble React submit events to their ancestor form. */}
       <FilterDisclosure title="Filters" count={activeFilters}>
         <FieldInput field={{ name: 'mode', label: 'Match by', type: 'select', options: [{ value: 'keyword', label: 'Exact words' }, { value: 'semantic', label: 'Meaning' }, { value: 'hybrid', label: 'Both' }] }} value={mode} onChange={(value) => setMode(text(value))} />
-        <FieldInput field={{ name: 'project', label: 'Project', type: 'select', options: [{ value: '', label: 'All projects' }, ...items(projects.data).map((project) => ({ value: id(project), label: label(project) }))] }} value={projectId} onChange={(value) => setProjectId(text(value))} />
+        <FieldInput field={{ name: 'project', label: 'Project', type: 'select', options: [{ value: '', label: 'All projects' }, ...items(projects.data).filter((project) => !project.archived_at).map((project) => ({ value: id(project), label: label(project) }))] }} value={projectId} onChange={(value) => setProjectId(text(value))} />
         <MeetingPicker title="Meetings" multiple values={meetingIds} onChange={setMeetingIds} projectId={projectId} placeholder="All meetings" />
         <FieldInput field={{ name: 'from', label: 'From date', type: 'date' }} value={fromDate} onChange={(value) => setFromDate(text(value))} />
         <FieldInput field={{ name: 'to', label: 'Through date', type: 'date' }} value={toDate} onChange={(value) => setToDate(text(value))} />

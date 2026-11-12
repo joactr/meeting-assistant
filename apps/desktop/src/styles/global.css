@@ -92,6 +92,41 @@ select:focus-visible {
   outline-offset: -3px;
 }
 
+/* Draw the option list inside the page (customizable select) so a long list stays in the window instead of spilling over it. */
+select,
+::picker(select) {
+  appearance: base-select;
+}
+
+select::picker-icon {
+  color: var(--color-muted);
+}
+
+select {
+  align-items: center;
+}
+
+::picker(select) {
+  max-block-size: min(24rem, 45vh);
+  overflow-y: auto;
+  padding: var(--space-2xs) 0;
+  border: var(--rule-hair) solid var(--color-rule);
+  background: var(--color-sheet);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-card);
+}
+
+option {
+  min-block-size: var(--control);
+  padding: 0 var(--space-md);
+}
+
+option:hover,
+option:focus-visible {
+  background: var(--color-sheet-2);
+  outline: none;
+}
+
 input[aria-invalid="true"],
 textarea[aria-invalid="true"] {
   border-color: var(--color-error);

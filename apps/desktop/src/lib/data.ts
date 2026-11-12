@@ -39,7 +39,7 @@ export function revision(row: RecordData): number {
 }
 
 export function label(row: RecordData): string {
-  return text(row.title ?? row.display_name ?? row.name ?? row.description ?? row.spelling ?? row.heading ?? row.id, 'Untitled');
+  return text(row.title ?? row.display_name ?? row.name ?? row.description ?? row.spelling ?? row.heading ?? row.model_id ?? row.id, 'Untitled');
 }
 
 /** Engine ids (`follow_ups`, `in_progress`) as sentence-case words. */

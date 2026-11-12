@@ -6,7 +6,7 @@ import { nativeAvailable, nativeRequest } from '../lib/bridge';
 import { array, clock, date, humanize, id, item, items, object, revision, text, type RecordData } from '../lib/data';
 import { ActionMenu } from '../components/controls';
 import { AsyncView, Badge, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, ErrorNotice, FieldInput, Modal, Notice, Panel, Toolbar, useOpenState, type Field } from '../components/ui';
-import { SetupLink } from './providers';
+import { LlmSetupButton, NeedsLlm, SetupLink } from './providers';
 import styles from './workspace.module.css';
 
 export const actionFields: Field[] = [
@@ -27,13 +27,26 @@ export function useTask(meetingId: string, task: string) {
 }
 
 /** A rejected key looks the same everywhere: error code `auth`, or HTTP 401/403 in the message. */
+const authFailed = (code: unknown, message: unknown): boolean => /^(auth|unauthori[sz]ed)/i.test(text(code)) || /\b40[13]\b/.test(text(message));
+
 export function AuthHint({ code, message }: { code?: unknown; message?: unknown }) {
-  return /^(auth|unauthori[sz]ed)/i.test(text(code)) || /\b40[13]\b/.test(text(message)) ? <SetupLink>Check the API key in Settings</SetupLink> : null;
+  return authFailed(code, message) ? <SetupLink>Check the API key in Settings</SetupLink> : null;
 }
 
-/** Why a task failed, with the way to fix a rejected key. The retry is the task's own button. */
+/** Failures stored before the engine's plain-language provider errors read "Provider request failed (HTTP n)"; show them like new ones (llm.py http_message). */
+export function failureText(message: unknown): string {
+  const status = Number(/^Provider request failed \(HTTP (\d+)\)$/.exec(text(message))?.[1]);
+  if (!status) return text(message);
+  if (status === 401 || status === 403) return 'The AI provider rejected the API key. Check it in Settings.';
+  if (status === 404) return 'The AI provider could not find that model. Check the model name in Settings.';
+  if (status === 429) return 'The AI provider is limiting requests right now. Try again in a little while.';
+  if (status >= 500) return 'The AI provider is unavailable right now. Try again later.';
+  return `The AI provider rejected the request (HTTP ${status}).`;
+}
+
+/** Why an AI task failed; a rejected key opens the AI setup right here. The retry is the task's own button. */
 export function FailureNote({ error, code }: { error: unknown; code?: unknown }) {
-  return <Toolbar><small role="alert">Failed: {text(error, 'unknown error')}</small><AuthHint code={code} message={error} /></Toolbar>;
+  return <Toolbar><small role="alert">Failed: {failureText(error) || 'unknown error'}</small>{authFailed(code, error) && <LlmSetupButton>Check the API key…</LlmSetupButton>}</Toolbar>;
 }
 
 /** A draft meeting has no transcript, so there is nothing to generate from. A failed task offers Retry instead of Generate. */
@@ -41,7 +54,7 @@ function GenerateButton({ meetingId, task, children }: { meetingId: string; task
   const meeting = useResource('meetings.get', { id: meetingId });
   const { failed } = useTask(meetingId, task);
   const empty = text(item(meeting.data).state) === 'draft';
-  return <span title={empty ? NO_TRANSCRIPT : undefined}><CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task }} disabled={empty}>{failed ? 'Retry' : children}</CommandButton></span>;
+  return <NeedsLlm><span title={empty ? NO_TRANSCRIPT : undefined}><CommandButton operation="analysis.generate" payload={{ meeting_id: meetingId, task }} disabled={empty}>{failed ? 'Retry' : children}</CommandButton></span></NeedsLlm>;
 }
 
 export function Citation({ source, number: citationNumber }: { source: RecordData; number?: number }) {

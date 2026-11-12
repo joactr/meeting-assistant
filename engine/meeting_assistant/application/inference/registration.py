@@ -136,6 +136,28 @@ def register_workflows(workspace: Workspace, registry: CommandRegistry) -> None:
 
     async def test(p: dict[str, Any]) -> dict[str, Any]:
         connection, profile = resources(p)
+        if p.get("accepted_destination") is True:
+            # The user ticked "Send a test request to this destination": that is the consent.
+            scope = p.get("scope", "connection_test")
+            destination = connection_value(connection)["destination"]
+            if not any(
+                c["destination_fingerprint"] == destination
+                and c.get("revoked_at") is None
+                and c["scope"] == scope
+                and "connection_test" in c["data_classes"]
+                for c in workspace.list("consents")
+            ):
+                workspace.put(
+                    "consents",
+                    workspace.new_id(),
+                    {
+                        "purpose": "connection test",
+                        "destination_fingerprint": destination,
+                        "data_classes": ["connection_test"],
+                        "scope": scope,
+                        "accepted_at": workspace.now_ms(),
+                    },
+                )
         result = await service.test_connection(
             connection, profile, scope=p.get("scope", "connection_test")
         )

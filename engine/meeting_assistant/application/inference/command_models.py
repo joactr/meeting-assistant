@@ -37,6 +37,7 @@ class Selection(Value):
 
 class Test(Selection):
     scope: str = Field(default="connection_test", min_length=1, max_length=500)
+    accepted_destination: bool = False
 
 
 class Models(Value):

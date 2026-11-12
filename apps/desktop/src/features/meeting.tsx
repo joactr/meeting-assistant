@@ -14,8 +14,9 @@ import { AsyncView, Badge, buttonClass, CommandButton, CommandForm, ConfirmComma
 import { CaptureControls, LanguageControl, MeetingStatus, SpeakersPanel } from './capture';
 import { Transcript } from './transcript';
 import { HumanNotes } from './notes';
-import { ActionsPanel, AnalysisPanel, AuthHint, CitedResult, FailureNote, ImportantPanel, NO_TRANSCRIPT, QuestionsPanel, useTask } from './outcomes';
+import { ActionsPanel, AnalysisPanel, AuthHint, CitedResult, FailureNote, ImportantPanel, NO_TRANSCRIPT, QuestionsPanel, failureText, useTask } from './outcomes';
 import { CandidatePanel, ReplayPanel } from './media';
+import { NeedsLlm } from './providers';
 import styles from './workspace.module.css';
 
 export function MeetingPage({ meetingId }: { meetingId: string }) {
@@ -94,7 +95,7 @@ function MeetingActions({ meeting }: { meeting: RecordData }) {
     <ExportControls meeting={meeting} {...bind('export')} />
     <LanguageControl meeting={meeting} {...bind('language')} />
     <Modal title="Speakers" {...bind('speakers')}><SpeakersPanel meetingId={id(meeting)} /></Modal>
-    <EditResource operation="meetings.update" row={meeting} label="Edit meeting" fields={[{ name: 'title', label: 'Title', required: true }, { name: 'project_id', label: 'Project', type: 'select', options: [{ value: '', label: 'No project' }, ...items(projects.data).map((row) => ({ value: id(row), label: label(row) }))] }]} {...bind('edit')} />
+    <EditResource operation="meetings.update" row={meeting} label="Edit meeting" fields={[{ name: 'title', label: 'Title', required: true }, { name: 'project_id', label: 'Project', type: 'select', options: [{ value: '', label: 'No project' }, ...items(projects.data).filter((row) => !row.archived_at || id(row) === meeting.project_id).map((row) => ({ value: id(row), label: label(row) }))] }]} {...bind('edit')} />
     <ConfirmCommand trigger="Delete meeting…" title={`Delete "${label(meeting)}"?`} message="Deletes the transcript, notes and audio. Anything already sent elsewhere stays." operation="meetings.delete" payload={{ id: id(meeting), expected_revision: revision(meeting), confirm: true }} onSuccess={() => { void navigate({ to: '/' }); }} {...bind('delete')} />
   </>;
 }
@@ -135,7 +136,7 @@ function FinalizationPanel({ meetingId }: { meetingId: string }) {
       reasons.set(message, reason);
     }
     const failed = job.status === 'failed' || reasons.size > 0;
-    return <article className={styles.actionRow} key={id(job)}><div><strong>{STAGES[stage] ?? stage.replaceAll('_', ' ')}</strong><Badge tone={failed ? 'danger' : job.status === 'succeeded' ? 'success' : 'neutral'}>{failed ? 'Failed' : JOB_STATUS[text(job.status)] ?? text(job.status)}</Badge>{Boolean(object(job.error).message) && <p>{text(object(job.error).message)}</p>}<AuthHint code={object(job.error).code} message={object(job.error).message} />{[...reasons].map(([message, reason]) => <Fragment key={message}><p>{reason.names.join(', ')}: {message}</p><AuthHint code={reason.code} message={message} /></Fragment>)}{job.error && <Details title="Details" value={job.error} />}<small>Updated {date(job.updated_at)}</small></div><Toolbar>{job.status === 'failed' && <CommandButton operation="meetings.retry" payload={{ meeting_id: meetingId, stage }}>Retry</CommandButton>}{['queued', 'running'].includes(text(job.status)) && <CommandButton operation="jobs.cancel" payload={{ id: id(job), expected_revision: revision(job) }}>Cancel</CommandButton>}</Toolbar></article>;
+    return <article className={styles.actionRow} key={id(job)}><div><strong>{STAGES[stage] ?? stage.replaceAll('_', ' ')}</strong><Badge tone={failed ? 'danger' : job.status === 'succeeded' ? 'success' : 'neutral'}>{failed ? 'Failed' : JOB_STATUS[text(job.status)] ?? text(job.status)}</Badge>{Boolean(object(job.error).message) && <p>{failureText(object(job.error).message)}</p>}<AuthHint code={object(job.error).code} message={object(job.error).message} />{[...reasons].map(([message, reason]) => <Fragment key={message}><p>{reason.names.join(', ')}: {failureText(message)}</p><AuthHint code={reason.code} message={message} /></Fragment>)}{job.error && <Details title="Details" value={job.error} />}<small>Updated {date(job.updated_at)}</small></div><Toolbar>{job.status === 'failed' && <CommandButton operation="meetings.retry" payload={{ meeting_id: meetingId, stage }}>Retry</CommandButton>}{['queued', 'running'].includes(text(job.status)) && <CommandButton operation="jobs.cancel" payload={{ id: id(job), expected_revision: revision(job) }}>Cancel</CommandButton>}</Toolbar></article>;
   })}</AsyncView></Panel>;
 }
 
@@ -155,7 +156,7 @@ function MinutesPanel({ meeting }: { meeting: RecordData }) {
   const failed = task.failed && !hasMinutes;
   const empty = text(meeting.state) === 'draft';
   // The tab already says "Minutes", so the panel carries no title of its own.
-  return <Panel><Toolbar><span data-testid="prepare-minutes" title={empty ? NO_TRANSCRIPT : undefined}><CommandButton operation="minutes.prepare" disabled={empty} payload={{ meeting_id: id(meeting), note_revision: item(notes.data).revision ?? 0, transcript_revision: meeting.transcript_revision ?? 0 }}>{failed ? 'Retry' : hasMinutes ? 'Regenerate minutes' : 'Make minutes'}</CommandButton></span></Toolbar>
+  return <Panel><Toolbar><NeedsLlm><span data-testid="prepare-minutes" title={empty ? NO_TRANSCRIPT : undefined}><CommandButton operation="minutes.prepare" disabled={empty} payload={{ meeting_id: id(meeting), note_revision: item(notes.data).revision ?? 0, transcript_revision: meeting.transcript_revision ?? 0 }}>{failed ? 'Retry' : hasMinutes ? 'Regenerate minutes' : 'Make minutes'}</CommandButton></span></NeedsLlm></Toolbar>
     {failed && <FailureNote error={task.row?.error} code={task.row?.error_code} />}
     <AsyncView query={minutes}>{(data) => {
       const current = object(data.item);

@@ -30,6 +30,8 @@ FIXED_ENDPOINTS = {
     "ollama": OLLAMA,
     "openrouter": "https://openrouter.ai/api/v1",
     "openai": "https://api.openai.com/v1",
+    "anthropic": "https://api.anthropic.com/v1",
+    "gemini": "https://generativelanguage.googleapis.com/v1beta",
 }
 BEARER_LISTING = {"openai", "openrouter", "openai-compatible"}
 LOCAL_ROLES = ("asr", "diarization", "embeddings")

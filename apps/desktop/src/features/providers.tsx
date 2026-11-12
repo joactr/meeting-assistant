@@ -2,11 +2,11 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { nativeAvailable, nativeRequest, request } from '../lib/bridge';
+import { ApplicationError, nativeAvailable, nativeRequest, request } from '../lib/bridge';
 import { useNativeResource, useResource } from '../lib/queries';
 import { updatePreferences } from '../lib/preferences';
-import { array, humanize, id, item, items, label, number, object, revision, text, type Json, type RecordData } from '../lib/data';
-import { AsyncView, Badge, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, ErrorNotice, FieldInput, Grid, Modal, Notice, Panel, TabSet, Toolbar, type Field } from '../components/ui';
+import { array, humanize, id, items, label, number, object, revision, text, type Json, type RecordData } from '../lib/data';
+import { AsyncView, Badge, CommandButton, CommandForm, ConfirmCommand, Details, Empty, ErrorNotice, FieldInput, Grid, Modal, Notice, Panel, Toolbar, type Field } from '../components/ui';
 import { FilterDisclosure } from '../components/controls';
 import { LANGUAGES } from './library';
 import styles from './workspace.module.css';
@@ -30,44 +30,34 @@ const taskLabels: Record<string, string> = { asr: 'Transcription', diarization: 
 const taskLabel = (task: string): string => taskLabels[task] ?? task;
 
 const profileName = (profile: RecordData): string => text(profile.name) || text(profile.model_id) || label(profile);
-const connectionName = (profile: RecordData, connections: RecordData[]): string => { const connection = connections.find((candidate) => id(candidate) === profile.connection_id); return connection ? label(connection) : ''; };
+const connectionName = (profile: RecordData, connections: RecordData[]): string => { const connection = connections.find((candidate) => id(candidate) === profile.connection_id); return connection ? PROVIDERS[text(connection.adapter_id)] ?? label(connection) : ''; };
 const profileLabel = (profile: RecordData, connections: RecordData[]): string => { const connection = connectionName(profile, connections); return connection ? `${profileName(profile)} (${connection})` : profileName(profile); };
-
-function profileFields(connections: RecordData[]): Field[] {
-  return [
-    { name: 'name', label: 'Profile name', required: true },
-    { name: 'role', label: 'Role', type: 'select', value: 'llm', options: ['llm', 'asr', 'diarization', 'embeddings'].map((value) => ({ value, label: value })) },
-    { name: 'connection_id', label: 'Connection', type: 'select', required: true, options: [{ value: '', label: 'Choose connection' }, ...connections.map((connection) => ({ value: id(connection), label: `${label(connection)} (${text(connection.endpoint, 'local')})` }))] },
-    { name: 'model_id', label: 'Model ID', required: true },
-    { name: 'context_window', label: 'Context window (tokens)', type: 'number', min: 1, advanced: true },
-    { name: 'options', label: 'Options (JSON)', type: 'json', value: {}, advanced: true },
-  ];
-}
 
 export function SecureSecret({ label: promptLabel, onStored, action = 'Save credential…' }: { label: string; onStored: (reference: string) => void; action?: string }) {
   const command = useMutation({ mutationFn: () => nativeRequest('vault_prompt', { secretRef: `credential:${crypto.randomUUID()}`, label: promptLabel }), onSuccess: (result) => { if (result.stored === true) onStored(text(result.secret_ref)); } });
   return <div><button type="button" disabled={!nativeAvailable() || command.isPending} onClick={() => command.mutate()}>{command.isPending ? 'Waiting…' : action}</button>{Boolean(command.error) && <ErrorNotice error={command.error} />}</div>;
 }
 
-/** API key field: hidden text with a show toggle; stored by the engine on blur. `saved` = a key is already stored; leaving it empty keeps it. */
-export function SecretInput({ label: fieldLabel, onStored, saved = false }: { label: string; onStored: (reference: string) => void; saved?: boolean }) {
+/** API key field: hidden text with a show toggle; stored by the engine on blur. `saved` = a key is already stored; leaving it empty keeps it. `onInput` sees the text as typed. */
+export function SecretInput({ label: fieldLabel, onStored, onInput, saved = false }: { label: string; onStored: (reference: string, value: string) => void; onInput?: (value: string) => void; saved?: boolean }) {
   const [value, setValue] = useState('');
   const [shown, setShown] = useState(false);
   const inputId = useId();
-  const store = useMutation({ mutationFn: (secret: string) => request('secrets.store', { value: secret }), onSuccess: (result) => onStored(text(result.secret_ref)) });
-  return <div><label htmlFor={inputId}>{fieldLabel}</label><span className={styles.secret}><input id={inputId} type={shown ? 'text' : 'password'} autoComplete="off" spellCheck={false} placeholder={saved ? 'API key saved' : undefined} value={value} onChange={(event) => setValue(event.target.value)} onBlur={() => { if (value.trim()) store.mutate(value); }} /><button type="button" aria-label={`${shown ? 'Hide' : 'Show'} ${fieldLabel}`} onClick={() => setShown(!shown)}>{shown ? <EyeOff size={16} /> : <Eye size={16} />}</button></span>{Boolean(store.error) && <ErrorNotice error={store.error} />}</div>;
+  const store = useMutation({ mutationFn: (secret: string) => request('secrets.store', { value: secret }), onSuccess: (result, secret) => onStored(text(result.secret_ref), secret) });
+  return <div><label htmlFor={inputId}>{fieldLabel}</label><span className={styles.secret}><input id={inputId} type={shown ? 'text' : 'password'} autoComplete="off" spellCheck={false} placeholder={saved ? 'API key saved' : undefined} value={value} onChange={(event) => { setValue(event.target.value); onInput?.(event.target.value); }} onBlur={() => { if (value.trim()) store.mutate(value); }} /><button type="button" aria-label={`${shown ? 'Hide' : 'Show'} ${fieldLabel}`} onClick={() => setShown(!shown)}>{shown ? <EyeOff size={16} /> : <Eye size={16} />}</button></span>{Boolean(store.error) && <ErrorNotice error={store.error} />}</div>;
 }
 
-export function ProviderSettings() {
-  const descriptors = useResource('providers.descriptors');
+/** Which model each AI task uses. Models come from the summaries setup; each one saved there is a choice here. */
+export function TaskRoutingSettings() {
   const connections = useResource('entity.list', { collection: 'provider_connections' });
   const profiles = useResource('entity.list', { collection: 'model_profiles' });
   const policies = useResource('entity.list', { collection: 'task_policies' });
-  return <TabSet tabs={[
-    { label: 'Connections', content: <><Panel title="Connections"><AsyncView query={connections}>{(data) => items(data).length === 0 ? <Empty title="No connections" /> : items(data).map((row) => <article key={id(row)} className={styles.actionRow}><div><strong>{label(row)}</strong><p>{text(row.endpoint ?? row.base_url, 'Local runtime')}</p><Details value={row} title="Details" /></div><Toolbar><ConnectionTest connection={row} profiles={items(profiles.data)} /><ConnectionEdit row={row} /><ConfirmCommand trigger="Remove connection" title="Remove connection?" message="Tasks using this connection must finish first. Saved credentials stay in the vault." operation="entity.delete" payload={{ collection: 'provider_connections', id: id(row), expected_revision: revision(row) }} /></Toolbar></article>)}</AsyncView></Panel><NewConnection descriptors={items(descriptors.data)} /></> },
-    { label: 'Model profiles', content: <Panel title="Model profiles" actions={<ModelProfileCreation connections={items(connections.data)} />}><AsyncView query={profiles}>{(data) => items(data).length === 0 ? <Empty title="No model profiles" /> : items(data).map((row) => <article key={id(row)} className={styles.actionRow}><div><strong>{profileName(row)}</strong><p>{[text(row.name) ? text(row.model_id) : '', connectionName(row, items(connections.data))].filter(Boolean).join(' · ')}</p><Details value={row} title="Details" /></div><Toolbar><EditResource operation="entity.update" row={{ ...row, name: profileName(row) }} fixed={{ collection: 'model_profiles' }} fields={profileFields(items(connections.data))} label="Edit model profile" /><ConfirmCommand trigger="Delete profile" title="Delete profile?" message="Tasks using this profile must finish first." operation="entity.delete" payload={{ collection: 'model_profiles', id: id(row), expected_revision: revision(row) }} /></Toolbar></article>)}</AsyncView></Panel> },
-    { label: 'Task routing', content: <Panel title="Task routing" actions={<TaskRouting profiles={items(profiles.data)} connections={items(connections.data)} />}><AsyncView query={policies}>{(data) => items(data).length === 0 ? <Empty title="No task routing" /> : items(data).map((row) => { const assigned = items(profiles.data).find((profile) => id(profile) === text(row.model_profile_id)); return <article key={id(row)} className={styles.actionRow}><div><strong>{taskLabel(text(row.task))}</strong><p>{assigned ? profileLabel(assigned, items(connections.data)) : 'Profile not found'}</p><Details value={row} title="Details" /></div><TaskRouting row={row} profiles={items(profiles.data)} connections={items(connections.data)} /></article>; })}</AsyncView></Panel> },
-  ]} />;
+  const used = new Set(items(policies.data).flatMap((row) => [text(row.model_profile_id), ...(Array.isArray(row.fallback_ids) ? row.fallback_ids : []).map((value) => text(value))]));
+  const unused = items(profiles.data).filter((profile) => !used.has(id(profile)));
+  return <Panel title="Task routing" actions={<TaskRouting profiles={items(profiles.data)} connections={items(connections.data)} />}><AsyncView query={policies}>{(data) => <>
+    {items(data).length === 0 ? <Empty title="No task routing" /> : items(data).map((row) => { const assigned = items(profiles.data).find((profile) => id(profile) === text(row.model_profile_id)); return <article key={id(row)} className={styles.actionRow}><div><strong>{taskLabel(text(row.task))}</strong><p>{assigned ? profileLabel(assigned, items(connections.data)) : 'Model not found'}</p></div><TaskRouting row={row} profiles={items(profiles.data)} connections={items(connections.data)} /></article>; })}
+    {unused.map((profile) => <article key={id(profile)} className={styles.actionRow}><div><strong>{profileLabel(profile, items(connections.data))}</strong><p>Not used by any task</p></div><ConfirmCommand trigger="Remove" title={`Remove ${profileName(profile)}?`} message="It stops appearing as a choice. Saved API keys stay in the vault." operation="entity.delete" payload={{ collection: 'model_profiles', id: id(profile), expected_revision: revision(profile) }} /></article>)}
+  </>}</AsyncView></Panel>;
 }
 
 function taskPolicyFields(profiles: RecordData[], connections: RecordData[], row?: RecordData): Field[] {
@@ -78,7 +68,7 @@ function taskPolicyFields(profiles: RecordData[], connections: RecordData[], row
   const language = saved === 'auto' ? '' : saved;
   return [
     { name: 'task', label: 'Task', type: 'select', value: current('task', 'summary'), options: Object.keys(taskLabels).map((value) => ({ value, label: taskLabel(value) })) },
-    { name: 'model_profile_id', label: 'Model profile', type: 'select', required: true, value: current('model_profile_id', ''), options: [{ value: '', label: 'Select a model profile' }, ...profiles.map((profile) => ({ value: id(profile), label: profileLabel(profile, connections) }))] },
+    { name: 'model_profile_id', label: 'Model', type: 'select', required: true, value: current('model_profile_id', ''), options: [{ value: '', label: 'Choose a model' }, ...profiles.map((profile) => ({ value: id(profile), label: profileLabel(profile, connections) }))] },
     { name: 'language', label: 'Output language', type: 'select', value: language, options: language && !languages.some((option) => option.value === language) ? [...languages, { value: language, label: language }] : languages, advanced: true },
     { name: 'deadline_ms', label: 'Deadline (seconds)', type: 'number', value: number(row?.deadline_ms, 60000) / 1000, min: 1, max: 1800, advanced: true },
     { name: 'token_limit', label: 'Maximum output tokens', type: 'number', value: current('token_limit', 4096), min: 1, max: 32768, advanced: true },
@@ -93,12 +83,12 @@ function TaskRouting({ row, profiles, connections }: { row?: RecordData; profile
   const title = row ? 'Edit task routing' : 'Add task routing';
   return <Modal trigger={<button>{title}</button>} title={title}>
     <CommandForm operation={row ? 'entity.update' : 'entity.create'} fixed={{ collection: 'task_policies', ...(row ? { id: row.id ?? '', expected_revision: row.revision ?? 1 } : {}) }} fields={taskPolicyFields(profiles, connections, row)} mapPayload={(payload) => ({ ...payload, deadline_ms: typeof payload.deadline_ms === 'number' ? Math.round(payload.deadline_ms * 1000) : payload.deadline_ms ?? null, fallback_ids: fallbacks.filter((fallback) => fallback !== payload.model_profile_id) })}>
-      {others.length > 0 && <fieldset><legend>Fallback profiles (tried in the order ticked)</legend>{others.map((profile) => <label key={id(profile)} className={styles.check}><input type="checkbox" checked={fallbacks.includes(id(profile))} onChange={(event) => setFallbacks(event.target.checked ? [...fallbacks, id(profile)] : fallbacks.filter((fallback) => fallback !== id(profile)))} />{profileLabel(profile, connections)}</label>)}</fieldset>}
+      {others.length > 0 && <fieldset><legend>Fallback models (tried in the order ticked)</legend>{others.map((profile) => <label key={id(profile)} className={styles.check}><input type="checkbox" checked={fallbacks.includes(id(profile))} onChange={(event) => setFallbacks(event.target.checked ? [...fallbacks, id(profile)] : fallbacks.filter((fallback) => fallback !== id(profile)))} />{profileLabel(profile, connections)}</label>)}</fieldset>}
     </CommandForm>
   </Modal>;
 }
 
-const FIXED_HOSTS: Record<string, string> = { openai: 'api.openai.com', openrouter: 'openrouter.ai' };
+const FIXED_HOSTS: Record<string, string> = { openai: 'api.openai.com', openrouter: 'openrouter.ai', anthropic: 'api.anthropic.com', gemini: 'generativelanguage.googleapis.com' };
 
 /** Host that would receive meeting data, or '' when the endpoint is this device and needs no consent. */
 export function consentHost(adapter: string, endpoint: string): string {
@@ -111,33 +101,43 @@ export function consentHost(adapter: string, endpoint: string): string {
   return host === 'localhost' || host === '[::1]' || /^127(\.\d{1,3}){3}$/.test(host) ? '' : host || 'this provider';
 }
 
+/** AI providers by display name, in the order the picker lists them. */
+export const PROVIDERS: Record<string, string> = { openrouter: 'OpenRouter', openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Google Gemini', ollama: 'Ollama', 'azure-openai': 'Azure OpenAI', 'openai-compatible': 'Other OpenAI-compatible service' };
+const providerOrder = Object.keys(PROVIDERS);
+
 /** One form that creates the connection, profile, consent and task policies for summaries. */
 export function LlmSetup() {
   const descriptors = items(useResource('providers.descriptors').data);
   const status = useResource('setup.status');
   const client = useQueryClient();
-  const ollama = object(status.data?.ollama);
-  const adapters = descriptors.filter((descriptor) => Array.isArray(descriptor.roles) && descriptor.roles.includes('llm')).map(id).sort((a, b) => Number(b === 'ollama') - Number(a === 'ollama'));
+  const running = object(status.data?.ollama).available === true;
+  const rank = (adapter: string): number => adapter === 'ollama' && running ? -1 : providerOrder.indexOf(adapter) + 1 || 99;
+  const adapters = descriptors.filter((descriptor) => Array.isArray(descriptor.roles) && descriptor.roles.includes('llm')).map(id).sort((a, b) => rank(a) - rank(b));
   const connections = items(useResource('entity.list', { collection: 'provider_connections' }).data);
   const profiles = items(useResource('entity.list', { collection: 'model_profiles' }).data);
+  const consents = items(useResource('consents.list').data);
   const active = object(status.data?.llm);
   const activeProfile = profiles.find((profile) => id(profile) === text(active.profile_id));
   const activeConnection = connections.find((connection) => id(connection) === activeProfile?.connection_id);
   const [choice, setChoice] = useState('');
   const [model, setModel] = useState<string | null>(null);
   const [endpoint, setEndpoint] = useState<string | null>(null);
-  const [secretRef, setSecretRef] = useState('');
+  const [keyText, setKeyText] = useState('');
+  const [stored, setStored] = useState({ value: '', ref: '' });
+  const [keyVersion, setKeyVersion] = useState(0);
   const [contextWindow, setContextWindow] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
-  const adapter = choice || text(active.adapter) || (ollama.available === true ? 'ollama' : adapters.find((candidate) => candidate !== 'ollama') ?? 'ollama');
+  const adapter = choice || text(active.adapter) || adapters[0] || 'ollama';
   const onActive = adapter === text(active.adapter);
   const modelValue = model ?? (onActive ? text(active.model_id) : '');
   const endpointValue = endpoint ?? (onActive ? text(activeConnection?.endpoint) : '');
   const isOllama = adapter === 'ollama';
   const needsEndpoint = adapter === 'openai-compatible' || adapter === 'azure-openai';
+  const sameDestination = onActive && (!needsEndpoint || endpointValue === text(activeConnection?.endpoint));
   // The saved key is a vault reference; reuse it only for the same provider and endpoint so it never goes to another host.
-  const savedRef = onActive && !isOllama && (!needsEndpoint || endpointValue === text(activeConnection?.endpoint)) ? text(activeConnection?.secret_ref) : '';
-  const keyRef = secretRef || savedRef;
+  const savedRef = sameDestination && !isOllama ? text(activeConnection?.secret_ref) : '';
+  // A typed key counts once the vault holds that exact text: stored on blur, or by Save when Save comes first.
+  const keyRef = keyText ? (stored.value === keyText ? stored.ref : '') : savedRef;
   const canList = isOllama || Boolean(keyRef && (adapter === 'openrouter' || adapter === 'openai' || (adapter === 'openai-compatible' && endpointValue)));
   const listed = useResource('setup.models', { adapter, ...(needsEndpoint && endpointValue ? { endpoint: endpointValue } : {}), ...(!isOllama && keyRef ? { secret_ref: keyRef } : {}) }, canList);
   const available = items(listed.data);
@@ -146,62 +146,57 @@ export function LlmSetup() {
   const windowValue = contextWindow ?? savedWindow ?? (typeof picked === 'number' ? String(picked) : isOllama ? '' : '128000');
   const destination = consentHost(adapter, endpointValue);
   const save = useMutation({
-    mutationFn: () => request('setup.llm', { adapter, model: modelValue, ...(needsEndpoint ? { endpoint: endpointValue } : {}), ...(!isOllama && keyRef ? { secret_ref: keyRef } : {}), ...(windowValue ? { context_window: Number(windowValue) } : {}), ...(destination ? { accepted_destination: agreed } : {}) }),
-    onSuccess: async () => { await client.invalidateQueries({ queryKey: ['engine'] }); },
+    mutationFn: async () => {
+      const secret = keyText && !keyRef ? text((await request('secrets.store', { value: keyText })).secret_ref) : keyRef;
+      return request('setup.llm', { adapter, model: modelValue, ...(needsEndpoint ? { endpoint: endpointValue } : {}), ...(!isOllama && secret ? { secret_ref: secret } : {}), ...(windowValue ? { context_window: Number(windowValue) } : {}), ...(destination ? { accepted_destination: agreed } : {}) });
+    },
+    // Clear the typed key once saved: the field remounts empty and shows "API key saved".
+    onSuccess: async () => { setKeyText(''); setKeyVersion((version) => version + 1); await client.invalidateQueries({ queryKey: ['engine'] }); },
   });
-  const choose = (value: string): void => { setChoice(value); setModel(''); setEndpoint(''); setSecretRef(''); setContextWindow(null); setAgreed(false); save.reset(); };
-  return <Panel title="AI for summaries" actions={status.data?.llm_ready === true ? <Badge tone="success">Ready</Badge> : undefined}>
-    {adapters.length > 0 && <form className={styles.settingsForm} onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>
-      <FieldInput field={{ name: 'provider', label: 'Provider', type: 'select', options: adapters.map((value) => ({ value, label: value === 'ollama' && ollama.available === true ? 'ollama (running on this computer)' : value === 'openrouter' ? 'OpenRouter' : value === 'openai-compatible' ? 'OpenAI-compatible endpoint' : value })) }} value={adapter} onChange={(value) => choose(text(value))} />
-      {needsEndpoint && <FieldInput field={{ name: 'endpoint', label: 'Endpoint', required: true }} value={endpointValue} onChange={(value) => setEndpoint(text(value))} />}
-      {!isOllama && <SecretInput label="API key" saved={Boolean(savedRef) && !secretRef} onStored={setSecretRef} />}
-      <FieldInput field={{ name: 'model', label: 'Model', required: true, ...(canList && available.length > 0 ? { suggestions: available.map(id) } : {}) }} value={modelValue} onChange={(value) => setModel(text(value))} />
-      {canList && listed.isLoading && <p>Loading models…</p>}
-      {canList && Boolean(listed.error) && <ErrorNotice error={listed.error} />}
-      <FilterDisclosure title="Advanced"><FieldInput field={{ name: 'context_window', label: 'Context window (tokens)', type: 'number', min: 1 }} value={windowValue} onChange={(value) => setContextWindow(text(value))} /></FilterDisclosure>
-      {Boolean(save.error) && <ErrorNotice error={save.error} />}
-      {save.isSuccess && <Notice>AI for summaries is set up.</Notice>}
-      {destination && <label className={styles.check}><input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} />Send meeting data to {destination}</label>}
-      <button type="submit" disabled={!nativeAvailable() || !modelValue || (Boolean(destination) && !agreed) || save.isPending}>{save.isPending ? 'Saving…' : 'Save'}</button>
-    </form>}
-  </Panel>;
+  // Test checks what is saved, so it waits until the form matches it.
+  const dirty = (choice !== '' && !onActive) || (model !== null && model !== text(active.model_id)) || keyText !== '' || (endpoint !== null && endpoint !== text(activeConnection?.endpoint));
+  const test = useMutation({ mutationFn: () => request('providers.test', { connection_id: id(activeConnection ?? {}), profile_id: text(active.profile_id), ...(destination ? { accepted_destination: true } : {}) }) });
+  // Already allowed for this destination: no checkbox, unless the engine still asks (other data or scope).
+  const consented = sameDestination && activeConnection !== undefined && consents.some((row) => text(row.destination_fingerprint) === destinationOf(activeConnection) && !row.revoked_at);
+  const askConsent = Boolean(destination) && (!consented || (save.error instanceof ApplicationError && save.error.code === 'consent_required'));
+  const missingKey = !isOllama && adapter !== 'openai-compatible' && !keyText && !savedRef;
+  const choose = (value: string): void => { setChoice(value); setModel(''); setEndpoint(''); setKeyText(''); setContextWindow(null); setAgreed(false); save.reset(); test.reset(); };
+  if (adapters.length === 0) return null;
+  // stopPropagation: the dialog can open from inside another form (Search), and React bubbles submit through portals.
+  return <form className={styles.settingsForm} onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); save.mutate(); }}>
+    <FieldInput field={{ name: 'provider', label: 'Provider', type: 'select', options: adapters.map((value) => ({ value, label: value === 'ollama' && running ? 'Ollama (running on this computer)' : PROVIDERS[value] ?? value })) }} value={adapter} onChange={(value) => choose(text(value))} />
+    {needsEndpoint && <FieldInput field={{ name: 'endpoint', label: 'Endpoint', required: true }} value={endpointValue} onChange={(value) => setEndpoint(text(value))} />}
+    {!isOllama && <SecretInput key={`${adapter}:${keyVersion}`} label="API key" saved={Boolean(savedRef) && !keyText} onInput={setKeyText} onStored={(ref, value) => setStored({ ref, value })} />}
+    <FieldInput field={{ name: 'model', label: 'Model', required: true, ...(canList && available.length > 0 ? { suggestions: available.map(id) } : {}) }} value={modelValue} onChange={(value) => setModel(text(value))} />
+    {canList && listed.isLoading && <p>Loading models…</p>}
+    {canList && Boolean(listed.error) && <ErrorNotice error={listed.error} />}
+    <FilterDisclosure title="Advanced"><FieldInput field={{ name: 'context_window', label: 'Context window (tokens)', type: 'number', min: 1 }} value={windowValue} onChange={(value) => setContextWindow(text(value))} /></FilterDisclosure>
+    {Boolean(save.error) && <ErrorNotice error={save.error} />}
+    {save.isSuccess && <Notice>AI for summaries is set up.</Notice>}
+    {askConsent && <label className={styles.check}><input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} />Send meeting data to {destination}</label>}
+    <Toolbar>
+      <button type="submit" disabled={!nativeAvailable() || !modelValue || missingKey || (askConsent && !agreed) || save.isPending}>{save.isPending ? 'Saving…' : 'Save'}</button>
+      {status.data?.llm_ready === true && activeConnection && <button type="button" title={dirty ? 'Save your changes first' : `Send a short test request${destination ? ` to ${destination}` : ''}`} disabled={!nativeAvailable() || dirty || test.isPending} onClick={() => test.mutate()}>{test.isPending ? 'Testing…' : 'Test connection'}</button>}
+    </Toolbar>
+    {!dirty && test.isSuccess && <Notice>Connected.</Notice>}
+    {!dirty && Boolean(test.error) && <ErrorNotice error={test.error} />}
+  </form>;
 }
 
-function NewConnection({ descriptors }: { descriptors: RecordData[] }) {
-  const [open, setOpen] = useState(false);
-  const [secretRef, setSecretRef] = useState('');
-  const [adapter, setAdapter] = useState('');
-  const schemes = descriptors.find((candidate) => id(candidate) === adapter)?.auth_schemes;
-  // Local runtimes need no credential and have a fixed local:// endpoint; Ollama is the exception that still takes a URL.
-  const localRuntime = adapter !== 'ollama' && Array.isArray(schemes) && schemes.every((scheme) => scheme === 'none');
-  const defaultAuth = Array.isArray(schemes) ? text(schemes[0], 'none') : 'none';
-  const endpointField: Field[] = localRuntime ? [] : [{ name: 'endpoint', label: 'Endpoint URL', required: adapter !== 'ollama', value: adapter === 'ollama' ? 'http://127.0.0.1:11434' : undefined }];
-  return <Modal open={open} onOpenChange={setOpen} trigger={<button>Add connection</button>} title="Add connection">
-    <FieldInput field={{ name: 'adapter_id', label: 'Provider', type: 'select', required: true, options: [{ value: '', label: 'Choose provider' }, ...descriptors.map((candidate) => ({ value: id(candidate), label: id(candidate) === 'openai-compatible' ? 'OpenAI-compatible endpoint' : label(candidate) }))] }} value={adapter} onChange={(value) => { setAdapter(text(value)); setSecretRef(''); }} />
-    {adapter && !localRuntime && <SecretInput key={adapter} label="API key" onStored={setSecretRef} />}
-    {adapter && <CommandForm key={adapter} operation="entity.create" fixed={{ collection: 'provider_connections', adapter_id: adapter, secret_ref: secretRef || null, ...(localRuntime ? { endpoint: `local://${adapter}`, declared_execution: 'local' } : {}) }} fields={[{ name: 'display_name', label: 'Name', required: true }, ...endpointField, { name: 'auth_kind', label: 'Authentication', type: 'select', value: defaultAuth, options: ['none', 'bearer', 'api_key', 'entra'].map((value) => ({ value, label: value })), advanced: true }, { name: 'region', label: 'Region', advanced: true }, { name: 'nonsecret_settings', label: 'Extra settings (JSON)', type: 'json', value: {}, advanced: true }]} onSuccess={() => setOpen(false)} />}
-  </Modal>;
+/** Opens the AI setup in place, so an action that needs it can be fixed where it is. */
+export function LlmSetupButton({ children = 'Set up AI…' }: { children?: ReactNode }) {
+  return <Modal trigger={<button type="button">{children}</button>} title="AI for summaries"><LlmSetup /></Modal>;
 }
 
-function ConnectionTest({ connection, profiles }: { connection: RecordData; profiles: RecordData[] }) {
-  const [result, setResult] = useState<RecordData | null>(null);
-  return <Modal trigger={<button>Test…</button>} title="Test connection"><p>Destination: {text(connection.endpoint, 'Selected local runtime')}</p><CommandForm operation="providers.test" fixed={{ connection_id: id(connection) }} fields={[{ name: 'profile_id', label: 'Model profile', type: 'select', required: true, options: [{ value: '', label: 'Choose model profile' }, ...profiles.filter((profile) => profile.connection_id === id(connection)).map((profile) => ({ value: id(profile), label: label(profile) }))] }]} submit="Test" confirm="Send a test request to this destination." onSuccess={(data) => setResult(item(data))} />{result && <Details value={result} title="Details" />}</Modal>;
+/** Shows `children` once summaries have an AI provider, and the setup button until then. */
+export function NeedsLlm({ children }: { children: ReactNode }) {
+  const status = useResource('setup.status');
+  return status.data?.llm_ready === false ? <LlmSetupButton /> : <>{children}</>;
 }
 
 /** Where a connection sends data: the destination fingerprint the engine stores in consents (connection_value in policies.py). */
 export function destinationOf(connection: RecordData): string {
   return text(object(connection.nonsecret_settings).destination_fingerprint ?? connection.destination_fingerprint ?? connection.endpoint);
-}
-
-/** Edit name, endpoint and options, and replace the API key (a new vault reference, as in Add connection). */
-function ConnectionEdit({ row }: { row: RecordData }) {
-  const [secretRef, setSecretRef] = useState('');
-  const keyless = text(row.auth_kind, 'none') === 'none';
-  const fields: Field[] = [{ name: 'display_name', label: 'Name', required: true }, { name: 'endpoint', label: 'Endpoint (no credentials in URL)' }, { name: 'region', label: 'Region', advanced: true }, { name: 'deployment', label: 'Azure deployment', advanced: true }];
-  return <Modal trigger={<button>Edit</button>} title="Edit">
-    {!text(row.endpoint).startsWith('local://') && <SecretInput label="Replace API key" saved={Boolean(row.secret_ref)} onStored={setSecretRef} />}
-    <CommandForm operation="entity.update" fixed={{ collection: 'provider_connections', id: row.id ?? '', expected_revision: row.revision ?? 1, ...(secretRef ? { secret_ref: secretRef, ...(keyless ? { auth_kind: 'bearer' } : {}) } : {}) }} fields={fields.map((field) => ({ ...field, value: row[field.name] }))} />
-  </Modal>;
 }
 
 const downloading = (entry: RecordData): boolean => ['downloading', 'extracting'].includes(text(object(entry.download).state));
@@ -226,8 +221,11 @@ export function ModelSettings() {
   const used = aiRows.map(([role]) => text(object(status.data?.[role]).model_id)).filter(Boolean);
   return <Panel title="Models & runtime" actions={<ModelArchiveImport templates={items(catalog.data)} />}><AsyncView query={catalog}>{(data) => {
     // Runtimes are fetched with their model.
-    const visible = items(data).filter((row) => row.role !== 'runtime').sort((a, b) => Number(b.installed === true) - Number(a.installed === true));
-    return visible.length === 0 ? <Empty title="No models yet" /> : <Grid>{visible.map((row) => <ModelCard key={id(row)} entry={row} inUse={used.includes(id(row))} />)}</Grid>;
+    const visible = items(data).filter((row) => row.role !== 'runtime');
+    const installed = visible.filter((row) => row.installed === true);
+    const others = visible.filter((row) => row.installed !== true);
+    const cards = (rows: RecordData[]) => <Grid>{rows.map((row) => <ModelCard key={id(row)} entry={row} inUse={used.includes(id(row))} />)}</Grid>;
+    return visible.length === 0 ? <Empty title="No models yet" /> : <>{installed.length > 0 && cards(installed)}{others.length > 0 && <FilterDisclosure title="Other models">{cards(others)}</FilterDisclosure>}</>;
   }}</AsyncView></Panel>;
 }
 
@@ -284,7 +282,7 @@ export function AiSettings() {
   return <Panel><AsyncView query={status}>{(data) => aiRows.map(([role, title, noun]) => {
     const choice = data[role] ? object(data[role]) : null;
     const speakerState = role === 'diarization' ? text(choice?.state) : '';
-    return <article key={role} className={styles.aiRow}><div><span className={styles.aiTitle}>{title}</span><strong>{choice ? <>{text(choice.label)}{(choice.gpu === true || text(choice.adapter) !== text(choice.label)) && <> <Badge>{choice.gpu === true ? 'GPU' : text(choice.adapter)}</Badge></>}{speakerState && <> <Badge tone={speakerState === 'ready' ? 'success' : 'neutral'}>{speakerStateLabel(speakerState)}</Badge></>}</> : 'Not set up'}</strong></div><Modal trigger={<button aria-label={`${choice ? 'Change' : 'Set up'} ${noun}`}>{choice ? 'Change' : 'Set up'}</button>} title={title}>{role === 'llm' ? <LlmSetup /> : <ModelList role={role} current={text(choice?.model_id, '')} />}</Modal></article>;
+    return <article key={role} className={styles.aiRow}><div><span className={styles.aiTitle}>{title}</span><strong>{choice ? <>{text(choice.label)}{(choice.gpu === true || text(choice.adapter) !== text(choice.label)) && <> <Badge>{choice.gpu === true ? 'GPU' : PROVIDERS[text(choice.adapter)] ?? text(choice.adapter)}</Badge></>}{speakerState && <> <Badge tone={speakerState === 'ready' ? 'success' : 'neutral'}>{speakerStateLabel(speakerState)}</Badge></>}</> : 'Not set up'}</strong></div><Modal trigger={<button aria-label={`${choice ? 'Change' : 'Set up'} ${noun}`}>{choice ? 'Change' : 'Set up'}</button>} title={title}>{role === 'llm' ? <LlmSetup /> : <ModelList role={role} current={text(choice?.model_id, '')} />}</Modal></article>;
   })}</AsyncView></Panel>;
 }
 
@@ -359,23 +357,7 @@ function ModelArchiveImport({ templates }: { templates: RecordData[] }) {
     <label className={styles.check}><input type="checkbox" checked={licensed} onChange={(event) => setLicensed(event.target.checked)} />I have the right to use this model under its license.</label>
     <button disabled={!nativeAvailable() || !templateId || !unreviewed || !licensed || operation.isPending} onClick={() => operation.mutate()}>{operation.isPending ? 'Importing…' : 'Choose archive and import'}</button>
     {Boolean(operation.error) && <ErrorNotice error={operation.error} />}
-    {Boolean(operation.isSuccess) && <><Notice>Imported. Use its ID as the model ID in a profile.</Notice><Details title="Details" value={operation.data} /></>}
+    {Boolean(operation.isSuccess) && <><Notice>Imported. Choose it with Change at the top of this tab.</Notice><Details title="Details" value={operation.data} /></>}
   </Modal>;
 }
 
-function ModelProfileCreation({ connections }: { connections: RecordData[] }) {
-  const [selectedId, setSelectedId] = useState('');
-  const [runtimeId, setRuntimeId] = useState('');
-  const catalog = useResource('catalog.list');
-  const selected = items(catalog.data).find((entry) => id(entry) === selectedId);
-  const runtimes = items(catalog.data).filter((entry) => entry.role === 'runtime' && !entry.blocked_reason && object(object(entry.host_check).gpu).met !== false && text(object(entry.runtime).family) === text(object(selected?.runtime).family));
-  const runtime = runtimeId || text(selected?.runtime_id);
-  const gpu = object(object(runtimes.find((entry) => id(entry) === runtime)?.host_check).gpu).met === true;
-  const fields = profileFields(connections).filter((field) => field.name !== 'model_id' || !selectedId).map((field): Field => field.name === 'role' && selected?.role ? { ...field, value: selected.role } : field.name === 'options' && selected ? { ...field, value: { catalog_id: selectedId, revision: text(selected.revision), ...(runtime ? { runtime_id: runtime } : {}), ...(gpu ? { device: 'cuda' } : {}) } } : field);
-  return <Modal trigger={<button>Add model profile</button>} title="Add model profile">
-    <FieldInput field={{ name: 'catalog_model', label: 'Model', type: 'select', options: [{ value: '', label: 'Enter a model ID manually' }, ...items(catalog.data).filter((entry) => entry.role !== 'runtime').map((entry) => ({ value: id(entry), label: label(entry) }))] }} value={selectedId} onChange={(value) => { setSelectedId(text(value)); setRuntimeId(''); }} />
-    {selected && <Details title="Details" value={selected} />}
-    {selected && <FilterDisclosure title="Advanced"><FieldInput field={{ name: 'runtime_descriptor', label: 'Runtime', type: 'select', options: [{ value: '', label: 'Choose runtime' }, ...runtimes.map((entry) => ({ value: id(entry), label: entry.host_check ? `${label(entry)} (GPU)` : label(entry) }))] }} value={runtime} onChange={(value) => setRuntimeId(text(value))} /></FilterDisclosure>}
-    <CommandForm key={`${selectedId || 'manual'}:${runtime}`} operation="entity.create" fixed={{ collection: 'model_profiles', ...(selectedId ? { model_id: selectedId } : {}) }} fields={fields} />
-  </Modal>;
-}

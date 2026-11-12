@@ -29109,6 +29109,11 @@
                 },
                 "additionalProperties": false,
                 "properties": {
+                  "accepted_destination": {
+                    "default": false,
+                    "title": "Accepted Destination",
+                    "type": "boolean"
+                  },
                   "connection": {
                     "anyOf": [
                       {

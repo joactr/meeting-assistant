@@ -74,13 +74,19 @@ export function TabSet({ tabs, value, onValueChange, label = 'Workspace panels' 
   const persisted = text(object(object(preferences.data?.preferences ?? preferences.data).selected_tabs)[key]);
   const [local, setLocal] = useState(value ?? tabs[0]?.label ?? '');
   const [saveError, setSaveError] = useState<unknown>();
+  // Restore the saved tab once, before the user picks one. Later refetches (window focus, other saves) can carry an
+  // older tab than the click still being saved; applying them bounced the user back to the previous tab.
+  const restored = useRef(false);
   useEffect(() => {
-    if (persisted && tabs.some((tab) => tab.label === persisted)) {
+    if (restored.current || !persisted) return;
+    restored.current = true;
+    if (tabs.some((tab) => tab.label === persisted)) {
       setLocal(persisted);
       onValueChange?.(persisted);
     }
   }, [persisted]);
   const change = (next: string): void => {
+    restored.current = true;
     const previous = value ?? local;
     setLocal(next);
     onValueChange?.(next);

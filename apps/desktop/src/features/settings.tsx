@@ -8,7 +8,7 @@ import { id, item, items, label, object, revision, text, type Json, type Payload
 import { AsyncView, Badge, CommandForm, ConfirmCommand, Details, Empty, ErrorNotice, FieldInput, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, type Field } from '../components/ui';
 import { AudioMeters } from './capture';
 import { CalendarSettings, IntegrationSettings } from './connections';
-import { AiSettings, ModelSettings, ProviderSettings, settingsTabs } from './providers';
+import { AiSettings, ModelSettings, TaskRoutingSettings, settingsTabs } from './providers';
 import { PrivacySettings } from './privacy';
 import { LANGUAGES } from './library';
 import styles from './workspace.module.css';
@@ -69,7 +69,6 @@ const groups: { id: string; key?: string; title: string; advancedTitle?: string;
   ] },
   { id: 'exports', title: 'Export defaults', fields: [
     { name: 'include_transcript', label: 'Include the full transcript', type: 'checkbox', value: false },
-    { name: 'include_provenance', label: 'Include source references', type: 'checkbox', value: true },
     { name: 'default_format', label: 'Format', type: 'select', value: 'markdown', options: [{ value: 'markdown', label: 'Markdown' }, { value: 'pdf', label: 'PDF' }, { value: 'srt', label: 'Subtitles (SRT)' }, { value: 'json', label: 'JSON' }] },
   ] },
 ];
@@ -79,7 +78,7 @@ const advanced: Record<string, true> = { 'capture.vad_threshold': true, 'capture
 
 export function SettingsPage() {
   const panels: Record<string, ReactNode> = {
-    'Transcription & AI': <><AiSettings /><details className={styles.advanced}><summary>Models and providers</summary><ModelSettings /><ProviderSettings /></details></>,
+    'Transcription & AI': <><AiSettings /><details className={styles.advanced}><summary>Models and providers</summary><ModelSettings /><TaskRoutingSettings /></details></>,
     'Audio': <><AudioSettings /><SettingsGroup groupId="capture" /><SettingsGroup groupId="recording" /></>,
     'Meetings': <><SettingsGroup groupId="analysis" /><SettingsGroup groupId="during" /><SettingsGroup groupId="speakers" /><Profiles /><SettingsGroup groupId="retrieval" /><SettingsGroup groupId="exports" /></>,
     'Integrations': <><CalendarSettings /><IntegrationSettings /></>,
