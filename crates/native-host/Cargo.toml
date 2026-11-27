@@ -16,7 +16,7 @@ zeroize.workspace = true
 uuid.workspace = true
 sha2.workspace = true
 libc.workspace = true
-url = "=2.5.7"
+url = "=2.5.9"
 base64 = "=0.22.1"
 subtle = "=2.6.1"
 keyring = { version = "=3.6.3", features = ["windows-native", "apple-native", "sync-secret-service"] }

@@ -251,7 +251,10 @@ async fn vault_prompt(
         .and_then(|window| window.hwnd().ok())
         .map_or(0, |hwnd| hwnd.0 as isize);
     #[cfg(not(windows))]
-    let parent = 0;
+    let parent = {
+        let _ = app;
+        0
+    };
     let value = tauri::async_runtime::spawn_blocking(move || secure_prompt::prompt(&label, parent))
         .await
         .map_err(anyhow::Error::from)??;
