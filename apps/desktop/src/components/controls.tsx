@@ -1,8 +1,8 @@
 import { useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import * as Menu from '@radix-ui/react-dropdown-menu';
 import { ChevronDown, MoreHorizontal, SlidersHorizontal, X } from 'lucide-react';
-import { useResource } from '../lib/queries';
-import { id, items, label, text, type RecordData } from '../lib/data';
+import { useAllMeetings } from '../lib/paged-query';
+import { id, label, text, type RecordData } from '../lib/data';
 import styles from './controls.module.css';
 
 export interface MenuAction {
@@ -59,8 +59,8 @@ export function MeetingPicker({ title, values, onChange, multiple = false, proje
   const inputId = useId();
   const listId = useId();
   const input = useRef<HTMLInputElement>(null);
-  const meetings = useResource('meetings.list', { limit: 100, ...(projectId ? { project_id: projectId } : {}) });
-  const rows = items(meetings.data);
+  const meetings = useAllMeetings(projectId ? { project_id: projectId } : {});
+  const rows = meetings.rows;
   const byId = useMemo(() => new Map(rows.map((row) => [id(row), row])), [rows]);
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);

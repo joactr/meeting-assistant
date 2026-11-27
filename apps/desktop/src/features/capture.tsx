@@ -55,7 +55,7 @@ export function CaptureControls({ meeting }: { meeting: RecordData }) {
   });
   const omittedTerms = vocabulary.data?.omitted;
   const omitted = Array.isArray(omittedTerms) ? omittedTerms.map((term) => typeof term === 'string' ? term : label(object(term))) : [];
-  const ready = devices.isSuccess && settings.isSuccess && vocabulary.isSuccess && missing.length === 0;
+  const ready = devices.isSuccess && settings.isSuccess && (vocabulary.isSuccess || vocabulary.isError) && missing.length === 0;
   const autoStart = useInterface((s) => s.autoStart);
   const setAutoStart = useInterface((s) => s.setAutoStart);
   const begin = (): void => { if (omitted.length > 0) setStartOpen(true); else command.mutate('start'); };
@@ -76,6 +76,7 @@ export function CaptureControls({ meeting }: { meeting: RecordData }) {
       {(state === 'interrupted' || state === 'attention_required') && <button data-testid="stop-meeting" className={buttonClass.primary} disabled={command.isPending} onClick={() => command.mutate('stop')}>{state === 'interrupted' ? 'Finish and process' : 'Stop and process'}</button>}
     </Toolbar>
     {draft && devices.isSuccess && missing.length > 0 && <Notice danger>No {missing.join(' or ')} found. Connect one or choose it in Settings.</Notice>}
+    {draft && vocabulary.isError && <ErrorNotice error={vocabulary.error} />}
     {failure}
     <Modal open={startOpen} onOpenChange={setStartOpen} title="Ready to capture?">
       <Notice>Some vocabulary terms will not be used for this meeting: {omitted.join(', ')}</Notice><label className={styles.check}><input type="checkbox" checked={vocabularyReviewed} onChange={(event) => { setVocabularyReviewed(event.target.checked); intent.current = null; }} />I’ve reviewed the omitted terms</label>
@@ -184,6 +185,7 @@ export function SpeakersPanel({ meetingId }: { meetingId: string }) {
   const speakers = useResource('speakers.list', { meeting_id: meetingId });
   const analytics = useResource('speakers.analytics', { meeting_id: meetingId });
   const people = useResource('people.list');
+  const projects = useResource('projects.list');
   const [profilesOpen, setProfilesOpen] = useState(false);
   const [showUnused, setShowUnused] = useState(false);
   const personOptions = [{ value: '', label: 'Choose person' }, ...items(people.data).map((person) => ({ value: id(person), label: label(person) }))];
@@ -197,7 +199,7 @@ export function SpeakersPanel({ meetingId }: { meetingId: string }) {
     }}</AsyncView>
     <h3>Speaking stats</h3>
     <AsyncView query={analytics}>{(data) => <><div className={styles.statsGrid}>{items(data).map((row) => <section key={id(row)}><strong>{text(row.display_name, 'Unknown')}</strong><dl><dt>Talk time</dt><dd>{clock(row.talk_time_ms)}</dd><dt>Turns</dt><dd>{number(row.turns)}</dd><dt>Overlap</dt><dd>{clock(row.overlap_ms)}</dd><dt>Interruptions</dt><dd>{text(row.interruptions, '—')}</dd><dt>Speaking rate</dt><dd>{typeof row.words_per_minute === 'number' ? `${row.words_per_minute.toFixed(1)} words/min` : '—'}</dd><dt>Filler count</dt><dd>{number(row.filler_count)}</dd><dt>Participation</dt><dd>{typeof row.participation === 'number' ? `${Math.round(row.participation * 100)}%` : '—'}</dd></dl></section>)}</div><Details value={data} /></>}</AsyncView>
-    <Modal open={profilesOpen} onOpenChange={setProfilesOpen} trigger={<button>Create voice profile…</button>} title="Create voice profile"><CommandForm operation="voice_profiles.create" fixed={{ consent: true }} fields={[{ name: 'person_id', label: 'Person', type: 'select', options: personOptions, required: true }, { name: 'meeting_speaker_id', label: 'Speaker', type: 'select', options: [{ value: '', label: 'Choose speaker' }, ...items(speakers.data).map((row) => ({ value: id(row), label: label(row) }))], required: true }, { name: 'scope', label: 'Scope', type: 'select', value: 'project', options: [{ value: 'project', label: 'Selected project' }, { value: 'workspace', label: 'Workspace' }] }, { name: 'project_id', label: 'Project ID (for project scope)' }, { name: 'trusted_auto_match', label: 'Trust automatic matches', type: 'checkbox', value: false }]} submit="Create voice profile" confirm="I consent to storing this person's voice data on this device." onSuccess={() => setProfilesOpen(false)} /></Modal>
+    <Modal open={profilesOpen} onOpenChange={setProfilesOpen} trigger={<button>Create voice profile…</button>} title="Create voice profile"><CommandForm operation="voice_profiles.create" fixed={{ consent: true }} fields={[{ name: 'person_id', label: 'Person', type: 'select', options: personOptions, required: true }, { name: 'meeting_speaker_id', label: 'Speaker', type: 'select', options: [{ value: '', label: 'Choose speaker' }, ...items(speakers.data).map((row) => ({ value: id(row), label: label(row) }))], required: true }, { name: 'scope', label: 'Scope', type: 'select', value: 'project', options: [{ value: 'project', label: 'Selected project' }, { value: 'workspace', label: 'Workspace' }] }, { name: 'project_id', label: 'Project (for project scope)', type: 'select', options: [{ value: '', label: 'Choose project' }, ...items(projects.data).filter((project) => !project.archived_at).map((project) => ({ value: id(project), label: label(project) }))] }, { name: 'trusted_auto_match', label: 'Trust automatic matches', type: 'checkbox', value: false }]} submit="Create voice profile" confirm="I consent to storing this person's voice data on this device." onSuccess={() => setProfilesOpen(false)} /></Modal>
   </Panel>;
 }
 

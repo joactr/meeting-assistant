@@ -4,6 +4,7 @@ import contextlib
 import json
 import os
 import re
+import shutil
 import sqlite3
 import sys
 import threading
@@ -320,6 +321,17 @@ class Store:
                 ][offset : offset + limit]
             return [item for item in items if item is not None]
 
+    def active_meetings(self) -> list[JSONDocument]:
+        """Meetings holding a capture; queried by state because list() is capped."""
+        with self._mutex:
+            ids = [
+                row[0]
+                for row in self.connection.execute(
+                    "SELECT id FROM meetings WHERE state IN('starting','recording','paused','stopping') ORDER BY created_at,id"
+                )
+            ]
+            return [m for m in (self.get("meetings", i) for i in ids) if m]
+
     def snapshot_at(self, collection: str, at_ms: int | str) -> list[JSONDocument]:
         self._table(collection)
         if isinstance(at_ms, str):
@@ -537,7 +549,7 @@ class Store:
                     entity_id,
                     item["revision"],
                     item["updated_at"],
-                    item.get("meeting_id"),
+                    item.get("meeting_id") or self._event_meeting(collection, entity_id, item),
                     item.get("project_id"),
                     canonical(item),
                 ),
@@ -563,6 +575,12 @@ class Store:
                 "Resource changed since it was read.",
                 details={"latest": before},
             )
+            if table == "meetings":
+                # Older history rows for these were written without meeting_id.
+                self.connection.execute(
+                    "DELETE FROM document_history WHERE (collection='utterance_revisions' AND entity_id IN(SELECT r.id FROM utterance_revisions r JOIN utterances u ON u.id=r.utterance_id WHERE u.meeting_id=?)) OR (collection='analysis_results' AND entity_id IN(SELECT r.id FROM analysis_results r JOIN analysis_runs a ON a.id=r.run_id WHERE a.meeting_id=?))",
+                    (entity_id, entity_id),
+                )
             if table in DOCUMENTS:
                 self.connection.execute(
                     "DELETE FROM workflow_documents WHERE collection=? AND id=?", (table, entity_id)
@@ -676,15 +694,30 @@ class Store:
             "Restore cannot switch inside a write transaction.",
             status=409,
         )
-        rollback = self.root.with_name(self.root.name + ".rollback-" + new_id())
+        rollback = self.root / (".rollback-" + new_id())
+        # Only the backed-up data is swapped; secrets, models and preferences stay in the root.
+        names = (
+            "workspace.sqlite3",
+            "workspace.sqlite3-wal",
+            "workspace.sqlite3-shm",
+            "objects",
+            "media",
+        )
+        moved_out: list[str] = []
+        moved_in: list[str] = []
         with self._mutex:
             self.connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             self.connection.close()
-            switched = False
             try:
-                self.root.rename(rollback)
-                staged.rename(self.root)
-                switched = True
+                rollback.mkdir()
+                for name in names:
+                    if (self.root / name).exists():
+                        (self.root / name).rename(rollback / name)
+                        moved_out.append(name)
+                for name in names:
+                    if (staged / name).exists():
+                        (staged / name).rename(self.root / name)
+                        moved_in.append(name)
                 self.connection = sqlite3.connect(
                     self.path, isolation_level=None, check_same_thread=False
                 )
@@ -733,16 +766,17 @@ class Store:
             except BaseException:
                 with contextlib.suppress(Exception):
                     self.connection.close()
-                if switched:
-                    self.root.rename(staged)
-                if rollback.exists():
-                    rollback.rename(self.root)
+                for name in moved_in:
+                    (self.root / name).rename(staged / name)
+                for name in moved_out:
+                    (rollback / name).rename(self.root / name)
                 self.connection = sqlite3.connect(
                     self.path, isolation_level=None, check_same_thread=False
                 )
                 self.connection.row_factory = sqlite3.Row
                 self.connection.execute("PRAGMA foreign_keys=ON")
                 raise
+        shutil.rmtree(staged, ignore_errors=True)
         return rollback
 
     def close(self) -> None:

@@ -211,24 +211,24 @@ async def serve(args: argparse.Namespace, configuration: JSONDocument) -> int:
         shutdown_monitor.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await shutdown_monitor
-        for meeting in workspace.list("meetings"):
-            if meeting["state"] in ("recording", "paused", "starting", "stopping"):
-                try:
-                    await workspace.adispatch(
-                        "meetings.stop",
-                        {"meeting_id": meeting["id"], "idempotency_key": "shutdown-" + new_id()},
-                    )
-                except AppError:
-                    current = workspace.require_item("meetings", meeting["id"])
-                    workspace.put(
-                        "meetings",
-                        meeting["id"],
-                        {
-                            "state": "interrupted",
-                            "interrupted_reason": "The app closed before the recording could be stopped cleanly. Everything transcribed before then is kept; the last moments may be missing.",
-                        },
-                        expected_revision=current["revision"],
-                    )
+        for meeting in workspace.active_meetings():
+            try:
+                await workspace.adispatch(
+                    "meetings.stop",
+                    {"meeting_id": meeting["id"], "idempotency_key": "shutdown-" + new_id()},
+                )
+            except AppError:
+                current = workspace.require_item("meetings", meeting["id"])
+                workspace.put(
+                    "meetings",
+                    meeting["id"],
+                    {
+                        "state": "interrupted",
+                        "active_since": None,
+                        "interrupted_reason": "The app closed before the recording could be stopped cleanly. Everything transcribed before then is kept; the last moments may be missing.",
+                    },
+                    expected_revision=current["revision"],
+                )
         await pipeline.close()
         await workspace.stop()
         sock.close()

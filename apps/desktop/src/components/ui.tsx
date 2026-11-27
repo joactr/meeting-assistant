@@ -78,7 +78,7 @@ export function TabSet({ tabs, value, onValueChange, label = 'Workspace panels' 
   // older tab than the click still being saved; applying them bounced the user back to the previous tab.
   const restored = useRef(false);
   useEffect(() => {
-    if (restored.current || !persisted) return;
+    if (restored.current || !persisted || value !== undefined) return;
     restored.current = true;
     if (tabs.some((tab) => tab.label === persisted)) {
       setLocal(persisted);
@@ -172,5 +172,8 @@ export function Details({ value, title = 'Details' }: { value: unknown; title?: 
 
 export function EditResource({ operation, row, fields, fixed = {}, label = 'Edit', open: controlledOpen, onOpenChange, mapPayload }: { operation: string; row: RecordData; fields: Field[]; fixed?: Payload; label?: string; open?: boolean; onOpenChange?: (open: boolean) => void; mapPayload?: (payload: Payload) => Payload }) {
   const { open, setOpen, controlled } = useOpenState(controlledOpen, onOpenChange);
-  return <Modal open={open} onOpenChange={setOpen} trigger={controlled ? undefined : <button>{label}</button>} title={label}><CommandForm operation={operation} fixed={{ id: row.id ?? '', expected_revision: row.revision ?? 1, ...fixed }} fields={fields.map((field) => ({ ...field, value: row[field.name] ?? field.value }))} mapPayload={mapPayload} onSuccess={() => setOpen(false)} /></Modal>;
+  // Revision the form was filled from; a refetch while the dialog is open must not bump it.
+  const revisionAtOpen = useRef(row.revision ?? 1);
+  if (!open) revisionAtOpen.current = row.revision ?? 1;
+  return <Modal open={open} onOpenChange={setOpen} trigger={controlled ? undefined : <button>{label}</button>} title={label}><CommandForm operation={operation} fixed={{ id: row.id ?? '', expected_revision: revisionAtOpen.current, ...fixed }} fields={fields.map((field) => ({ ...field, value: row[field.name] ?? field.value }))} mapPayload={mapPayload} onSuccess={() => setOpen(false)} /></Modal>;
 }

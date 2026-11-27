@@ -2,7 +2,7 @@
 use anyhow::Result;
 use zeroize::Zeroizing;
 #[cfg(windows)]
-pub fn prompt(label: &str) -> Result<Option<Zeroizing<String>>> {
+pub fn prompt(label: &str, parent: isize) -> Result<Option<Zeroizing<String>>> {
     use windows_sys::Win32::Security::Credentials::*;
     let caption: Vec<u16> = "Meeting Assistant credential"
         .encode_utf16()
@@ -15,7 +15,7 @@ pub fn prompt(label: &str) -> Result<Option<Zeroizing<String>>> {
     let mut password = Zeroizing::new(vec![0u16; 4096]);
     let info = CREDUI_INFOW {
         cbSize: std::mem::size_of::<CREDUI_INFOW>() as u32,
-        hwndParent: std::ptr::null_mut(),
+        hwndParent: parent as _,
         pszMessageText: message.as_ptr(),
         pszCaptionText: caption.as_ptr(),
         hbmBanner: std::ptr::null_mut(),
@@ -48,7 +48,7 @@ pub fn prompt(label: &str) -> Result<Option<Zeroizing<String>>> {
     Ok(Some(Zeroizing::new(String::from_utf16(&password[..len])?)))
 }
 #[cfg(target_os = "macos")]
-pub fn prompt(label: &str) -> Result<Option<Zeroizing<String>>> {
+pub fn prompt(label: &str, _parent: isize) -> Result<Option<Zeroizing<String>>> {
     anyhow::ensure!(label.len() <= 256, "credential label too long");
     let output=std::process::Command::new("/usr/bin/osascript").args(["-e","on run argv\nset r to display dialog (item 1 of argv) default answer \"\" with hidden answer with title \"Meeting Assistant credential\"\nreturn text returned of r\nend run",label]).output()?;
     if !output.status.success() {
@@ -61,7 +61,7 @@ pub fn prompt(label: &str) -> Result<Option<Zeroizing<String>>> {
     )))
 }
 #[cfg(target_os = "linux")]
-pub fn prompt(label: &str) -> Result<Option<Zeroizing<String>>> {
+pub fn prompt(label: &str, _parent: isize) -> Result<Option<Zeroizing<String>>> {
     let output = std::process::Command::new("/usr/bin/zenity")
         .args([
             "--password",

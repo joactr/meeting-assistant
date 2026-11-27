@@ -112,6 +112,10 @@ class CatalogService:
         self.catalog_root, self.install_root, self.client = catalog_root, install_root, client
         self.public_key = public_key
         self.loaded_artifacts: Callable[[], set[str]] = loaded_artifacts or (lambda: set[str]())
+        # Staging left behind by installs that already completed (older runtime installs).
+        for staged in install_root.glob(".parts/*/*"):
+            if (install_root / staged.parent.name / staged.name).exists():
+                shutil.rmtree(staged, ignore_errors=True)
 
     def entries(self) -> list[dict[str, Any]]:
         bundled: list[dict[str, Any]] = [
@@ -399,13 +403,16 @@ class CatalogService:
         for item in files:
             path = staging / safe_member(item["path"])
             path.parent.mkdir(parents=True, exist_ok=True)
-            part = path.with_name(path.name + ".part")
+            # A file that already passed verification is not fetched again on retry.
+            complete = path.exists() and path.stat().st_size == item["bytes"]
+            part = path if complete else path.with_name(path.name + ".part")
             size = part.stat().st_size if part.exists() else 0
             report(base + size)
             headers = {"Range": f"bytes={size}-"} if size else {}
             if token:
                 headers["Authorization"] = "Bearer " + token
             if size > item["bytes"]:
+                part.unlink(missing_ok=True)
                 raise ProviderError("invalid_output", "Partial artifact exceeds reviewed byte size")
             if size < item["bytes"]:
                 response = await self._response(item["url"], headers)
@@ -453,6 +460,7 @@ class CatalogService:
                 finally:
                     await response.aclose()
             if part.stat().st_size != item["bytes"]:
+                part.unlink(missing_ok=True)
                 raise ProviderError(
                     "invalid_output", "Artifact byte size did not match reviewed metadata"
                 )
@@ -471,14 +479,17 @@ class CatalogService:
                 raw = part.read_bytes()
                 git_hash = hashlib.sha1(f"blob {len(raw)}\0".encode() + raw).hexdigest()
                 if git_hash != item["git_blob_sha1"]:
+                    part.unlink(missing_ok=True)
                     raise ProviderError(
                         "permission",
                         "Gated metadata differs from its authoritative pinned Git object",
                     )
             elif digest != expected:
+                part.unlink(missing_ok=True)
                 raise ProviderError("permission", "Artifact checksum verification failed")
             resolved.append({**item, "sha256": digest})
-            os.replace(part, path)
+            if part != path:
+                os.replace(part, path)
             base += item["bytes"]
         resolved_entry = {**entry, "files": resolved, "blocked_reason": None}
         (staging / "resolved-catalog.json").write_text(
@@ -531,6 +542,8 @@ class CatalogService:
             encoding="utf-8",
         )
         os.replace(temporary, pointer)
+        if entry["role"] == "runtime":
+            shutil.rmtree(staging, ignore_errors=True)
         return {
             "id": identity,
             "revision": entry["revision"],

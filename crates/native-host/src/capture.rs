@@ -319,8 +319,11 @@ impl Capture {
    let mut last_partial=Instant::now();
    let ring=Ring::new();let mut stream=match backend.start(&source.device_key,source.kind.clone(),ring.clone()){Ok(s)=>{let _=ready_tx.send(Ok(()));Some(s)},Err(e)=>{let _=ready_tx.send(Err(e.to_string()));return Err(e)}};
    loop {
-    if pending_control.is_none(){pending_control=rx.try_recv().ok();if matches!(pending_control,Some(Control::Pause(_))|Some(Control::Stop(_))){if let Some(mut s)=stream.take(){s.stop()?;}}}
-    if matches!(pending_control,Some(Control::Resume(_,_))){if let Some(Control::Resume(new_epoch,ack))=pending_control.take(){ensure!(paused,"source is not paused");ensure!(new_epoch>epoch,"resume requires a new epoch");epoch=new_epoch;need_vad_origin=true;downsample=Resampler::new(48000,16000)?;clock=ClockMap::new(48000);stream=Some(backend.start(&source.device_key,source.kind.clone(),ring.clone())?);paused=false;let _=ack.send(Ok(Boundary{source_index:source.source_index,sequence,capture_epoch:epoch,committed_media:vec![]}));}}
+    // A stream that already failed reports it again on stop; the buffered audio must still be flushed.
+    if pending_control.is_none(){pending_control=rx.try_recv().ok();if matches!(pending_control,Some(Control::Pause(_))|Some(Control::Stop(_))){if let Some(mut s)=stream.take(){let _=s.stop();}}}
+    // Resume on a running source (a retry reaching it twice) is a no-op; a failed reopen keeps the
+    // source paused so a later retry can try again.
+    if matches!(pending_control,Some(Control::Resume(_,_))){if let Some(Control::Resume(new_epoch,ack))=pending_control.take(){let reply=if !paused{Ok(())}else if new_epoch<=epoch{Err(anyhow::anyhow!("resume requires a new epoch"))}else{match backend.start(&source.device_key,source.kind.clone(),ring.clone()){Ok(s)=>{epoch=new_epoch;need_vad_origin=true;downsample=Resampler::new(48000,16000)?;clock=ClockMap::new(48000);stream=Some(s);paused=false;Ok(())}Err(e)=>Err(e)}};let _=ack.send(reply.map(|()|Boundary{source_index:source.source_index,sequence,capture_epoch:epoch,committed_media:vec![]}));}}
     while let Some(block)=ring.queue.pop(){
      let observed=block.monotonic_ns.saturating_sub(monotonic_origin);let(start,reset)=clock.observe(block.hardware_position,observed);
      // A clock reset splices unrelated audio: finish the open utterance on the old clock (its
@@ -348,13 +351,13 @@ impl Capture {
      if let Some((open_start,open_len))=vad.open(){if open_len>=16000&&last_partial.elapsed()>=Duration::from_secs(1){last_partial=Instant::now();submit_partial(&runtime,&engine,source.source_index,epoch,vad_clock.map(open_start),open_len);}}
      meter_count+=1;if meter_count%5==0{(events)("native.audio.level",json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"source_kind":source.kind,"rms":dsp::rms(raw),"peak":raw.iter().fold(0f32,|a,x|a.max(x.abs()))}));}
     }
-    if ring.overflow.swap(false,Ordering::AcqRel){if let Some(mut s)=stream.take(){s.stop()?;}let lost=json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"state":"lost","start_ms":packet_ns/1_000_000,"reason":"source_lost"});(events)("native.capture.source_lost",json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"state":"lost","reason":"endpoint_changed_or_bounded_ring_overflow","dropped_frames":ring.dropped_frames.load(Ordering::Relaxed).to_string()}));let e=engine.clone();runtime.spawn(async move{let _=e.internal("capture.source_event",&lost).await;});paused=true;}
+    if ring.overflow.swap(false,Ordering::AcqRel){if let Some(mut s)=stream.take(){let _=s.stop();}let lost=json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"state":"lost","start_ms":packet_ns/1_000_000,"reason":"source_lost"});(events)("native.capture.source_lost",json!({"meeting_id":config.meeting_id,"source_index":source.source_index,"state":"lost","reason":"endpoint_changed_or_bounded_ring_overflow","dropped_frames":ring.dropped_frames.load(Ordering::Relaxed).to_string()}));let e=engine.clone();runtime.spawn(async move{let _=e.internal("capture.source_event",&lost).await;});paused=true;}
     if let Some(control)=pending_control.take(){let(stop,ack)=match control{Control::Pause(ack)=>(false,ack),Control::Stop(ack)=>(true,ack),Control::Resume(_,_)=>unreachable!()};
      if !packet.is_empty(){sequence+=1;send_packet(&packets,&source,epoch,sequence,packet_ns,&packet)?;packet.clear();}speech.clear();downsample.finish(&mut speech);for utterance in vad.push(&speech).into_iter().chain(vad.flush()){submit_utterance(&runtime,&engine,&events,&config.meeting_id,source.source_index,epoch,vad_clock.map(utterance.start_sample),&utterance,if stop{"stop"}else{"pause"});}
      if let Some(writer)=writer.as_mut(){if let Some(commit)=writer.flush()?{let c=commit.clone();let e=engine.clone();runtime.spawn(async move{let _=e.internal("media.commit",&serde_json::to_value(c).unwrap_or(Value::Null)).await;});commits.push(commit);}}
      let boundary=Boundary{source_index:source.source_index,sequence,capture_epoch:epoch,committed_media:commits.clone()};let _=ack.send(Ok(boundary.clone()));paused=true;if stop{return Ok(boundary)}
     }
-    if packets.is_closed(){if let Some(mut s)=stream.take(){s.stop()?;}bail!("engine audio transport closed; source stopped with visible interruption")}
+    if packets.is_closed(){if let Some(mut s)=stream.take(){let _=s.stop();}bail!("engine audio transport closed; source stopped with visible interruption")}
     thread::sleep(Duration::from_millis(if paused{10}else{2}));
    }
   })();if let Err(error)=&result{failed("native.capture.error",json!({"meeting_id":failed_meeting,"source_index":source_index,"code":"source_stopped","message":error.to_string()}));}result})?;
@@ -391,11 +394,15 @@ impl Capture {
             match reply {
                 Ok(boundary) => boundaries.push(boundary?),
                 // A source whose thread already ended (reported as native.capture.error) has
-                // nothing left to drain; it must not block pausing or stopping the others.
-                Err(mpsc::RecvTimeoutError::Disconnected) if epoch.is_none() => {}
+                // nothing left to drain or reopen; it must not block the others.
+                Err(mpsc::RecvTimeoutError::Disconnected) => {}
                 Err(error) => return Err(error.into()),
             }
         }
+        anyhow::ensure!(
+            epoch.is_none() || !boundaries.is_empty() || self.runners.is_empty(),
+            "no capture source could be resumed"
+        );
         Ok(
             json!({"state":if stop{"stopped"}else if epoch.is_some(){"active"}else{"paused"},"boundaries":boundaries,"boundary_sequences":boundaries.iter().map(|b|(b.source_index.to_string(),json!(b.sequence))).collect::<serde_json::Map<String,Value>>()}),
         )

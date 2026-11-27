@@ -338,15 +338,15 @@ class CalendarService:
                         "etag": data.get("etag") or response["headers"]["etag"],
                     }
                 for raw in data.get("items" if provider == "google" else "value", []):
-                    events.append(
-                        normalize_event(
-                            provider,
-                            calendar_id,
-                            connection["id"],
-                            raw,
-                            data.get("timeZone") or connection["timezone"],
-                        )
+                    event = normalize_event(
+                        provider,
+                        calendar_id,
+                        connection["id"],
+                        raw,
+                        data.get("timeZone") or connection["timezone"],
                     )
+                    if event["start"] is not None:  # deleted events arrive with only an id
+                        events.append(event)
                 path, params = self._next(provider, path, params, data)
 
         def commit(workspace: Workspace) -> dict[str, Any]:

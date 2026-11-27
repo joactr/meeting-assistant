@@ -84,20 +84,9 @@ class Workspace(Store):
                 "INSERT INTO process_runs VALUES(?,?,?,?,NULL)",
                 (self.run_id, os.getpid(), now_ms(), now_ms()),
             )
-            for meeting in self.connection.execute(
-                "SELECT id FROM meetings WHERE state IN('starting','recording','paused','stopping')"
-            ).fetchall():
-                current = self.require_item("meetings", meeting["id"])
-                self.put(
-                    "meetings",
-                    current["id"],
-                    {
-                        "state": "interrupted",
-                        "health": "degraded",
-                        "interrupted_reason": "The app closed while this meeting was recording. Everything transcribed before then is kept; the last moments may be missing.",
-                    },
-                    expected_revision=current["revision"],
-                )
+            self.interrupt_live_meetings(
+                "The app closed while this meeting was recording. Everything transcribed before then is kept; the last moments may be missing."
+            )
             # A finalize job that finished while the engine was down, or a processing meeting whose
             # chain already ended, must not sit in `processing` forever.
             for meeting in self.connection.execute(
@@ -414,7 +403,7 @@ class Workspace(Store):
                 "UPDATE memory_segments SET stale=1 WHERE meeting_id=?", (meeting_id,)
             )
             self.connection.execute(
-                "UPDATE briefings SET stale=1 WHERE meeting_id=? OR project_id IS ?",
+                "UPDATE briefings SET stale=1 WHERE meeting_id=? OR project_id=?",
                 (meeting_id, meeting.get("project_id")),
             )
             self.connection.execute(
@@ -434,6 +423,21 @@ class Workspace(Store):
                 self.connected.invalidate(meeting_id)
             return meeting
 
+    def interrupt_live_meetings(self, reason: str) -> None:
+        # Unknown end time: dropping `active_since` keeps the downtime out of `active_ms`.
+        for meeting in self.active_meetings():
+            self.put(
+                "meetings",
+                meeting["id"],
+                {
+                    "state": "interrupted",
+                    "health": "degraded",
+                    "active_since": None,
+                    "interrupted_reason": reason,
+                },
+                expected_revision=meeting["revision"],
+            )
+
     async def _schedule_analysis(
         self, meeting_id: str, task: str, watermark: int, window_start_ms: int
     ) -> None:
@@ -444,6 +448,18 @@ class Workspace(Store):
             return
         policy = task_policy(self, task, meeting)
         if not policy:
+            return
+        # A wrong key or missing consent fails every tick the same way; wait for a policy change.
+        last = self.connection.execute(
+            "SELECT status,json_extract(error_json,'$.code'),json_extract(payload_json,'$.policy_hash') FROM jobs WHERE meeting_id=? AND kind='analysis' AND json_extract(payload_json,'$.task')=? ORDER BY created_at DESC,id DESC LIMIT 1",
+            (meeting_id, task),
+        ).fetchone()
+        if (
+            last
+            and last[0] == "failed"
+            and last[1] in ("auth", "permission", "consent_required", "privacy")
+            and last[2] == meeting["policy_hash"]
+        ):
             return
         with self.transaction():
             self.connection.execute(
@@ -772,7 +788,7 @@ class Workspace(Store):
             return
         state = (
             "attention_required"
-            if any(j["status"] == "failed" for j in jobs)
+            if any(j["status"] in ("failed", "cancelled") for j in jobs)
             else "complete"
             if all(j["status"] in ("succeeded", "skipped") for j in jobs)
             else "processing"

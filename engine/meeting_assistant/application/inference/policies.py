@@ -97,8 +97,9 @@ def resolve_policy(workspace: Workspace, value: dict[str, Any]) -> dict[str, Any
         "budgets": value.get(
             "budgets",
             {
+                # 60000 is the column default, not a user choice; the task's own default applies.
                 "deadline_seconds": value["deadline_ms"] / 1000
-                if value.get("deadline_ms")
+                if value.get("deadline_ms") not in (None, 60000)
                 else None,
                 "output_tokens": value.get("token_limit"),
                 "max_requests": value.get("max_requests", 2),

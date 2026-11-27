@@ -3,6 +3,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { nativeAvailable, nativeRequest, request } from '../lib/bridge';
 import { useResource } from '../lib/queries';
+import { useAllMeetings } from '../lib/paged-query';
 import { date, humanize, id, item, items, label, object, text, when, type Payload } from '../lib/data';
 import { AsyncView, Badge, buttonClass, CommandButton, CommandForm, Details, Empty, ErrorNotice, FieldInput, Modal, Notice, PageHeader, Panel, TabSet, Toolbar } from '../components/ui';
 import { VirtualList } from '../components/virtual-list';
@@ -65,11 +66,11 @@ const PAGE = 20;
 
 function AttentionQueue() {
   const query = useResource('jobs.attention');
-  const meetings = useResource('meetings.list', { limit: 100 });
+  const meetings = useAllMeetings();
   const [shown, setShown] = useState(PAGE);
   return <Panel><AsyncView query={query}>{(data) => {
     const flagged = items({ items: data.meetings });
-    const titles = new Map([...items(meetings.data), ...flagged].map((meeting) => [id(meeting), label(meeting)]));
+    const titles = new Map([...meetings.rows, ...flagged].map((meeting) => [id(meeting), label(meeting)]));
     const rows = [
       ...flagged.map((meeting) => <article className={styles.listRow} key={`meeting-${id(meeting)}`}><div><strong>{label(meeting)}</strong><p>{text(meeting.interrupted_reason) || STATE_LABEL[text(meeting.state)] || text(meeting.state)}</p></div><Link to="/meeting/$meetingId" params={{ meetingId: id(meeting) }}>Open meeting</Link></article>),
       ...items(data).map((row) => {

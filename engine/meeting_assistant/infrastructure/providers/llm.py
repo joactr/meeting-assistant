@@ -308,7 +308,14 @@ class NativeLLM:
                 "model": model,
                 "messages": [{"role": "system", "content": request.system_text}, *request.messages],
                 "stream": True,
-                "options": {"num_predict": request.output_limit},
+                "options": {
+                    "num_predict": request.output_limit,
+                    **(
+                        {"num_ctx": self.profile.context_tokens}
+                        if self.profile.context_tokens
+                        else {}
+                    ),
+                },
                 "keep_alive": options.get("keep_alive", "5m"),
             }
             if schema:
@@ -343,6 +350,7 @@ class NativeLLM:
                 timeout=max(0.1, request.deadline - time.monotonic()),
             ) as response:
                 if response.is_error:
+                    await response.aread()
                     raise http_error(response)
                 if self.connection.adapter == "ollama":
                     frames = self._ndjson(response)

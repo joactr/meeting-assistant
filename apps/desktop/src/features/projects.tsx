@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useResource } from '../lib/queries';
 import { array, date, id, item, items, label, object, revision, text, type RecordData } from '../lib/data';
+import { MeetingPicker } from '../components/controls';
 import { AsyncView, Badge, CommandButton, CommandForm, ConfirmCommand, Details, EditResource, Empty, FieldInput, Modal, Notice, PageHeader, Panel, TabSet, Toolbar, type Field } from '../components/ui';
 import { LANGUAGES } from './library';
 import { Citation, CitedResult } from './outcomes';
@@ -23,7 +24,8 @@ const termFields = (row?: RecordData): Field[] => {
 
 function TermDialog({ projectId, row }: { projectId: string; row?: RecordData }) {
   const title = row ? 'Edit term' : 'Add term';
-  return <Modal trigger={<button>{title}</button>} title={title}><CommandForm operation="vocabulary.save" fixed={row ? { id: row.id ?? '', expected_revision: row.revision ?? 1 } : { project_id: projectId || null }} fields={termFields(row)} mapPayload={(payload) => ({ ...payload, aliases: text(payload.aliases).split(',').map((alias) => alias.trim()).filter(Boolean) })} submit={row ? undefined : 'Add term'} /></Modal>;
+  const rev = useRef(row?.revision ?? 1);
+  return <Modal onOpenChange={(open) => { if (open) rev.current = row?.revision ?? 1; }} trigger={<button>{title}</button>} title={title}><CommandForm operation="vocabulary.save" fixed={row ? { id: row.id ?? '', expected_revision: rev.current } : { project_id: projectId || null }} fields={termFields(row)} mapPayload={(payload) => ({ ...payload, aliases: text(payload.aliases).split(',').map((alias) => alias.trim()).filter(Boolean) })} submit={row ? undefined : 'Add term'} /></Modal>;
 }
 
 function NewProject({ onCreated }: { onCreated: (projectId: string) => void }) {
@@ -64,7 +66,8 @@ export function Vocabulary({ projectId = '' }: { projectId?: string }) {
 function ContextPanel({ projectId }: { projectId: string }) {
   const memory = useResource('entity.list', { collection: 'memory_segments', filters: { project_id: projectId } });
   const briefings = useResource('entity.list', { collection: 'briefings', filters: { project_id: projectId } });
-  return <Panel title="Context"><AsyncView query={memory}>{(data) => items(data).length === 0 ? <Empty title="No context yet" /> : items(data).map((row) => <article className={styles.actionRow} key={id(row)}><div><p>{text(row.text ?? row.body ?? row.content)}</p>{row.stale === true && <Badge tone="warning">Out of date</Badge>}<Citation source={row} /><Details value={row} /></div></article>)}</AsyncView><Modal trigger={<button>Generate briefing…</button>} title="Generate briefing"><CommandForm operation="analysis.generate" fixed={{ task: 'briefings', project_id: projectId, idempotency_key: crypto.randomUUID() }} fields={[{ name: 'meeting_id', label: 'Meeting', required: true }, { name: 'briefing_kind', label: 'Briefing', type: 'select', value: 'pre', options: [{ value: 'pre', label: 'Before: recent related meetings' }, { value: 'post', label: 'After: what changed' }] }, { name: 'human_agenda', label: 'Agenda', type: 'textarea' }]} submit="Generate" /></Modal><AsyncView query={briefings}>{(data) => items(data).map((row) => <CitedResult key={id(row)} result={row} />)}</AsyncView></Panel>;
+  const [meetingId, setMeetingId] = useState('');
+  return <Panel title="Context"><AsyncView query={memory}>{(data) => items(data).length === 0 ? <Empty title="No context yet" /> : items(data).map((row) => <article className={styles.actionRow} key={id(row)}><div><p>{text(row.text ?? row.body ?? row.content)}</p>{row.stale === true && <Badge tone="warning">Out of date</Badge>}<Citation source={row} /><Details value={row} /></div></article>)}</AsyncView><Modal trigger={<button>Generate briefing…</button>} title="Generate briefing"><CommandForm operation="analysis.generate" fixed={{ task: 'briefings', project_id: projectId, meeting_id: meetingId, idempotency_key: crypto.randomUUID() }} mapPayload={(payload) => { if (!payload.meeting_id) throw new Error('Choose a meeting.'); return payload; }} fields={[{ name: 'briefing_kind', label: 'Briefing', type: 'select', value: 'pre', options: [{ value: 'pre', label: 'Before: recent related meetings' }, { value: 'post', label: 'After: what changed' }] }, { name: 'human_agenda', label: 'Agenda', type: 'textarea' }]} submit="Generate"><MeetingPicker title="Meeting" values={meetingId ? [meetingId] : []} onChange={(values) => setMeetingId(values[0] ?? '')} /></CommandForm></Modal><AsyncView query={briefings}>{(data) => items(data).map((row) => <CitedResult key={id(row)} result={row} />)}</AsyncView></Panel>;
 }
 
 function Digests({ projectId }: { projectId: string }) {

@@ -23,10 +23,7 @@ function NotesEditor({ meetingId, saved }: { meetingId: string; saved: RecordDat
   const mounted = useRef(true);
 
   const flush = useCallback(async (): Promise<void> => {
-    if (inFlight.current) {
-      await inFlight.current;
-      if (!current.current.dirty) return;
-    }
+    while (inFlight.current) await inFlight.current;
     if (!current.current.dirty || !nativeAvailable()) return;
     const snapshot = { ...current.current };
     if (mounted.current) setState('saving');

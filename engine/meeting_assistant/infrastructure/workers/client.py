@@ -221,8 +221,9 @@ class WorkerClient:
                     await asyncio.wait_for(
                         asyncio.gather(asyncio.shield(future), cancel_ack), self.shutdown_grace
                     )
-                except (TimeoutError, ProviderError):
-                    await self.terminate()
+                except (TimeoutError, ProviderError) as exc:
+                    if not (isinstance(exc, ProviderError) and exc.code == "cancelled"):
+                        await self.terminate()
                 raise ProviderError(
                     "cancelled" if cancellation in done else "timeout",
                     "Worker operation cancelled"

@@ -126,10 +126,16 @@ mod windows_backend {
                                 c.store(true, Ordering::Release);
                             }
                         });
-                        let c = changed.clone();
-                        callbacks.set_default_device_callback(move |_, _, _| {
-                            c.store(true, Ordering::Release);
-                        });
+                        // Only a source following the default endpoint loses its device when the
+                        // default changes; an explicitly chosen device keeps working.
+                        if key == "default" {
+                            let c = changed.clone();
+                            callbacks.set_default_device_callback(move |flow, _, _| {
+                                if flow == direction {
+                                    c.store(true, Ordering::Release);
+                                }
+                            });
+                        }
                         let registration = enumerator.register_notification_callback(callbacks)?;
                         client.start_stream()?;
                         Ok::<_, anyhow::Error>((
@@ -172,8 +178,26 @@ mod windows_backend {
                         if changed.swap(false, Ordering::AcqRel) {
                             ring.overflow.store(true, Ordering::Release);
                         }
-                        while capture.get_next_packet_size()?.unwrap_or(0) > 0 {
-                            let (frames, info) = capture.read_from_device(&mut bytes)?;
+                        loop {
+                            // A device error (e.g. unplugged) is reported as a lost source, so the
+                            // runner keeps its buffered audio and can reopen on retry.
+                            let size = match capture.get_next_packet_size() {
+                                Ok(size) => size.unwrap_or(0),
+                                Err(error) => {
+                                    ring.overflow.store(true, Ordering::Release);
+                                    return Err(error.into());
+                                }
+                            };
+                            if size == 0 {
+                                break;
+                            }
+                            let (frames, info) = match capture.read_from_device(&mut bytes) {
+                                Ok(read) => read,
+                                Err(error) => {
+                                    ring.overflow.store(true, Ordering::Release);
+                                    return Err(error.into());
+                                }
+                            };
                             mono.clear();
                             resampled.clear();
                             if info.flags.silent {

@@ -6,6 +6,7 @@ import math
 import re
 import struct
 from collections.abc import Callable
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 
 from meeting_assistant.application.routing import task_policy
@@ -132,6 +133,23 @@ def rebuild_index(w: Workspace, meeting_id: str) -> None:
             position = max(position + 1, end - 32)
 
 
+def date_bounds(p: dict[str, Any]) -> tuple[int | None, int | None]:
+    """Inclusive ms bounds from local-date `from_date`/`to_date` (YYYY-MM-DD) or raw after_ms/before_ms."""
+
+    def midnight(value: object) -> datetime:
+        try:
+            return datetime.strptime(str(value), "%Y-%m-%d")
+        except ValueError:
+            raise AppError("invalid_date", "Dates must be YYYY-MM-DD.", status=422) from None
+
+    after, before = p.get("after_ms"), p.get("before_ms")
+    if p.get("from_date"):
+        after = int(midnight(p["from_date"]).timestamp() * 1000)
+    if p.get("to_date"):
+        before = int((midnight(p["to_date"]) + timedelta(days=1)).timestamp() * 1000) - 1
+    return after, before
+
+
 def keyword_search(w: Workspace, p: dict[str, Any]) -> dict[str, Any]:
     query = str(p.get("query", "")).strip()
     require(
@@ -170,12 +188,13 @@ def keyword_search(w: Workspace, p: dict[str, Any]) -> dict[str, Any]:
     if meeting_ids:
         filters.append("m.id IN(" + ",".join("?" for _ in meeting_ids) + ")")
         params.extend(meeting_ids)
-    if p.get("after_ms") is not None:
-        filters.append("m.started_at>=?")
-        params.append(p["after_ms"])
-    if p.get("before_ms") is not None:
-        filters.append("m.started_at<=?")
-        params.append(p["before_ms"])
+    after_ms, before_ms = date_bounds(p)
+    if after_ms is not None:
+        filters.append("COALESCE(m.started_at,m.created_at)>=?")
+        params.append(after_ms)
+    if before_ms is not None:
+        filters.append("COALESCE(m.started_at,m.created_at)<=?")
+        params.append(before_ms)
     # Edits invalidate stale chunks immediately. Catch up only this query's scope
     # so keyword search does not depend on a background worker having run first.
     freshness_sql = "SELECT DISTINCT m.id FROM meetings m JOIN transcript_runs t ON t.meeting_id=m.id JOIN utterances u ON u.run_id=t.id WHERE t.state='active' AND u.is_final=1 AND NOT EXISTS(SELECT 1 FROM search_chunks current WHERE current.meeting_id=m.id AND current.run_id=t.id AND current.source_revision=m.transcript_revision)"
@@ -287,12 +306,13 @@ def register_retrieval(w: Workspace, r: CommandRegistry) -> None:
             if meeting_ids:
                 filters.append("c.meeting_id IN(" + ",".join("?" for _ in meeting_ids) + ")")
                 params.extend(meeting_ids)
-            if p.get("after_ms") is not None:
-                filters.append("m.started_at>=?")
-                params.append(p["after_ms"])
-            if p.get("before_ms") is not None:
-                filters.append("m.started_at<=?")
-                params.append(p["before_ms"])
+            after_ms, before_ms = date_bounds(p)
+            if after_ms is not None:
+                filters.append("COALESCE(m.started_at,m.created_at)>=?")
+                params.append(after_ms)
+            if before_ms is not None:
+                filters.append("COALESCE(m.started_at,m.created_at)<=?")
+                params.append(before_ms)
             rows = w.connection.execute(
                 "SELECT c.*,m.title AS meeting_title,vec_distance_cosine(e.vector,?) distance FROM chunk_embeddings e JOIN search_chunks c ON c.id=e.chunk_id JOIN meetings m ON m.id=c.meeting_id JOIN transcript_runs t ON t.id=c.run_id WHERE "
                 + " AND ".join(filters)

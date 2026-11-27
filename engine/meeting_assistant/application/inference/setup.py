@@ -198,7 +198,8 @@ def setup_llm(w: Workspace, p: dict[str, Any]) -> dict[str, Any]:
         raise ProviderError("invalid_input", "This provider needs an endpoint")
     endpoint = normalize_endpoint(endpoint)
     loopback = is_loopback(endpoint)
-    ollama_local = adapter == "ollama" and loopback
+    # Ollama also serves cloud models (`*:cloud`, `*-cloud`) that leave this machine.
+    ollama_local = adapter == "ollama" and loopback and not p["model"].endswith("cloud")
     with w.transaction():
         connection = ensure(
             w,
@@ -206,9 +207,13 @@ def setup_llm(w: Workspace, p: dict[str, Any]) -> dict[str, Any]:
             {"adapter_id": adapter, "endpoint": endpoint},
             {
                 "display_name": adapter,
-                "auth_kind": "bearer" if p.get("secret_ref") else "none",
-                "secret_ref": p.get("secret_ref"),
                 "declared_execution": "local" if loopback else "remote",
+                # A payload without a key keeps the saved one.
+                **(
+                    {"auth_kind": "bearer", "secret_ref": p["secret_ref"]}
+                    if p.get("secret_ref")
+                    else {}
+                ),
             },
         )
         profile = ensure(
@@ -226,6 +231,18 @@ def setup_llm(w: Workspace, p: dict[str, Any]) -> dict[str, Any]:
             {"task": "general", "project_id": None},
             {"model_profile_id": profile["id"]},
         )
+        for row in w.list("task_policies"):
+            if (
+                row["task"] == "summary"
+                and row.get("project_id") is None
+                and row.get("model_profile_id") != profile["id"]
+            ):
+                w.put(
+                    "task_policies",
+                    row["id"],
+                    {"model_profile_id": profile["id"]},
+                    expected_revision=row["revision"],
+                )
         destination = connection_value(connection)["destination"]
         local = (
             resolve_capabilities(

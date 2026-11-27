@@ -244,7 +244,7 @@ class AudioPipeline:
                 # model takes ~60s to start, and the meeting's first words must still be labelled.
                 while (
                     queue
-                    and monotonic - queue[0].monotonic_ns > 30_000_000_000
+                    and monotonic - queue[0].monotonic_ns > 45_000_000_000
                     and (
                         not diarize
                         or queue[0].monotonic_ns < self.diarized_ns.get(key, 0)

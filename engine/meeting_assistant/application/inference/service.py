@@ -276,6 +276,8 @@ class InferenceService:
                     cap = min(
                         parsed.budgets.output_tokens or defaults[1],
                         route.profile.output_tokens or parsed.budgets.output_tokens or defaults[1],
+                        # Small windows (Ollama 8192) must keep room for the prompt.
+                        route.profile.context_tokens // 4,
                     )
                     selected = self._select_evidence(
                         evidence,
@@ -318,7 +320,7 @@ class InferenceService:
                         if calls >= parsed.budgets.max_requests:
                             raise ProviderError("quota", "Task request budget exhausted")
                         current_input = len(
-                            (prompt + json.dumps(messages, ensure_ascii=False)).encode("utf-8")
+                            (prompt + "".join(m["content"] for m in messages)).encode("utf-8")
                         )
                         if current_input * 1.1 + cap > route.profile.context_tokens:
                             raise ProviderError(
@@ -413,7 +415,11 @@ class InferenceService:
                                 }
                             )
                             if (
-                                len((prompt + json.dumps(messages, ensure_ascii=False)).encode())
+                                len(
+                                    (prompt + "".join(m["content"] for m in messages)).encode(
+                                        "utf-8"
+                                    )
+                                )
                                 * 1.1
                                 + cap
                                 > route.profile.context_tokens
@@ -704,9 +710,7 @@ class InferenceService:
                     )
         if parsed.connection.adapter == "e5-onnx":
             worker = await self._worker(parsed)
-            result = await worker.request(
-                "embed", value.model_dump(), timeout=parsed.budgets.deadline_seconds or 120
-            )
+            result = await worker.request("embed", value.model_dump(), timeout=120)
             return EmbeddingResult.model_validate(result).model_dump()
         llm = self.registry.resolve(parsed.connection, parsed.profile, secret)
         result = await CloudEmbedder(llm).embed(
@@ -902,7 +906,7 @@ class InferenceService:
                         "language": None if not language or language == "auto" else language,
                         "vocabulary": vocabulary or [],
                     },
-                    timeout=parsed.budgets.deadline_seconds or 120,
+                    timeout=120,
                     cancelled=cancelled,
                 )
             return [
@@ -1089,7 +1093,7 @@ class InferenceService:
                         "model_fingerprint": caps.fingerprint,
                         "session_id": (meeting or {}).get("id", str(uuid.uuid4())),
                     },
-                    timeout=parsed.budgets.deadline_seconds or 180,
+                    timeout=180,
                 )
 
     async def count_vocabulary_tokens(self, profile: dict[str, Any], texts: list[str]) -> list[int]:

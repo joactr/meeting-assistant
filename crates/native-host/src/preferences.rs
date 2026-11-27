@@ -72,7 +72,15 @@ pub struct Store {
 impl Store {
     pub fn open(path: PathBuf) -> Result<Self> {
         let value = if path.exists() {
-            serde_json::from_slice(&std::fs::read(&path)?)?
+            match serde_json::from_slice(&std::fs::read(&path)?) {
+                Ok(value) => value,
+                // Corrupt or from another version: keep it aside and start from defaults
+                // rather than failing app startup.
+                Err(_) => {
+                    std::fs::rename(&path, path.with_extension("json.bak"))?;
+                    Preferences::default()
+                }
+            }
         } else {
             Preferences::default()
         };

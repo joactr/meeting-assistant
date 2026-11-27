@@ -40,7 +40,7 @@ def task_policy(
                 "scope": chosen.get("scope", "workspace"),
                 "data_classes": ["live_audio"]
                 if task in ("asr", "diarization")
-                else ["historical_text"]
+                else ["historical_text", "historical_excerpts"]
                 if task == "ask"
                 else ["meeting_text", "human_notes"],
             }

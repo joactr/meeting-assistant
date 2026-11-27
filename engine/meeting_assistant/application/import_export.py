@@ -668,10 +668,7 @@ def register_import_export(w: Workspace, r: CommandRegistry) -> None:
 
     async def restore(p: JSONDocument) -> JSONDocument:
         require(
-            not any(
-                m["state"] in ("starting", "recording", "paused", "stopping")
-                for m in w.list("meetings")
-            ),
+            not w.active_meetings(),
             "restore_capture_active",
             "Stop and preserve capture before restoring.",
         )
@@ -729,6 +726,9 @@ def register_import_export(w: Workspace, r: CommandRegistry) -> None:
                 w.connection.execute("UPDATE issue_links SET state='unknown' WHERE state='sending'")
                 w.connection.execute(
                     "UPDATE jobs SET status='queued',lease_owner=NULL,lease_until=NULL WHERE status='running'"
+                )
+                w.interrupt_live_meetings(
+                    "This meeting was recording when the backup was made. Everything transcribed before then is kept."
                 )
                 w.emit("workspace.restored", {"rollback_retained": True})
             return {

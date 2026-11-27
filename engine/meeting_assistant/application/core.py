@@ -67,6 +67,8 @@ def requeue_job(w: Workspace, job: dict[str, Any]) -> dict[str, Any]:
 
 
 def register_core(w: Workspace, r: CommandRegistry) -> None:
+    from meeting_assistant.application.transcripts import all_items
+
     def status(p: dict[str, Any]) -> dict[str, Any]:
         return {
             "item": {
@@ -81,11 +83,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                     "deterministic_export": True,
                     "capture": w.native_gateway is not None,
                 },
-                "active_meetings": [
-                    m
-                    for m in w.list("meetings")
-                    if m["state"] in ("starting", "recording", "paused", "stopping")
-                ],
+                "active_meetings": w.active_meetings(),
                 "shutdown_reservation": w.shutdown_reservation,
             }
         }
@@ -186,11 +184,18 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
 
     def list_meetings(p: dict[str, Any]) -> dict[str, Any]:
         from meeting_assistant.application.retrieval import paginate
-        from meeting_assistant.application.transcripts import all_items
 
         filters = dict(p.get("filters", {}))
         filters.update({key: p[key] for key in ("project_id", "state") if key in p})
-        items = all_items(w, "meetings", filters)
+        from meeting_assistant.application.retrieval import date_bounds
+
+        after, before = date_bounds(p)
+        items = [
+            m
+            for m in all_items(w, "meetings", filters)
+            if (after is None or (m.get("started_at") or m["created_at"]) >= after)
+            and (before is None or (m.get("started_at") or m["created_at"]) <= before)
+        ]
         return paginate(
             items,
             p,
@@ -239,7 +244,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             "Stop and preserve capture before deletion.",
         )
         with w.transaction():
-            media = w.list("media_segments", {"meeting_id": entity_id})
+            media = all_items(w, "media_segments", {"meeting_id": entity_id})
             remote = w.connection.execute(
                 "SELECT remote_url FROM issue_links WHERE action_id IN(SELECT id FROM actions WHERE meeting_id=?)",
                 (entity_id,),
@@ -262,8 +267,9 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
                 (entity_id,),
             )
             w.connection.execute("DELETE FROM memory_segments WHERE meeting_id=?", (entity_id,))
+            # `project_id = NULL` never matches, so meetings without a project keep the others' briefings.
             w.connection.execute(
-                "DELETE FROM briefings WHERE meeting_id=? OR project_id IS ?",
+                "DELETE FROM briefings WHERE meeting_id=? OR project_id=?",
                 (entity_id, item.get("project_id")),
             )
             result = w.delete(
@@ -774,7 +780,15 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
 
     def retry(p: dict[str, Any]) -> dict[str, Any]:
         mid = p.get("meeting_id", p.get("id"))
-        jobs = w.list("jobs", {"meeting_id": mid}) if mid else [w.require_item("jobs", p["job_id"])]
+        jobs = (
+            list(
+                {
+                    (j["kind"], j["stage"]): j for j in all_items(w, "jobs", {"meeting_id": mid})
+                }.values()
+            )
+            if mid
+            else [w.require_item("jobs", p["job_id"])]
+        )
         selected: list[dict[str, Any]] = []
         with w.transaction():
             for job in jobs:
@@ -821,22 +835,22 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
 
     r["meetings.source_retry"] = source_retry
 
+    def preservation_watermarks() -> dict[str, Any]:
+        return {
+            row[0]: row[1]
+            for row in w.connection.execute(
+                "SELECT id,stop_watermark FROM meetings WHERE stop_watermark IS NOT NULL"
+            )
+        }
+
     def shutdown_prepare(p: dict[str, Any]) -> dict[str, Any]:
-        active = [
-            m
-            for m in w.list("meetings")
-            if m["state"] in ("starting", "recording", "paused", "stopping")
-        ]
+        active = w.active_meetings()
         reservation = {
             "reservation_id": new_id(),
             "blockers": [
                 {"meeting_id": m["id"], "code": "capture_requires_preservation"} for m in active
             ],
-            "preservation_watermarks": {
-                m["id"]: m["stop_watermark"]
-                for m in w.list("meetings")
-                if m.get("stop_watermark") is not None
-            },
+            "preservation_watermarks": preservation_watermarks(),
             "safe_to_exit": not active,
         }
         w.shutdown_reservation = reservation
@@ -864,10 +878,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             "Shutdown reservation is not current.",
         )
         require(
-            not any(
-                m["state"] in ("starting", "recording", "paused", "stopping")
-                for m in w.list("meetings")
-            ),
+            not w.active_meetings(),
             "shutdown_blocked",
             "Capture must be stopped and preserved before shutdown.",
         )
@@ -876,11 +887,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
         return {
             "safe_to_exit": True,
             "reservation_id": p["reservation_id"],
-            "preservation_watermarks": {
-                m["id"]: m["stop_watermark"]
-                for m in w.list("meetings")
-                if m.get("stop_watermark") is not None
-            },
+            "preservation_watermarks": preservation_watermarks(),
         }
 
     r["shutdown.commit"] = shutdown_commit
@@ -944,6 +951,16 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
             )
         if collection == "vocabulary_terms":
             data = {**data, "normalized_term": str(data.get("term", "")).casefold().strip()}
+        if collection == "task_policies" and op == "create":
+            require(
+                not any(
+                    x["task"] == data.get("task") and x.get("project_id") == data.get("project_id")
+                    for x in w.list("task_policies")
+                ),
+                "invalid_input",
+                "A route for this task already exists. Edit it instead.",
+                status=409,
+            )
         if op == "delete":
             with w.transaction():
                 profiles = (
@@ -1088,20 +1105,37 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
     r["undo.apply"] = undo
 
     def followups(p: dict[str, Any]) -> dict[str, Any]:
-        from meeting_assistant.application.retrieval import paginate
+        from meeting_assistant.application.retrieval import date_bounds, paginate
 
         items = [
             {**i, "kind": kind}
             for collection, kind in (("actions", "action"), ("important_moments", "moment"))
-            for i in w.list(collection, limit=200)
+            for i in all_items(
+                w, collection, {"meeting_id": p["meeting_id"]} if p.get("meeting_id") else None
+            )
         ]
-        for key in ("meeting_id", "status", "priority"):
+        for key in ("status", "priority"):
             if p.get(key):
                 items = [i for i in items if i.get(key) == p[key]]
         if not p.get("status"):
             items = [i for i in items if i.get("status") != "dismissed"]
         if p.get("assignee"):
             items = [i for i in items if i.get("assignee_text", i.get("assignee")) == p["assignee"]]
+        if p.get("project_id"):
+            in_project = {
+                row[0]
+                for row in w.connection.execute(
+                    "SELECT id FROM meetings WHERE project_id=?", (p["project_id"],)
+                )
+            }
+            items = [i for i in items if i.get("meeting_id") in in_project]
+        after, before = date_bounds(p)
+        items = [
+            i
+            for i in items
+            if (after is None or int(i["created_at"]) >= after)
+            and (before is None or int(i["created_at"]) <= before)
+        ]
         today = __import__("datetime").date.today().isoformat()
         order = {"open": 1, "in_progress": 2, "done": 3, "dismissed": 4}
         return paginate(
@@ -1121,7 +1155,11 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
     r["jobs.attention"] = lambda p: {
         "items": w.list("jobs", {"status": "failed"}, limit=200),
         "meetings": [
-            m for m in w.list("meetings") if m["state"] in ("attention_required", "interrupted")
+            m
+            for (mid,) in w.connection.execute(
+                "SELECT id FROM meetings WHERE state IN('attention_required','interrupted')"
+            ).fetchall()
+            if (m := w.get("meetings", mid))
         ],
     }
 
@@ -1151,7 +1189,7 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
 
     r["jobs.cancel"] = cancel_job
     r["events.snapshot"] = lambda p: {
-        "items": w.list("meetings"),
+        "items": all_items(w, "meetings"),
         "watermark": w.events()["watermark"],
     }
 
@@ -1242,16 +1280,13 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
 
     def analysis_list(p: dict[str, Any]) -> dict[str, Any]:
         # Current results only: a regenerated task supersedes its earlier results.
-        ids = {run["id"] for run in w.list("analysis_runs", {"meeting_id": p["meeting_id"]})}
-        return {
-            "items": [
-                i
-                for i in w.list("analysis_results")
-                if i["run_id"] in ids
-                and i["state"] != "superseded"
-                and (not p.get("task") or i["kind"] == p["task"])
-            ]
-        }
+        rows = w.connection.execute(
+            "SELECT r.* FROM analysis_results r JOIN analysis_runs a ON a.id=r.run_id"
+            " WHERE a.meeting_id=? AND r.state!='superseded' AND (? IS NULL OR r.kind=?)"
+            " ORDER BY r.created_at,r.id",
+            (p["meeting_id"], p.get("task") or None, p.get("task") or None),
+        ).fetchall()
+        return {"items": [w.decode(row) for row in rows]}
 
     r["analysis.list"] = analysis_list
 
@@ -1260,7 +1295,10 @@ def register_core(w: Workspace, r: CommandRegistry) -> None:
         # that failed in stage_output, so they report too. `error` is the human message.
         latest: dict[str, dict[str, Any]] = {}
         for job in sorted(
-            w.list("jobs", {"meeting_id": p["meeting_id"]}),
+            [
+                *all_items(w, "jobs", {"meeting_id": p["meeting_id"], "kind": "analysis"}),
+                *all_items(w, "jobs", {"meeting_id": p["meeting_id"], "kind": "finalize"}),
+            ],
             key=lambda j: (j["updated_at"], j["created_at"]),
         ):
             if job["kind"] == "analysis":
@@ -1347,8 +1385,10 @@ async def execute_analysis(w: Workspace, job: dict[str, Any]) -> None:
         {
             "meeting_id": meeting["id"],
             "task": task,
-            "input_revision": payload["input_revision"],
-            "note_revision": payload.get("note_revision", meeting["note_revision"]),
+            # Revisions as of the evidence read below, so edits made while the job waited
+            # in the queue do not discard the result.
+            "input_revision": meeting["transcript_revision"],
+            "note_revision": meeting["note_revision"],
             "watermark": payload["input_revision"],
             "policy_hash": payload.get("policy_hash", meeting["policy_hash"]),
             "status": "running",
@@ -1485,6 +1525,13 @@ async def execute_analysis(w: Workspace, job: dict[str, Any]) -> None:
                     {"result_id": candidate["id"], "reason": "inputs_changed"},
                     meeting_id=meeting["id"],
                 )
+                if job["kind"] == "finalize":
+                    # Live jobs regenerate on the next tick; a finished meeting must show Retry.
+                    raise AppError(
+                        "stale_analysis",
+                        "The meeting changed while this was being generated. Retry to update it.",
+                        status=409,
+                    )
                 return
             if task != "minutes":
                 promote_result(w, candidate["id"], candidate["revision"])

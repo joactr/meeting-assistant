@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { request } from '../lib/bridge';
 import { useResource } from '../lib/queries';
+import { useAllMeetings } from '../lib/paged-query';
 import { array, clock, humanize, id, item, items, label, text, type Payload, type RecordData } from '../lib/data';
 import { Bookmark } from 'lucide-react';
 import { FilterDisclosure, MeetingPicker, Segmented } from '../components/controls';
@@ -21,8 +22,8 @@ export function FollowupsPage() {
   const [previous, setPrevious] = useState<(string | null)[]>([]);
   const query = useResource('followups.list', { ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== '')), limit: 50, ...(cursor ? { cursor } : {}) });
   const projects = useResource('projects.list');
-  const meetings = useResource('meetings.list', { limit: 100 });
-  const titles = new Map(items(meetings.data).map((meeting) => [id(meeting), label(meeting)]));
+  const meetings = useAllMeetings();
+  const titles = new Map(meetings.rows.map((meeting) => [id(meeting), label(meeting)]));
   const change = (key: string, value: Payload[string]): void => { setFilters((current) => ({ ...current, [key]: value })); setCursor(null); setPrevious([]); };
   const extra = ['priority', 'meeting_id', 'from_date', 'to_date'].filter((key) => filters[key] !== '').length;
   return <><PageHeader title="Follow-ups" /><Panel>

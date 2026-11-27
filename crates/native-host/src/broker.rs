@@ -353,6 +353,11 @@ impl Broker {
                 },
             ))?);
         }
+        if op == "close" {
+            // Dropping the player ends its thread and releases the output device.
+            guard.take();
+            return Ok(json!({"playing":false,"position_ms":0,"speed":1.}));
+        }
         let player = guard.as_ref().unwrap();
         match op {
             "play" => {
@@ -431,14 +436,13 @@ impl Broker {
                 );
                 player.sources(muted, request["solo_source"].as_str().map(str::to_owned))?
             }
-            "close" => player.close()?,
             "state" => {}
             _ => bail!("Unsupported playback operation"),
         }
         player.check()?;
-        let value = json!({"playing":player.playing.load(std::sync::atomic::Ordering::Acquire),"position_ms":player.position.load(std::sync::atomic::Ordering::Acquire),"speed":f32::from_bits(player.speed_bits.load(std::sync::atomic::Ordering::Acquire)as u32)});
-        (self.events)("native.media.playback", value.clone());
-        Ok(value)
+        Ok(
+            json!({"playing":player.playing.load(std::sync::atomic::Ordering::Acquire),"position_ms":player.position.load(std::sync::atomic::Ordering::Acquire),"speed":f32::from_bits(player.speed_bits.load(std::sync::atomic::Ordering::Acquire)as u32)}),
+        )
     }
 }
 fn required<'a>(value: &'a Value, key: &str) -> Result<&'a str> {

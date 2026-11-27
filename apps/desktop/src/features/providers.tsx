@@ -81,8 +81,9 @@ function TaskRouting({ row, profiles, connections }: { row?: RecordData; profile
   const [fallbacks, setFallbacks] = useState<string[]>(() => (Array.isArray(row?.fallback_ids) ? row.fallback_ids : []).map((value) => text(value)));
   const others = profiles.filter((profile) => id(profile) !== text(row?.model_profile_id));
   const title = row ? 'Edit task routing' : 'Add task routing';
-  return <Modal trigger={<button>{title}</button>} title={title}>
-    <CommandForm operation={row ? 'entity.update' : 'entity.create'} fixed={{ collection: 'task_policies', ...(row ? { id: row.id ?? '', expected_revision: row.revision ?? 1 } : {}) }} fields={taskPolicyFields(profiles, connections, row)} mapPayload={(payload) => ({ ...payload, deadline_ms: typeof payload.deadline_ms === 'number' ? Math.round(payload.deadline_ms * 1000) : payload.deadline_ms ?? null, fallback_ids: fallbacks.filter((fallback) => fallback !== payload.model_profile_id) })}>
+  const rev = useRef(row?.revision ?? 1);
+  return <Modal onOpenChange={(open) => { if (open) rev.current = row?.revision ?? 1; }} trigger={<button>{title}</button>} title={title}>
+    <CommandForm operation={row ? 'entity.update' : 'entity.create'} fixed={{ collection: 'task_policies', ...(row ? { id: row.id ?? '', expected_revision: rev.current } : {}) }} fields={taskPolicyFields(profiles, connections, row)} mapPayload={(payload) => ({ ...payload, deadline_ms: typeof payload.deadline_ms === 'number' ? Math.round(payload.deadline_ms * 1000) : payload.deadline_ms ?? null, fallback_ids: fallbacks.filter((fallback) => fallback !== payload.model_profile_id) })}>
       {others.length > 0 && <fieldset><legend>Fallback models (tried in the order ticked)</legend>{others.map((profile) => <label key={id(profile)} className={styles.check}><input type="checkbox" checked={fallbacks.includes(id(profile))} onChange={(event) => setFallbacks(event.target.checked ? [...fallbacks, id(profile)] : fallbacks.filter((fallback) => fallback !== id(profile)))} />{profileLabel(profile, connections)}</label>)}</fieldset>}
     </CommandForm>
   </Modal>;

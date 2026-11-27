@@ -39,7 +39,7 @@ function QuitGuard() {
   }, [attempt]);
   const keepWorking = (): void => { setState(null); void nativeRequest('prepare_exit', { cancel: true }).catch(() => undefined); };
   const busy = state?.phase === 'working';
-  return <Modal open={state !== null} onOpenChange={(open) => { if (!open) keepWorking(); }} title="Quit Meeting Assistant">
+  return <Modal open={state !== null} onOpenChange={(open) => { if (!open && !busy) keepWorking(); }} title="Quit Meeting Assistant">
     {busy && <Notice>Checking…</Notice>}
     {state?.phase === 'blocked' && <><Notice danger>Stop the active meeting, then try again.</Notice><Details value={state.result} title="Blockers" /></>}
     {state?.phase === 'error' && <><ErrorNotice error={state.error} /><Notice danger>Quitting now can lose active recording audio.</Notice></>}
@@ -118,6 +118,15 @@ function Shell() {
     void subscribeEngine(client).then((unlisten) => { if (disposed) unlisten(); else cleanup = unlisten; }).catch(setError);
     return () => { disposed = true; cleanup?.(); };
   }, [client]);
+  useEffect(() => {
+    if (!nativeAvailable()) return undefined;
+    let disposed = false; let cleanup: (() => void) | undefined;
+    // Native failures with no other place to show: the engine could not restart, preferences were not saved.
+    void listen<{ type?: string; data?: RecordData }>('engine-event', ({ payload }) => {
+      if (payload.type === 'native.engine.error' || payload.type === 'native.preferences.error') setError(new Error(text(payload.data?.message, 'Something went wrong.')));
+    }).then((unlisten) => { if (disposed) unlisten(); else cleanup = unlisten; });
+    return () => { disposed = true; cleanup?.(); };
+  }, []);
   useEffect(() => {
     const shortcuts = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement | null;

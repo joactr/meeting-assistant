@@ -145,6 +145,9 @@ async fn native_preferences_set(
 ) -> Result<Value, NativeError> {
     let mut store = host.prefs.lock().await;
     let old = store.value.clone();
+    // Window geometry is native-owned (persist_geometry); the UI's copy may be stale.
+    let mut preferences = preferences;
+    preferences.window = old.window.clone();
     if let Err(error) = apply_preferences(&app, &preferences, false)
         .and_then(|_| store.persist(preferences.clone()))
     {
@@ -165,12 +168,17 @@ async fn media_playback(
 }
 #[tauri::command]
 async fn file_grant(
+    app: tauri::AppHandle,
     host: tauri::State<'_, Host>,
     purpose: String,
     file_name: Option<String>,
 ) -> Result<Value, NativeError> {
     let mut dialog =
         rfd::AsyncFileDialog::new().set_title("Meeting Assistant — explicit file access");
+    // Modal to the app window so it can't open behind it.
+    if let Some(window) = app.get_webview_window("main") {
+        dialog = dialog.set_parent(&window);
+    }
     if let Some(name) = file_name {
         // Suggested name only; the user still picks (or edits) the destination.
         let name: String = name
@@ -231,11 +239,20 @@ async fn oauth_cancel(host: tauri::State<'_, Host>) -> Result<Value, NativeError
 }
 #[tauri::command]
 async fn vault_prompt(
+    app: tauri::AppHandle,
     host: tauri::State<'_, Host>,
     secret_ref: String,
     label: String,
 ) -> Result<Value, NativeError> {
-    let value = tauri::async_runtime::spawn_blocking(move || secure_prompt::prompt(&label))
+    // Window handle as an integer so it can cross into the blocking thread; 0 means no parent.
+    #[cfg(windows)]
+    let parent = app
+        .get_webview_window("main")
+        .and_then(|window| window.hwnd().ok())
+        .map_or(0, |hwnd| hwnd.0 as isize);
+    #[cfg(not(windows))]
+    let parent = 0;
+    let value = tauri::async_runtime::spawn_blocking(move || secure_prompt::prompt(&label, parent))
         .await
         .map_err(anyhow::Error::from)??;
     if let Some(value) = value {
@@ -479,19 +496,47 @@ async fn update_install(
         .await
         .clone()
         .context("Check and review an update before installing")?;
+    let blocked = |reservation: &Value| {
+        !reservation["blockers"]
+            .as_array()
+            .map(|a| a.is_empty())
+            .unwrap_or(false)
+    };
+    // Check blockers before downloading, without holding a reservation that blocks new capture.
+    let reservation = reserve(&host).await?;
+    release_reservation(&host).await;
+    if blocked(&reservation) {
+        return Ok(json!({"state":"blocked","reservation":reservation}));
+    }
     let emit = app.clone();
     let bytes=update.download(move|chunk,total|{let _=emit.emit("engine-event",json!({"protocol_version":1,"type":"native.update.progress","data":{"chunk_bytes":chunk,"total_bytes":total}}));},||{}).await.map_err(anyhow::Error::from)?;
     let reservation = reserve(&host).await?;
-    if !reservation["blockers"]
-        .as_array()
-        .map(|a| a.is_empty())
-        .unwrap_or(false)
-    {
+    if blocked(&reservation) {
+        release_reservation(&host).await;
         return Ok(json!({"state":"blocked","reservation":reservation}));
     }
-    commit_shutdown(&host).await?;
-    update.install(bytes).map_err(anyhow::Error::from)?;
+    if let Err(error) = commit_shutdown(&host).await {
+        release_reservation(&host).await;
+        return Err(error.into());
+    }
+    if update.install(bytes).is_err() {
+        // The engine has already shut down; start over rather than run without it.
+        app.restart();
+    }
     Ok(json!({"state":"installing"}))
+}
+/// Drops the host and engine shutdown reservation so a blocked quit or update doesn't block capture.
+async fn release_reservation(host: &Host) {
+    if let Some(reservation) = host.reservation.lock().await.take() {
+        if let Ok(engine) = host.broker.engine().await {
+            let _ = engine
+                .internal(
+                    "shutdown.cancel",
+                    &json!({"reservation_id":reservation["reservation_id"]}),
+                )
+                .await;
+        }
+    }
 }
 fn tray_icon() -> tauri::image::Image<'static> {
     let mut pixels = vec![0u8; 32 * 32 * 4];
@@ -509,7 +554,22 @@ fn install_tray(app: &tauri::App) -> Result<()> {
     let show = MenuItem::with_id(app, "show", "Show Meeting Assistant", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit — preserve meeting", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &quit])?;
-    tauri::tray::TrayIconBuilder::with_id("status").icon(tray_icon()).tooltip("Meeting Assistant — not recording").menu(&menu).on_menu_event(|app,event|{if event.id.as_ref()=="show"{if let Some(window)=app.get_webview_window("main"){let _=window.show();let _=window.set_focus();}}else if event.id.as_ref()=="quit"{let app=app.clone();tauri::async_runtime::spawn(async move{let host=app.state::<Host>();match reserve(&host).await{Ok(reservation)=>{if reservation["blockers"].as_array().map(|a|a.is_empty()).unwrap_or(false){if commit_shutdown(&host).await.is_ok(){app.exit(0)}}else{if let Some(window)=app.get_webview_window("main"){let _=window.show();}let _=app.emit("engine-event",json!({"protocol_version":1,"type":"native.shutdown.blocked","data":reservation}));}},Err(e)=>{let _=app.emit("engine-event",json!({"protocol_version":1,"type":"native.error","data":{"message":e.to_string()}}));}}});}}).build(app)?;
+    tauri::tray::TrayIconBuilder::with_id("status")
+        .icon(tray_icon())
+        .tooltip("Meeting Assistant — not recording")
+        .menu(&menu)
+        .on_menu_event(|app, event| {
+            if event.id.as_ref() == "show" {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            } else if event.id.as_ref() == "quit" {
+                // Same path as closing the window: the UI flushes drafts, shows blockers and cancels.
+                tauri::async_runtime::spawn(request_quit(app.clone()));
+            }
+        })
+        .build(app)?;
     Ok(())
 }
 fn configure(app: &mut tauri::App) -> Result<()> {
@@ -590,10 +650,13 @@ fn configure(app: &mut tauri::App) -> Result<()> {
                 let _ = broker.capture.lock().await.stop();
                 (events)("native.engine.interrupted", json!({"message":"Engine heartbeat lost: capture stopped; preserved data can be recovered","automatic_restart_used":restarted}));
                 let _ = engine.terminate().await;
+                // Requests now fail as "not ready" (retried by the UI) instead of hitting a dead engine.
+                *broker.engine.write().await = None;
                 if restarted { break; }
                 restarted = true;
                 let replacement = Engine::launch(&launch, zeroize::Zeroizing::new(token.to_string())).await?;
                 *broker.engine.write().await = Some(replacement);
+                (events)("native.engine.ready", json!({"build_id": launch.build_id}));
                 last = Instant::now();
             }
             Ok::<_, anyhow::Error>(())

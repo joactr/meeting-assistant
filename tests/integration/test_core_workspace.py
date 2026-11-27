@@ -470,3 +470,52 @@ def test_secret_reference_is_opaque_not_a_credential(workspace: Workspace) -> No
             },
         )
     assert error.value.code == "invalid_secret_ref"
+
+
+def test_date_filters_are_inclusive_local_days(workspace: Workspace) -> None:
+    import datetime
+
+    meeting = create_text_meeting(workspace)
+    ingest(workspace, meeting["id"])
+    today = datetime.date.today()
+    yesterday = (today - datetime.timedelta(days=1)).isoformat()
+    tomorrow = (today + datetime.timedelta(days=1)).isoformat()
+
+    def found(op: str, dates: dict) -> bool:
+        payload = {"query": "release", "mode": "keyword", **dates}
+        return bool(asyncio.run(workspace.adispatch(op, payload))["items"])
+
+    assert found("search.query", {"from_date": today.isoformat(), "to_date": today.isoformat()})
+    assert not found("search.query", {"to_date": yesterday})
+    assert not found("search.query", {"from_date": tomorrow})
+    assert workspace.dispatch("meetings.list", {"to_date": today.isoformat()})["items"]
+    assert not workspace.dispatch("meetings.list", {"from_date": tomorrow})["items"]
+    with pytest.raises(AppError) as error:
+        workspace.dispatch("meetings.list", {"from_date": "13/01/2026"})
+    assert error.value.code == "invalid_date"
+
+
+def test_deleting_meeting_purges_transcript_edit_history(workspace: Workspace) -> None:
+    meeting = create_text_meeting(workspace)
+    utterance = ingest(workspace, meeting["id"])
+    workspace.dispatch(
+        "transcript.edit",
+        {"id": utterance["id"], "expected_revision": utterance["revision"], "text": "Fixed."},
+    )
+    count = (
+        "SELECT COUNT(*) FROM document_history WHERE collection='utterance_revisions'"
+        " AND entity_id IN (SELECT id FROM utterance_revisions WHERE utterance_id=?)"
+    )
+    assert workspace.connection.execute(count, (utterance["id"],)).fetchone()[0] > 0
+    workspace.dispatch(
+        "meetings.delete",
+        {
+            "id": meeting["id"],
+            "expected_revision": workspace.get("meetings", meeting["id"])["revision"],
+            "confirm": True,
+        },
+    )
+    leftover = workspace.connection.execute(
+        "SELECT COUNT(*) FROM document_history WHERE collection='utterance_revisions'"
+    ).fetchone()[0]
+    assert leftover == 0

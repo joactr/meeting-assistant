@@ -632,7 +632,10 @@ def register_transcripts(w: Workspace, r: CommandRegistry) -> None:
                     )
             speaker_id = p.get("speaker_id")
             if not speaker_id and source_id:
-                speaker_id = w.require_item("capture_sources", source_id).get("speaker_id")
+                source_item = w.get("capture_sources", source_id)
+                speaker_id = source_item.get("speaker_id") if source_item else None
+                if speaker_id and not w.get("meeting_speakers", speaker_id):
+                    speaker_id = None
             if speaker_id and not item["manual_speaker_lock"]:
                 assign_speaker(w, item, speaker_id, manual=False)
             w.emit(
@@ -1152,6 +1155,14 @@ def register_transcripts(w: Workspace, r: CommandRegistry) -> None:
                 "UPDATE speaker_clusters SET mapped_speaker_id=? WHERE mapped_speaker_id=?",
                 (target["id"], source["id"]),
             )
+            for src in all_items(w, "capture_sources", {"meeting_id": source["meeting_id"]}):
+                if src.get("speaker_id") == source["id"]:
+                    w.put(
+                        "capture_sources",
+                        src["id"],
+                        {"speaker_id": target["id"]},
+                        expected_revision=src["revision"],
+                    )
             w.delete("meeting_speakers", source["id"], expected_revision=source["revision"])
             updated = w.put(
                 "meeting_speakers",

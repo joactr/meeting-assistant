@@ -137,7 +137,7 @@ export async function subscribeEngine(client: QueryClient): Promise<() => void> 
     // Live captions and level meters render straight from the event; nothing stored to reload.
     // (Level events arrive several times a second and otherwise reloaded every query, including
     // the second-long setup.status, on a 2 s loop for the whole meeting.)
-    if (payload.type === 'transcript.interim' || payload.type === 'native.audio.level') return;
+    if (payload.type === 'transcript.interim' || payload.type === 'native.audio.level' || payload.type === 'native.media.playback') return;
     // A new line is what people watch for: reload the transcript now, not on the next throttled pass.
     // (Its transcript.utterance_final shares the entity revision and is deduplicated above.)
     if (payload.type === 'utterances.created' && payload.meeting_id) void client.invalidateQueries({ queryKey: ['engine', 'transcript.list', { meeting_id: payload.meeting_id }] });
