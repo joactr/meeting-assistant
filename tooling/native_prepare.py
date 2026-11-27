@@ -125,29 +125,21 @@ def prepare(download: bool) -> dict:
     }.get((system, machine))
     if target is None:
         raise RuntimeError(f"No audited native dependency archive for {system}/{machine}")
-    name = f"onnxruntime-{target}-1.22.0.{'zip' if system == 'Windows' else 'tgz'}"
-    extraction = CACHE / f"onnxruntime-{target}"
+    # The microsoft/onnxruntime GitHub releases went 404 (Nov 2026); the official NuGet package
+    # carries the same binaries (win-x64 onnxruntime.dll is byte-identical) for every platform.
+    name = "microsoft.ml.onnxruntime.1.22.0.nupkg"
+    extraction = CACHE / "onnxruntime-nuget"
     safe_extract(acquire(name, artifacts[name], download), extraction)
-    libraries = (
-        list(extraction.glob("**/lib/onnxruntime.dll"))
-        if system == "Windows"
-        else list(
-            extraction.glob(
-                "**/lib/libonnxruntime*.dylib"
-                if system == "Darwin"
-                else "**/lib/libonnxruntime.so.*"
-            )
-        )
-    )
-    libraries = [path for path in libraries if path.is_file() and not path.is_symlink()]
-    if not libraries:
-        raise RuntimeError("Audited ONNX Runtime library absent from archive")
+    rid = {"osx-x86_64": "osx-x64"}.get(target, target)
     library_name = {
         "Windows": "onnxruntime.dll",
         "Darwin": "libonnxruntime.dylib",
         "Linux": "libonnxruntime.so",
     }[system]
-    shutil.copy2(max(libraries, key=lambda path: path.stat().st_size), dsp / library_name)
+    library = extraction / "runtimes" / rid / "native" / library_name
+    if not library.is_file() or library.is_symlink():
+        raise RuntimeError("Audited ONNX Runtime library absent from archive")
+    shutil.copy2(library, dsp / library_name)
     for notice in ("LICENSE", "ThirdPartyNotices.txt"):
         matches = list(extraction.glob(f"**/{notice}"))
         if not matches:
